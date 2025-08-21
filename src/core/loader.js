@@ -7,11 +7,10 @@ import { getClient } from './registry.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-(async () => {
-  try {
-    console.log('📂 Loading commands...');
-    const client = await getClient();
+console.log('📂 Loading commands...');
 
+getClient().then(async (client) => {
+  try {
     const commandsDir = path.join(__dirname, '..', 'commands');
     console.log(`📁 Commands directory: ${commandsDir}`);
     
@@ -53,4 +52,6 @@ const __dirname = path.dirname(__filename);
   } catch (error) {
     console.error('❌ Error in command loader:', error);
   }
-})();
+}).catch((error) => {
+  console.error('❌ Failed to get client in loader:', error);
+});
