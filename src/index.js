@@ -101,9 +101,23 @@ async function startBot() {
   }
 
   console.log('📝 Loading events...');
-  // Register events
-  await import('./events/ready.js');
-  await import('./events/interactionCreate.js');
+  // Register events directly
+  client.once('ready', () => {
+    console.log(`[READY] Logged in as ${client.user.tag}`);
+  });
+
+  client.on('interactionCreate', async (i) => {
+    if (!i.isChatInputCommand()) return;
+    const cmd = client.commands.get(i.commandName);
+    if (!cmd) return;
+    try {
+      await cmd.execute(i);
+    } catch (e) {
+      console.error('Command execution error:', e);
+      if (i.deferred || i.replied) await i.editReply('Something went wrong.');
+      else await i.reply({ content: 'Something went wrong.', ephemeral: true });
+    }
+  });
 
   console.log('🔑 Logging in to Discord...');
   // Enhanced error handling for login
