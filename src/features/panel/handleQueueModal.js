@@ -18,9 +18,9 @@ export async function handleQueueModal(modal, rootInteraction) {
 
   await modal.deferReply({ ephemeral: true });
 
-  const node = modal.client.shoukaku.getNode();
+  const node = modal.client.shoukaku.nodes.values().next().value;
   
-  if (!node) {
+  if (!node || !node.connected) {
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
     });
