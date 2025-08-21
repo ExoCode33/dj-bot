@@ -41,7 +41,7 @@ async function startBot() {
 
   // Wait for command loading to complete
   console.log('⏳ Waiting for commands to load...');
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   console.log('⚡ Registering slash commands...');
   // Enhanced error handling for slash command registration
