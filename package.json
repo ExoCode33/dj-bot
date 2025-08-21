@@ -1,0 +1,17 @@
+{
+  "name": "uta-dj-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "register": "node src/index.js --register-only"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "shoukaku": "^4.0.2"
+  }
+}
