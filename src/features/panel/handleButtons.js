@@ -74,36 +74,19 @@ export async function handleButton(btn, rootInteraction) {
       return btn.showModal(UtaUI.queueModal());
     }
     
+    // If there's a track, handle play/pause
     if (player.paused) {
       await player.resume();
-      await btn.reply({
-        embeds: [new (await import('discord.js')).EmbedBuilder()
-          .setColor('#00FF94')
-          .setTitle('▶️ Uta resumes her performance!')
-          .setDescription('🎤 *"The show must go on!"*')
-          .setFooter({ text: 'Welcome back to the concert! ✨' })
-        ],
-        ephemeral: true
-      });
     } else {
       await player.pause();
-      await btn.reply({
-        embeds: [new (await import('discord.js')).EmbedBuilder()
-          .setColor('#FFA502')
-          .setTitle('⏸️ Uta takes a brief intermission')
-          .setDescription('🍃 *"I\'ll be right back! Don\'t go anywhere!"*')
-          .setFooter({ text: 'Uta is taking a quick break 🌙' })
-        ],
-        ephemeral: true
-      });
     }
     
-    await btn.message.edit({
+    await btn.deferUpdate();
+    const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
+    return rootInteraction.editReply({
       embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })],
-      components: [UtaUI.buttons(player.paused, !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0)))]
+      components: [UtaUI.buttons(player.paused, hasTrack)]
     });
-    
-    return;
   }
 
   if (id === UI.Buttons.Skip) {
