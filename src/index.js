@@ -35,8 +35,12 @@ const client = createClient();
 
 console.log('📝 Loading events...');
 // Register events
-import('./events/ready.js');
-import('./events/interactionCreate.js');
+await import('./events/ready.js');
+await import('./events/interactionCreate.js');
+
+// Wait for command loading to complete
+console.log('⏳ Waiting for commands to load...');
+await new Promise(resolve => setTimeout(resolve, 500));
 
 console.log('⚡ Registering slash commands...');
 // Enhanced error handling for slash command registration
