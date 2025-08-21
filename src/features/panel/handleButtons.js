@@ -25,43 +25,51 @@ export async function handleButton(btn, rootInteraction) {
     });
   }
 
-  // Get the first available node
-  const node = btn.client.shoukaku.nodes.values().next().value;
-  
-  // Check if Lavalink is available
-  if (!node || !node.connected) {
-    return btn.reply({ 
-      embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")],
-      ephemeral: true 
-    });
+  // Only check Lavalink connection for play/pause and skip operations
+  if (id === UI.Buttons.PlayPause || id === UI.Buttons.Skip) {
+    // Get the first available node
+    const node = btn.client.shoukaku.nodes.values().next().value;
+    
+    // Check if Lavalink is available
+    if (!node || !node.connected) {
+      return btn.reply({ 
+        embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")],
+        ephemeral: true 
+      });
+    }
   }
 
   let player = btn.client.shoukaku.players.get(btn.guildId);
-  if (!player) {
-    try {
-      player = await node.joinChannel({
-        guildId: btn.guildId,
-        channelId: vc.id,
-        shardId: btn.guild.shardId,
-        deaf: true
-      });
-      player.setVolume(cfg.uta.defaultVolume);
-      
-      // Welcome message when Uta joins
-      await btn.followUp({
-        embeds: [new (await import('discord.js')).EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🎤 Uta has entered the building!')
-          .setDescription(`✨ *"Hello everyone! I'm ready to perform!"* ✨\n\nUta has joined **${vc.name}** and is ready to sing!`)
-          .setFooter({ text: 'Let the show begin! 🎭' })
-        ],
-        ephemeral: true
-      });
-    } catch (error) {
-      return btn.reply({
-        embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check the bot's permissions!")],
-        ephemeral: true
-      });
+  
+  if (id === UI.Buttons.PlayPause || id === UI.Buttons.Skip) {
+    const node = btn.client.shoukaku.nodes.values().next().value;
+    
+    if (!player) {
+      try {
+        player = await node.joinChannel({
+          guildId: btn.guildId,
+          channelId: vc.id,
+          shardId: btn.guild.shardId,
+          deaf: true
+        });
+        player.setVolume(cfg.uta.defaultVolume);
+        
+        // Welcome message when Uta joins
+        await btn.followUp({
+          embeds: [new (await import('discord.js')).EmbedBuilder()
+            .setColor('#FF6B9D')
+            .setTitle('🎤 Uta has entered the building!')
+            .setDescription(`✨ *"Hello everyone! I'm ready to perform!"* ✨\n\nUta has joined **${vc.name}** and is ready to sing!`)
+            .setFooter({ text: 'Let the show begin! 🎭' })
+          ],
+          ephemeral: true
+        });
+      } catch (error) {
+        return btn.reply({
+          embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check the bot's permissions!")],
+          ephemeral: true
+        });
+      }
     }
   }
 
