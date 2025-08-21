@@ -73,7 +73,7 @@ export async function handleQueueModal(modal, rootInteraction) {
       });
     }
 
-    const wasEmpty = !player.track && !player.playing && (!player.queue || player.queue.length === 0);
+    const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
     
     // Add to queue
     if (!player.queue) player.queue = [];
@@ -90,7 +90,7 @@ export async function handleQueueModal(modal, rootInteraction) {
     });
 
     // Update the main panel
-    const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+    const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
     await rootInteraction.editReply({ 
       embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
       components: [UtaUI.buttons(player.paused, hasTrack)] 
