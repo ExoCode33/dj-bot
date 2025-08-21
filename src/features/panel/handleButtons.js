@@ -70,7 +70,7 @@ export async function handleButton(btn, rootInteraction) {
 
   if (id === UI.Buttons.PlayPause) {
     // If no track is playing/queued, show the modal to add a song
-    if (!player?.track && !player?.playing && (!player.queue || player.queue.length === 0)) {
+    if (!player?.track && !player?.playing && (!player?.queue || player.queue.length === 0)) {
       return btn.showModal(UtaUI.queueModal());
     }
     
@@ -100,7 +100,7 @@ export async function handleButton(btn, rootInteraction) {
     
     await btn.message.edit({
       embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })],
-      components: [UtaUI.buttons(player.paused, !!(player?.track || player?.playing || (player.queue && player.queue.length > 0)))]
+      components: [UtaUI.buttons(player.paused, !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0)))]
     });
     
     return;
@@ -130,7 +130,7 @@ export async function handleButton(btn, rootInteraction) {
       ephemeral: true
     });
     
-    const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+    const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
     return btn.message.edit({ 
       embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
       components: [UtaUI.buttons(player.paused, hasTrack)] 
