@@ -6,8 +6,6 @@ import { cfg } from './config/index.js';
 
 console.log('🚀 Starting Uta DJ Bot...');
 
-console.log('🚀 Starting Uta DJ Bot...');
-
 // Validate required environment variables
 const requiredEnvVars = [
   'DISCORD_TOKEN',
@@ -33,16 +31,12 @@ console.log(`- Lavalink Secure: ${cfg.lavalink.secure}`);
 console.log(`- Default Volume: ${cfg.uta.defaultVolume}`);
 
 console.log('🤖 Creating Discord client...');
-
-console.log('🤖 Creating Discord client...');
 const client = createClient();
 
 console.log('📝 Loading events...');
 // Register events
 import('./events/ready.js');
 import('./events/interactionCreate.js');
-
-console.log('⚡ Registering slash commands...');
 
 console.log('⚡ Registering slash commands...');
 // Enhanced error handling for slash command registration
@@ -54,8 +48,6 @@ registerSlash(client)
       console.error('Missing Access - Check your bot permissions');
     }
   });
-
-console.log('🔑 Logging in to Discord...');
 
 console.log('🔑 Logging in to Discord...');
 // Enhanced error handling for login
@@ -72,9 +64,19 @@ client.login(process.env.DISCORD_TOKEN)
 // Handle uncaught errors
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit for Lavalink connection errors
+  if (reason && reason.code !== 'ERR_UNHANDLED_ERROR') {
+    process.exit(1);
+  }
 });
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  // Don't exit for Shoukaku/Lavalink errors, just log them
+  if (error.code === 'ERR_UNHANDLED_ERROR' && error.context) {
+    console.error(`Lavalink connection error for node: ${error.context}`);
+    console.error('Bot will continue running without music functionality until Lavalink connects.');
+    return; // Don't exit
+  }
   process.exit(1);
 });
