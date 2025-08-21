@@ -32,16 +32,30 @@ export async function handleButton(btn, rootInteraction) {
   if (id === UI.Buttons.Queue) return btn.showModal(UtaUI.queueModal());
 
   if (id === UI.Buttons.PlayPause) {
-    if (!player?.track && !player?.playing) return btn.reply({ content: 'Nothing is playing.', ephemeral: true });
-    if (player.paused) await player.resume(); else await player.pause();
+    // If no track is playing/queued, show the modal to add a song
+    if (!player?.track && !player?.playing && (!player.queue || player.queue.length === 0)) {
+      return btn.showModal(UtaUI.queueModal());
+    }
+    
+    if (player.paused) await player.resume(); 
+    else await player.pause();
+    
     await btn.deferUpdate();
-    return rootInteraction.editReply({ embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], components: [UtaUI.buttons(player.paused)] });
+    const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+    return rootInteraction.editReply({ 
+      embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
+      components: [UtaUI.buttons(player.paused, hasTrack)] 
+    });
   }
 
   if (id === UI.Buttons.Skip) {
     if (!player?.track && !player?.playing) return btn.reply({ content: 'Nothing to skip.', ephemeral: true });
     await player.stopTrack();
     await btn.deferUpdate();
-    return rootInteraction.editReply({ embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], components: [UtaUI.buttons(player.paused)] });
+    const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+    return rootInteraction.editReply({ 
+      embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
+      components: [UtaUI.buttons(player.paused, hasTrack)] 
+    });
   }
 }
