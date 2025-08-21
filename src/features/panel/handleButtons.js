@@ -8,28 +8,65 @@ import { cfg } from '../../config/index.js';
 export async function handleButton(btn, rootInteraction) {
   const id = btn.customId;
 
+  // Authorization check with Uta-themed message
   if (btn.user.id !== rootInteraction.user.id && !isAuthorized(btn.member, cfg.uta.authorizedRoleId)) {
-    return btn.reply({ content: 'You are not authorized.', ephemeral: true });
+    return btn.reply({ 
+      embeds: [UtaUI.errorEmbed("Only authorized DJs can control Uta's performance!")],
+      ephemeral: true 
+    });
   }
 
+  // Voice channel check with Uta-themed message
   const vc = btn.member?.voice?.channel;
   if (!vc || vc.type !== ChannelType.GuildVoice) {
-    return btn.reply({ content: 'Join a voice channel first.', ephemeral: true });
+    return btn.reply({ 
+      embeds: [UtaUI.errorEmbed("Uta needs you to be in a voice channel to hear her beautiful voice!")],
+      ephemeral: true 
+    });
   }
 
   const node = btn.client.shoukaku.getNode();
-  let player = btn.client.shoukaku.players.get(btn.guildId);
-  if (!player) {
-    player = await node.joinChannel({
-      guildId: btn.guildId,
-      channelId: vc.id,
-      shardId: btn.guild.shardId,
-      deaf: true
+  
+  // Check if Lavalink is available
+  if (!node) {
+    return btn.reply({
+      embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")],
+      ephemeral: true
     });
-    player.setVolume(cfg.uta.defaultVolume);
   }
 
-  if (id === UI.Buttons.Queue) return btn.showModal(UtaUI.queueModal());
+  let player = btn.client.shoukaku.players.get(btn.guildId);
+  if (!player) {
+    try {
+      player = await node.joinChannel({
+        guildId: btn.guildId,
+        channelId: vc.id,
+        shardId: btn.guild.shardId,
+        deaf: true
+      });
+      player.setVolume(cfg.uta.defaultVolume);
+      
+      // Welcome message when Uta joins
+      await btn.followUp({
+        embeds: [new (await import('discord.js')).EmbedBuilder()
+          .setColor('#FF6B9D')
+          .setTitle('🎤 Uta has entered the building!')
+          .setDescription(`✨ *"Hello everyone! I'm ready to perform!"* ✨\n\nUta has joined **${vc.name}** and is ready to sing!`)
+          .setFooter({ text: 'Let the show begin! 🎭' })
+        ],
+        ephemeral: true
+      });
+    } catch (error) {
+      return btn.reply({
+        embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check the bot's permissions!")],
+        ephemeral: true
+      });
+    }
+  }
+
+  if (id === UI.Buttons.Queue) {
+    return btn.showModal(UtaUI.queueModal());
+  }
 
   if (id === UI.Buttons.PlayPause) {
     // If no track is playing/queued, show the modal to add a song
@@ -37,23 +74,64 @@ export async function handleButton(btn, rootInteraction) {
       return btn.showModal(UtaUI.queueModal());
     }
     
-    if (player.paused) await player.resume(); 
-    else await player.pause();
+    if (player.paused) {
+      await player.resume();
+      await btn.reply({
+        embeds: [new (await import('discord.js')).EmbedBuilder()
+          .setColor('#00FF94')
+          .setTitle('▶️ Uta resumes her performance!')
+          .setDescription('🎤 *"The show must go on!"*')
+          .setFooter({ text: 'Welcome back to the concert! ✨' })
+        ],
+        ephemeral: true
+      });
+    } else {
+      await player.pause();
+      await btn.reply({
+        embeds: [new (await import('discord.js')).EmbedBuilder()
+          .setColor('#FFA502')
+          .setTitle('⏸️ Uta takes a brief intermission')
+          .setDescription('🍃 *"I\'ll be right back! Don\'t go anywhere!"*')
+          .setFooter({ text: 'Uta is taking a quick break 🌙' })
+        ],
+        ephemeral: true
+      });
+    }
     
-    await btn.deferUpdate();
-    const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
-    return rootInteraction.editReply({ 
-      embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
-      components: [UtaUI.buttons(player.paused, hasTrack)] 
+    await btn.message.edit({
+      embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })],
+      components: [UtaUI.buttons(player.paused, !!(player?.track || player?.playing || (player.queue && player.queue.length > 0)))]
     });
+    
+    return;
   }
 
   if (id === UI.Buttons.Skip) {
-    if (!player?.track && !player?.playing) return btn.reply({ content: 'Nothing to skip.', ephemeral: true });
+    if (!player?.track && !player?.playing) {
+      return btn.reply({ 
+        embeds: [UtaUI.errorEmbed("There's no song to skip! Request something for Uta to perform first.")],
+        ephemeral: true 
+      });
+    }
+    
+    const currentTrack = toDisplay(player);
     await player.stopTrack();
-    await btn.deferUpdate();
+    
+    await btn.reply({
+      embeds: [new (await import('discord.js')).EmbedBuilder()
+        .setColor('#FF6B9D')
+        .setTitle('⏭️ Uta moves to the next song!')
+        .setDescription(currentTrack?.title 
+          ? `🎵 Finished: **${currentTrack.title}**\n✨ *"Thank you for listening! Here's the next one!"*`
+          : '🎤 *"Let\'s try something new!"*'
+        )
+        .setFooter({ text: 'The concert continues! 🎭' })
+      ],
+      ephemeral: true
+    });
+    
     const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
-    return rootInteraction.editReply({ 
+    return btn.message.edit({ 
       embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
       components: [UtaUI.buttons(player.paused, hasTrack)] 
     });
