@@ -13,6 +13,10 @@ export function initLavalink(client) {
   ];
 
   log.info(`Connecting to Lavalink: ${cfg.lavalink.url} (secure: ${cfg.lavalink.secure})`);
+  
+  // Test basic connectivity
+  const [host, port] = cfg.lavalink.url.split(':');
+  log.info(`Attempting to resolve host: ${host}:${port}`);
 
   const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
     resume: true,
