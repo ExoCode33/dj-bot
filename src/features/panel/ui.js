@@ -58,23 +58,20 @@ export const UtaUI = {
   },
 
   buttons(isPaused = false, hasTrack = false) {
-    const playPauseLabel = !hasTrack ? 'Request Song' : (isPaused ? 'Resume Show' : 'Pause Show');
-    const playPauseEmoji = !hasTrack ? '🎤' : (isPaused ? '▶️' : '⏸️');
-    
     return new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(UI.Buttons.Queue)
-        .setLabel('Song Request')
+        .setLabel('Add Song')
         .setStyle(ButtonStyle.Primary)
         .setEmoji('🎵'),
       new ButtonBuilder()
         .setCustomId(UI.Buttons.PlayPause)
-        .setLabel(playPauseLabel)
-        .setStyle(hasTrack ? ButtonStyle.Secondary : ButtonStyle.Success)
-        .setEmoji(playPauseEmoji),
+        .setLabel(hasTrack ? (isPaused ? 'Resume' : 'Pause') : 'Play')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(hasTrack ? (isPaused ? '▶️' : '⏸️') : '▶️'),
       new ButtonBuilder()
         .setCustomId(UI.Buttons.Skip)
-        .setLabel('Next Song')
+        .setLabel('Skip')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('⏭️')
         .setDisabled(!hasTrack)
