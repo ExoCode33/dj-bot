@@ -6,9 +6,14 @@ import { handleQueueModal } from '../features/panel/handleQueueModal.js';
 export const data = new SlashCommandBuilder().setName('uta').setDescription("Open Uta's DJ panel");
 
 export const execute = async (interaction) => {
+  // Check if there's an existing player and if it has tracks
+  const player = interaction.client.shoukaku.players.get(interaction.guildId);
+  const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+  const isPaused = player?.paused || false;
+
   const message = await interaction.reply({
     embeds: [UtaUI.panelEmbed()],
-    components: [UtaUI.buttons(false)],
+    components: [UtaUI.buttons(isPaused, hasTrack)],
     ephemeral: false
   });
 
