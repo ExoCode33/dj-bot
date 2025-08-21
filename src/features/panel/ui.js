@@ -21,11 +21,26 @@ export const UtaUI = {
     return e;
   },
 
-  buttons(isPaused = false) {
+  buttons(isPaused = false, hasTrack = false) {
+    const playPauseLabel = !hasTrack ? 'Play' : (isPaused ? 'Resume' : 'Pause');
+    
     return new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(UI.Buttons.Queue).setLabel('Queue').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(UI.Buttons.PlayPause).setLabel(isPaused ? 'Resume' : 'Pause').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(UI.Buttons.Skip).setLabel('Skip').setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder()
+        .setCustomId(UI.Buttons.Queue)
+        .setLabel('Add Song')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🎵'),
+      new ButtonBuilder()
+        .setCustomId(UI.Buttons.PlayPause)
+        .setLabel(playPauseLabel)
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji(isPaused || !hasTrack ? '▶️' : '⏸️'),
+      new ButtonBuilder()
+        .setCustomId(UI.Buttons.Skip)
+        .setLabel('Skip')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('⏭️')
+        .setDisabled(!hasTrack)
     );
   },
 
@@ -35,6 +50,7 @@ export const UtaUI = {
       .setCustomId(UI.Inputs.Query)
       .setLabel('YouTube/Spotify link or search')
       .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter a YouTube URL, Spotify link, or song name...')
       .setRequired(true);
     return modal.addComponents(new ActionRowBuilder().addComponents(input));
   }
