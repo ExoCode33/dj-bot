@@ -11,7 +11,7 @@ export const data = new SlashCommandBuilder()
 export const execute = async (interaction) => {
   // Check if there's an existing player and if it has tracks
   const player = interaction.client.shoukaku.players.get(interaction.guildId);
-  const hasTrack = !!(player?.track || player?.playing || (player.queue && player.queue.length > 0));
+  const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
   const isPaused = player?.paused || false;
   
   // Get current track info for the embed
