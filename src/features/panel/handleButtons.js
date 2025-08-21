@@ -25,13 +25,14 @@ export async function handleButton(btn, rootInteraction) {
     });
   }
 
-  const node = btn.client.shoukaku.getNode();
+  // Get the first available node
+  const node = btn.client.shoukaku.nodes.values().next().value;
   
   // Check if Lavalink is available
-  if (!node) {
-    return btn.reply({
+  if (!node || !node.connected) {
+    return btn.reply({ 
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")],
-      ephemeral: true
+      ephemeral: true 
     });
   }
 
