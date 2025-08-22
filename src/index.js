@@ -77,8 +77,11 @@ async function startBot() {
     console.log('📋 Bot Configuration:');
     console.log(`  - Client ID: ${cfg.discord.clientId}`);
     console.log(`  - Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
+    console.log(`  - Lavalink URL: ${cfg.lavalink.url}`);
+    console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
     console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
     console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
+    console.log(`  - DI.FM API Key: ${cfg.difm.apiKey ? 'SET' : 'NOT SET'}`);
 
     // Start health check server (for Railway monitoring)
     if (process.env.NODE_ENV === 'production') {
@@ -89,6 +92,23 @@ async function startBot() {
     console.log('🔍 Phase 2: Discord Client Creation');
     const client = createClient();
     console.log('✅ Discord client created successfully');
+
+    // Lavalink event handlers
+    client.shoukaku.on('ready', (name) => {
+      log.ready(`🎵 Lavalink node "${name}" is ready!`);
+    });
+
+    client.shoukaku.on('error', (name, error) => {
+      log.error(`🎵 Lavalink node "${name}" error:`, error.message);
+    });
+
+    client.shoukaku.on('disconnect', (name, reason) => {
+      log.warn(`🎵 Lavalink node "${name}" disconnected:`, reason);
+    });
+
+    client.shoukaku.on('reconnecting', (name, delay) => {
+      log.info(`🎵 Lavalink node "${name}" reconnecting in ${delay}ms`);
+    });
 
     console.log('🔍 Phase 3: Command Loading');
     const commandsDir = path.join(__dirname, 'commands');
@@ -182,34 +202,38 @@ async function startBot() {
       console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
     });
 
-    // Interaction handler
+    // Interaction handler with button support
     client.on(Events.InteractionCreate, async (i) => {
-      if (!i.isChatInputCommand()) return;
-      
-      console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
-      
-      const cmd = client.commands.get(i.commandName);
-      if (!cmd) {
-        console.error(`❌ Unknown command: ${i.commandName}`);
-        return;
-      }
-      
-      try {
-        await cmd.execute(i);
-        console.log(`✅ Command /${i.commandName} executed successfully`);
-      } catch (error) {
-        console.error(`❌ Command /${i.commandName} execution failed:`, error.message);
-        console.error(error.stack);
+      if (i.isChatInputCommand()) {
+        console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
+        
+        const cmd = client.commands.get(i.commandName);
+        if (!cmd) {
+          console.error(`❌ Unknown command: ${i.commandName}`);
+          return;
+        }
         
         try {
-          if (i.deferred || i.replied) {
-            await i.editReply('Something went wrong while executing this command.');
-          } else {
-            await i.reply({ content: 'Something went wrong while executing this command.', ephemeral: true });
+          await cmd.execute(i);
+          console.log(`✅ Command /${i.commandName} executed successfully`);
+        } catch (error) {
+          console.error(`❌ Command /${i.commandName} execution failed:`, error.message);
+          console.error(error.stack);
+          
+          try {
+            if (i.deferred || i.replied) {
+              await i.editReply('Something went wrong while executing this command.');
+            } else {
+              await i.reply({ content: 'Something went wrong while executing this command.', ephemeral: true });
+            }
+          } catch (replyError) {
+            console.error('❌ Failed to send error reply:', replyError.message);
           }
-        } catch (replyError) {
-          console.error('❌ Failed to send error reply:', replyError.message);
         }
+      } else if (i.isButton() || i.isStringSelectMenu()) {
+        // Handle radio button interactions
+        console.log(`🎛️ Component interaction: ${i.customId} from ${i.user.tag}`);
+        // This will be handled by the radio command's collector
       }
     });
 
