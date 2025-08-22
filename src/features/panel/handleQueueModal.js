@@ -4,9 +4,18 @@ import { toDisplay } from '../music/state.js';
 import { cfg } from '../../config/index.js';
 
 export async function handleQueueModal(modal, rootInteraction) {
-  if (modal.customId !== UI.Modals.QueueModal) return;
+  console.log('🎵 Modal handler called!');
+  console.log('Modal customId:', modal.customId);
+  console.log('Expected customId:', UI.Modals.QueueModal);
+  
+  if (modal.customId !== UI.Modals.QueueModal) {
+    console.log('❌ Modal customId does not match, returning');
+    return;
+  }
 
+  console.log('✅ Modal customId matches, processing...');
   const query = modal.fields.getTextInputValue(UI.Inputs.Query).trim();
+  console.log('🔍 User query:', query);
   
   // Enhanced input validation
   if (!query) {
