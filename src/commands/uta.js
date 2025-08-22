@@ -58,11 +58,12 @@ export const execute = async (interaction) => {
     } catch {} // Ignore if message was deleted
   });
 
-  // Modal handler with better error handling
+  // Modal handler with better error handling and deduplication
   const modalHandler = async (i) => {
     console.log('🎭 Interaction received:', i.type, i.isModalSubmit());
     
     if (!i.isModalSubmit()) return;
+    if (i.customId !== 'uta_queue_modal') return; // Only handle our modals
     
     console.log('📝 Modal submit detected');
     console.log('User ID match:', i.user.id, '===', interaction.user.id, '=', i.user.id === interaction.user.id);
@@ -71,6 +72,9 @@ export const execute = async (interaction) => {
       console.log('❌ User ID does not match, ignoring');
       return;
     }
+    
+    // Remove this specific handler to prevent duplicates
+    interaction.client.off('interactionCreate', modalHandler);
     
     console.log('✅ User ID matches, calling handler...');
     try {
