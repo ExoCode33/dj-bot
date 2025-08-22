@@ -1,218 +1,236 @@
 import 'dotenv/config';
-import { createClient } from './core/client.js';
-import { log } from './utils/logger.js';
-import { cfg } from './config/index.js';
-import { REST, Routes, Events } from 'discord.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Enhanced logging for Railway deployment debugging
-console.log('🚀 UTA DJ BOT - STARTING UP');
+// Immediate logging to see if the script even starts
+console.log('🚀 STARTING UTA DJ BOT - DEBUG MODE');
 console.log('📅 Timestamp:', new Date().toISOString());
 console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
 console.log('🔧 Node Version:', process.version);
 console.log('📍 Working Directory:', process.cwd());
-console.log('📂 Script Directory:', __dirname);
+console.log('🎯 PORT:', process.env.PORT || 3000);
 
-// Simple health check server for Railway
+// Create health server FIRST to respond to Railway health checks
 function createHealthServer() {
   const port = process.env.PORT || 3000;
   
+  console.log(`🏥 Creating health server on port ${port}...`);
+  
   const server = http.createServer((req, res) => {
+    console.log(`📡 Health check request: ${req.method} ${req.url}`);
+    
     if (req.url === '/health' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
+      res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      const healthData = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         service: 'uta-dj-bot',
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        discord: {
+          connected: global.discordConnected || false
+        },
         lavalink: {
           connected: global.lavalinkConnected || false,
           nodes: global.lavalinkNodes || 0
         }
-      }));
+      };
+      console.log('✅ Health check response sent:', healthData);
+      res.end(JSON.stringify(healthData));
+    } else if (req.url === '/' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`
+        <html>
+          <head><title>Uta DJ Bot</title></head>
+          <body>
+            <h1>🎤 Uta DJ Bot</h1>
+            <p>Status: Running</p>
+            <p>Time: ${new Date().toISOString()}</p>
+            <p>Uptime: ${process.uptime()} seconds</p>
+            <p><a href="/health">Health Check</a></p>
+          </body>
+        </html>
+      `);
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not Found' }));
     }
   });
 
-  server.listen(port, () => {
-    console.log(`🏥 Health check server running on port ${port}`);
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`✅ Health server listening on 0.0.0.0:${port}`);
+    console.log(`🔗 Health endpoint: http://localhost:${port}/health`);
   });
 
   server.on('error', (error) => {
-    console.error('❌ Health server error:', error.message);
+    console.error('❌ Health server error:', error);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`💥 Port ${port} is already in use!`);
+    }
   });
 
   return server;
 }
 
+// Start health server immediately
+const healthServer = createHealthServer();
+
+// Enhanced error handling
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 [UNHANDLED REJECTION]');
+  console.error('📍 Promise:', promise);
+  console.error('📋 Reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('💥 [UNCAUGHT EXCEPTION]:', error.message);
+  console.error('📋 Stack trace:', error.stack);
+  
+  // Don't exit immediately, let health server continue running
+  console.error('⚠️ Continuing to run health server despite exception...');
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('📡 Received SIGTERM signal');
+  console.log('🛑 Gracefully shutting down...');
+  if (healthServer) {
+    healthServer.close(() => {
+      console.log('🏥 Health server closed');
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+});
+
+process.on('SIGINT', () => {
+  console.log('📡 Received SIGINT signal (Ctrl+C)');
+  console.log('🛑 Gracefully shutting down...');
+  if (healthServer) {
+    healthServer.close(() => {
+      console.log('🏥 Health server closed');
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+});
+
+// Now try to start the actual bot
 async function startBot() {
   try {
     console.log('🔍 Phase 1: Environment Validation');
 
-    // Validate required environment variables
-    const requiredEnvVars = [
-      'DISCORD_TOKEN',
-      'CLIENT_ID'
-    ];
-
-    console.log('🔍 Checking environment variables...');
-    const missing = requiredEnvVars.filter(key => {
-      const hasVar = !!process.env[key];
-      console.log(`  ${hasVar ? '✅' : '❌'} ${key}: ${hasVar ? 'SET' : 'MISSING'}`);
-      return !hasVar;
-    });
-
+    // Check critical environment variables
+    const requiredVars = ['DISCORD_TOKEN', 'CLIENT_ID'];
+    const missing = requiredVars.filter(key => !process.env[key]);
+    
     if (missing.length > 0) {
-      console.error(`❌ FATAL: Missing required environment variables: ${missing.join(', ')}`);
-      console.error('💡 Please check your Railway environment variables configuration');
-      process.exit(1);
-    }
-    console.log('✅ All required environment variables found');
-
-    // Log configuration (without sensitive data)
-    console.log('📋 Bot Configuration:');
-    console.log(`  - Client ID: ${cfg.discord.clientId}`);
-    console.log(`  - Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
-    console.log(`  - Lavalink URL: ${cfg.lavalink.url}`);
-    console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
-    console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
-    console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
-    console.log(`  - DI.FM API Key: ${cfg.difm.apiKey ? 'SET' : 'NOT SET'}`);
-
-    // Start health check server (for Railway monitoring)
-    if (process.env.NODE_ENV === 'production') {
-      console.log('🏥 Starting health check server...');
-      createHealthServer();
+      console.error(`❌ Missing environment variables: ${missing.join(', ')}`);
+      console.error('⚠️ Bot will not start, but health server will continue running');
+      return; // Don't exit, keep health server running
     }
 
-    console.log('🔍 Phase 2: Discord Client Creation');
-    const client = createClient();
-    console.log('✅ Discord client created successfully');
+    console.log('✅ Required environment variables found');
+    console.log('🔑 Discord Token:', process.env.DISCORD_TOKEN ? 'SET' : 'MISSING');
+    console.log('🆔 Client ID:', process.env.CLIENT_ID || 'MISSING');
+    console.log('🏠 Guild ID:', process.env.GUILD_ID || 'Global commands');
+    console.log('🎵 Lavalink URL:', process.env.LAVALINK_URL || 'MISSING');
 
-    // Enhanced Lavalink event handlers
-    client.shoukaku.on('ready', (name) => {
-      log.ready(`🎵 Lavalink node "${name}" is ready!`);
-      global.lavalinkConnected = true;
-      global.lavalinkNodes = client.shoukaku.nodes.size;
+    // Dynamic import to avoid issues if modules fail to load
+    console.log('📦 Loading Discord.js...');
+    const { Client, GatewayIntentBits, Collection, Events } = await import('discord.js');
+    console.log('✅ Discord.js loaded successfully');
+
+    console.log('🎵 Loading Shoukaku...');
+    const { Shoukaku, Connectors } = await import('shoukaku');
+    console.log('✅ Shoukaku loaded successfully');
+
+    // Create Discord client
+    console.log('🤖 Creating Discord client...');
+    const client = new Client({
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
     });
-
-    client.shoukaku.on('error', (name, error) => {
-      log.error(`🎵 Lavalink node "${name}" error:`, error.message);
-      global.lavalinkConnected = false;
-      
-      // Specific error handling for common issues
-      if (error.code === 'ECONNREFUSED') {
-        log.error(`🚫 Connection refused to ${name} - Lavalink service may be down`);
-      } else if (error.code === 'ENOTFOUND') {
-        log.error(`🌐 DNS lookup failed for ${name} - check LAVALINK_URL`);
-      }
-    });
-
-    client.shoukaku.on('disconnect', (name, reason) => {
-      log.warn(`🎵 Lavalink node "${name}" disconnected:`, reason);
-      global.lavalinkConnected = false;
-      
-      if (reason === 1006) {
-        log.info(`🔄 Node "${name}" disconnected abnormally - this is normal on Railway`);
-        log.info(`🕐 Automatic reconnection will begin shortly...`);
-      }
-    });
-
-    client.shoukaku.on('reconnecting', (name, delay) => {
-      log.info(`🔄 Lavalink node "${name}" reconnecting in ${delay}ms`);
-      global.lavalinkConnected = false;
-    });
-
-    console.log('🔍 Phase 3: Command Loading');
-    const commandsDir = path.join(__dirname, 'commands');
-    console.log(`📁 Commands directory: ${commandsDir}`);
     
-    if (!fs.existsSync(commandsDir)) {
-      console.error('❌ FATAL: Commands directory does not exist!');
-      console.error(`Expected path: ${commandsDir}`);
-      process.exit(1);
-    }
+    client.commands = new Collection();
+    console.log('✅ Discord client created');
 
-    const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js'));
-    console.log(`📄 Found ${files.length} command files:`, files);
-
-    if (files.length === 0) {
-      console.error('❌ FATAL: No command files found!');
-      process.exit(1);
-    }
-
-    const slashDefs = [];
-    for (const f of files) {
+    // Setup Lavalink if URL is provided
+    if (process.env.LAVALINK_URL) {
       try {
-        console.log(`⚡ Loading command file: ${f}`);
-        const filePath = path.join(commandsDir, f);
-        const mod = await import(filePath);
-        
-        if (!mod?.data || !mod?.execute) {
-          console.error(`❌ Invalid command file ${f}: missing data or execute`);
-          continue;
-        }
-        
-        const commandName = mod.data.name;
-        console.log(`✅ Loaded command: ${commandName}`);
-        
-        client.commands.set(commandName, mod);
-        slashDefs.push(mod.data.toJSON());
-      } catch (error) {
-        console.error(`❌ Error loading command file ${f}:`, error.message);
-        console.error(error.stack);
+        console.log('🎵 Setting up Lavalink connection...');
+        const nodes = [{
+          name: process.env.LAVALINK_NAME || 'railway-node',
+          url: process.env.LAVALINK_URL,
+          auth: process.env.LAVALINK_AUTH || 'UtaUtaDj',
+          secure: process.env.LAVALINK_SECURE === 'true'
+        }];
+
+        client.shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
+          resume: true,
+          resumeKey: 'uta-dj-bot-debug',
+          resumeTimeout: 30,
+          reconnectTries: 5,
+          reconnectInterval: 3000,
+          restTimeout: 60000
+        });
+
+        client.shoukaku.on('ready', (name) => {
+          console.log(`✅ Lavalink node "${name}" ready!`);
+          global.lavalinkConnected = true;
+        });
+
+        client.shoukaku.on('error', (name, error) => {
+          console.error(`❌ Lavalink error on ${name}:`, error.message);
+          global.lavalinkConnected = false;
+        });
+
+        console.log('✅ Lavalink setup complete');
+      } catch (lavalinkError) {
+        console.error('❌ Lavalink setup failed:', lavalinkError.message);
+        console.log('⚠️ Continuing without Lavalink...');
       }
+    } else {
+      console.log('⚠️ No LAVALINK_URL provided, skipping Lavalink setup');
     }
 
-    console.log(`📋 Total commands loaded: ${slashDefs.length}`);
-    console.log(`🎯 Command names: ${slashDefs.map(cmd => cmd.name).join(', ')}`);
-
-    if (slashDefs.length === 0) {
-      console.error('❌ FATAL: No commands loaded successfully!');
-      process.exit(1);
-    }
-
-    console.log('🔍 Phase 4: Slash Command Registration');
-    try {
-      const rest = new REST({ version: '10' }).setToken(cfg.discord.token);
-
-      if (cfg.discord.guildId) {
-        console.log(`🎯 Registering to guild: ${cfg.discord.guildId}`);
-        await rest.put(Routes.applicationGuildCommands(cfg.discord.clientId, cfg.discord.guildId), { body: slashDefs });
-        console.log('✅ Registered GUILD commands successfully');
-      } else {
-        console.log('🌍 Registering global commands...');
-        await rest.put(Routes.applicationCommands(cfg.discord.clientId), { body: slashDefs });
-        console.log('✅ Registered GLOBAL commands successfully');
-      }
-    } catch (error) {
-      console.error('❌ Slash command registration failed:', error.message);
-      if (error.code === 50001) {
-        console.error('💡 Error 50001: Missing Access - Check your bot permissions');
-        console.error('   - Make sure the bot is added to your server');
-        console.error('   - Ensure the bot has "applications.commands" scope');
-      }
-      if (error.code === 50035) {
-        console.error('💡 Error 50035: Invalid Form Body - Check your command definitions');
-      }
-      // Don't exit here, the bot can still work with existing commands
-      console.warn('⚠️  Continuing without registering new commands...');
-    }
-
-    console.log('🔍 Phase 5: Event Registration');
-    
-    // FIXED: Use ClientReady instead of deprecated Ready
+    // Basic ready event
     client.once(Events.ClientReady, () => {
-      console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
+      console.log(`🎉 Discord bot ready! Logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
-      console.log(`👥 Total users: ${client.users.cache.size}`);
-      
-      // List connected guilds
+      global.discordConnected = true;
+    });
+
+    // Basic error handling
+    client.on('error', (error) => {
+      console.error('❌ Discord client error:', error.message);
+      global.discordConnected = false;
+    });
+
+    // Attempt Discord login
+    console.log('🔑 Attempting Discord login...');
+    await client.login(process.env.DISCORD_TOKEN);
+    console.log('✅ Discord login successful');
+
+  } catch (error) {
+    console.error('💥 Bot startup failed:', error.message);
+    console.error('📋 Full error:', error);
+    console.log('⚠️ Health server will continue running...');
+  }
+}
+
+// Start bot after a small delay to let health server stabilize
+console.log('⏳ Starting bot in 2 seconds...');
+setTimeout(() => {
+  startBot().catch(error => {
+    console.error('💥 Failed to start bot:', error.message);
+    console.log('⚠️ Health server continues running for debugging');
+  });
+}, 2000);
+
+console.log('🎬 Health server is running, bot startup initiated');
+console.log('🔗 Try accessing: http://localhost:' + (process.env.PORT || 3000) + '/health');
