@@ -21,7 +21,7 @@ export async function handleQueueModal(modal, rootInteraction) {
   if (!query) {
     console.log('❌ Empty query provided');
     return modal.reply({
-      embeds: [UtaUI.errorEmbed("Please enter a song name, YouTube URL, or Spotify link!")],
+      embeds: [UtaUI.errorEmbed("Please enter a song name, YouTube URL, or SoundCloud link!")],
       ephemeral: true
     });
   }
@@ -122,7 +122,7 @@ export async function handleQueueModal(modal, rootInteraction) {
           .setColor('#FFA502')
           .setTitle('🔍 Uta is searching for your song...')
           .setDescription(`🎵 Looking for: **${query}**\n⏳ *"Give me just a moment to find that perfect track!"*`)
-          .setFooter({ text: 'Searching through the music library... 📚' })
+          .setFooter({ text: 'Searching through multiple sources... 📚' })
         ]
       });
     } catch (editError) {
@@ -130,45 +130,71 @@ export async function handleQueueModal(modal, rootInteraction) {
       return; // Exit if we can't communicate with the user
     }
 
-    const res = await node.rest.resolve(query);
-    console.log('Search result:', res?.tracks?.length || 0, 'tracks found');
-    console.log('Search response:', JSON.stringify(res, null, 2));
-    
-    let track = res?.tracks?.[0];
-    
-    if (!track) {
-      console.log('No tracks found for query:', query);
-      
-      // Try alternative search methods
-      console.log('🔄 Trying alternative search with ytsearch prefix...');
-      const ytRes = await node.rest.resolve(`ytsearch:${query}`);
-      console.log('YT Search result:', ytRes?.tracks?.length || 0, 'tracks found');
-      
-      const ytTrack = ytRes?.tracks?.[0];
-      if (ytTrack) {
-        console.log('✅ Found track via YouTube search:', ytTrack.info?.title);
-        // Use the YouTube track
-        track = ytTrack;
-      } else {
-        return modal.editReply({
-          embeds: [UtaUI.errorEmbed(`Uta couldn't find "${query}". Try a simpler search term like just the song name!`)]
-        });
+    // Try multiple search strategies for better success rate
+    let track = null;
+    const searchStrategies = [
+      query, // Direct search (works for URLs)
+      `ytsearch:${query}`, // YouTube search
+      `scsearch:${query}`, // SoundCloud search
+      `${query} official`, // Try with "official"
+      `${query} audio`, // Try with "audio"
+      `${query} music`, // Try with "music"
+    ];
+
+    for (const searchQuery of searchStrategies) {
+      try {
+        console.log(`🔍 Trying search strategy: ${searchQuery}`);
+        const res = await node.rest.resolve(searchQuery);
+        console.log(`Search result for "${searchQuery}":`, res?.tracks?.length || 0, 'tracks found');
+        
+        if (res?.tracks?.length > 0) {
+          track = res.tracks[0];
+          console.log(`✅ Found track via strategy "${searchQuery}":`, track.info?.title);
+          break;
+        }
+      } catch (error) {
+        console.log(`❌ Search strategy "${searchQuery}" failed:`, error.message);
+        continue; // Try next strategy
       }
+    }
+
+    // If no track found, provide helpful error message with suggestions
+    if (!track) {
+      console.log('❌ No tracks found with any search strategy');
+      return modal.editReply({
+        embeds: [new (await import('discord.js')).EmbedBuilder()
+          .setColor('#FF4757')
+          .setTitle('🎭 Uta couldn\'t find that song!')
+          .setDescription(`😔 *"I searched everywhere but couldn't find '${query}'"*\n\n**Try these alternatives:**`)
+          .addFields(
+            { 
+              name: '🔗 Direct Links (Most Reliable)', 
+              value: '• Copy YouTube URL: `https://youtube.com/watch?v=...`\n• Copy SoundCloud URL: `https://soundcloud.com/...`\n• Direct links work even when search is blocked!', 
+              inline: false 
+            },
+            { 
+              name: '🎵 Search Tips', 
+              value: '• Use simpler terms: "Artist - Song"\n• Try just the song name\n• Check spelling carefully\n• Add "official" or "audio" to your search', 
+              inline: false 
+            },
+            { 
+              name: '🎪 Supported Platforms', 
+              value: '✅ YouTube • ✅ SoundCloud • ✅ Bandcamp • ✅ Twitch\n*Direct URLs work best for YouTube!*', 
+              inline: false 
+            }
+          )
+          .setFooter({ text: 'Uta believes in you! Try a direct link! 💪' })
+        ]
+      });
     }
 
     console.log('Found track:', track.info?.title);
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
     console.log('Player was empty:', wasEmpty);
     
-    // Add to queue - Shoukaku handles queue automatically
-    if (wasEmpty) {
-      console.log('Starting playback...');
-      await player.playTrack({ track: track.encoded });
-    } else {
-      console.log('Adding to queue...');
-      // For non-empty queue, we need to handle this differently
-      await player.playTrack({ track: track.encoded });
-    }
+    // Play the track
+    console.log('🎵 Starting playback...');
+    await player.playTrack({ track: track.encoded });
 
     // Success response
     await modal.editReply({
