@@ -24,14 +24,7 @@ export function initLavalink(client) {
     reconnectInterval: 2000,   // ✅ DECREASED: Faster reconnection
     restTimeout: 120000,       // ✅ INCREASED: 2 minutes for slow operations
     moveOnDisconnect: false,   // ✅ ADDED: Don't move players on disconnect
-    userAgent: 'UTA-DJ-BOT/1.0.0 (Railway)',  // ✅ ENHANCED: Better user agent
-    // ✅ ADDED: Additional stability options
-    structures: {
-      rest: {
-        timeout: 120000,       // 2 minutes for REST requests
-        retries: 3            // Retry failed requests
-      }
-    }
+    userAgent: 'UTA-DJ-BOT/1.0.0 (Railway)'  // ✅ ENHANCED: Better user agent
   });
 
   // ✅ ENHANCED: Better error handling and reconnection logic
