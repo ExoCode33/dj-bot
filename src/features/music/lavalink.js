@@ -15,14 +15,14 @@ export function initLavalink(client) {
     // Public backup nodes with better YouTube access
     {
       name: 'lavalink-public-1',
-      url: 'lavalink.devz.cloud:80',
-      auth: 'Devz',
-      secure: false
+      url: 'lava-v3.ajieblogs.eu.org:443',
+      auth: 'https://dsc.gg/ajidevserver',
+      secure: true
     },
     {
       name: 'lavalink-public-2',
-      url: 'lava.link:80', 
-      auth: 'lava',
+      url: 'node-lavalink.ddns.net:2333',
+      auth: 'mela-kotak',
       secure: false
     }
   ];
