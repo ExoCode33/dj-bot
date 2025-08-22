@@ -76,121 +76,152 @@ export async function handleQueueModal(modal, rootInteraction) {
       .setTitle('🔍 Uta is searching for your song...')
       .setDescription(
         isSoundCloudUrl 
-          ? `🟠 **SoundCloud Link Detected**\n🎵 Processing: **${query}**\n🔄 *Trying multiple methods...*`
+          ? `🟠 **SoundCloud Link Detected**\n🎵 Processing: **${query}**\n🔄 *Trying multiple approaches...*`
           : isYouTubeUrl
           ? `🔴 **YouTube Link Detected**\n🎵 Processing: **${query}**\n🔄 *YouTube + alternatives...*`
           : isSpotifyUrl
           ? `🟢 **Spotify Link Detected**\n🎵 Processing: **${query}**\n🔄 *Finding alternatives...*`
           : `🎵 Searching for: **${query}**\n🔄 *Checking multiple sources...*`
       )
-      .setFooter({ text: 'Trying different methods for best results...' })
+      .setFooter({ text: 'Trying the most reliable methods first...' })
     ]
   });
 
-  // FIXED: Better search strategies that actually work with Lavalink
+  // PRIORITY: Start with what works best
   let searchStrategies = [];
   
-  if (isSoundCloudUrl) {
-    // For SoundCloud URLs - try direct first, then extract and search
-    const trackInfo = extractSoundCloudInfo(query);
+  if (!isYouTubeUrl && !isSoundCloudUrl && !isSpotifyUrl) {
+    // For plain text searches - prioritize what actually works
+    searchStrategies = [
+      { name: 'YouTube Search', query: `ytsearch:${query}`, priority: 'high' },
+      { name: 'Direct Search', query: query, priority: 'high' },
+      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'medium' },
+      { name: 'Bandcamp Search', query: `bcsearch:${query}`, priority: 'low' }
+    ];
+  } else if (isYouTubeUrl) {
+    // For YouTube URLs - try direct first, then extract title
+    const videoId = extractYouTubeVideoId(query);
+    const searchTerms = generateSearchTermsFromYouTube(query);
+    searchStrategies = [
+      { name: 'Direct YouTube URL', query: query, priority: 'high' },
+      { name: 'YouTube Search (extracted)', query: `ytsearch:${searchTerms}`, priority: 'high' },
+      { name: 'SoundCloud Alternative', query: `scsearch:${searchTerms}`, priority: 'medium' }
+    ];
+  } else if (isSoundCloudUrl) {
+    // For SoundCloud URLs - multiple extraction methods
+    const searchTerms = extractSoundCloudInfo(query);
+    const artistSong = extractArtistAndSong(query);
     searchStrategies = [
       { name: 'Direct SoundCloud URL', query: query, priority: 'high' },
-      { name: 'SoundCloud Search from URL', query: `scsearch:${trackInfo}`, priority: 'high' },
-      { name: 'YouTube Alternative', query: `ytsearch:${trackInfo}`, priority: 'medium' }
+      { name: 'YouTube Search (from SC)', query: `ytsearch:${artistSong}`, priority: 'high' },
+      { name: 'SoundCloud Search (extracted)', query: `scsearch:${searchTerms}`, priority: 'medium' },
+      { name: 'General Search', query: artistSong, priority: 'medium' }
     ];
   } else if (isSpotifyUrl) {
     // For Spotify URLs
-    const trackInfo = extractSpotifyInfo(query);
+    const trackId = extractSpotifyTrackId(query);
     searchStrategies = [
       { name: 'Direct Spotify URL', query: query, priority: 'high' },
-      { name: 'SoundCloud from Spotify', query: `scsearch:${trackInfo}`, priority: 'high' },
-      { name: 'YouTube from Spotify', query: `ytsearch:${trackInfo}`, priority: 'medium' }
-    ];
-  } else if (isYouTubeUrl) {
-    // For YouTube URLs
-    const videoInfo = extractYouTubeInfo(query);
-    searchStrategies = [
-      { name: 'Direct YouTube URL', query: query, priority: 'high' },
-      { name: 'SoundCloud Alternative', query: `scsearch:${videoInfo}`, priority: 'medium' }
-    ];
-  } else {
-    // For search terms - use simpler, more reliable searches
-    searchStrategies = [
-      { name: 'YouTube Search', query: `ytsearch:${query}`, priority: 'high' },
-      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'high' },
-      { name: 'Bandcamp Search', query: `bcsearch:${query}`, priority: 'medium' }
+      { name: 'YouTube Search (Spotify)', query: `ytsearch:${trackId}`, priority: 'medium' },
+      { name: 'SoundCloud Search (Spotify)', query: `scsearch:${trackId}`, priority: 'low' }
     ];
   }
 
-  // Try strategies in priority order with better error handling
+  // Try strategies with better error handling
   let track = null;
   let successfulStrategy = null;
   let lastError = null;
+  let allResults = [];
   
   for (const strategy of searchStrategies) {
     try {
       console.log(`🔍 [${strategy.priority.toUpperCase()}] Trying ${strategy.name}: ${strategy.query}`);
       
-      // Use Lavalink's REST API to resolve tracks
       const res = await node.rest.resolve(strategy.query);
       
       console.log(`📊 Search result for ${strategy.name}:`, {
         loadType: res?.loadType,
         tracksCount: res?.tracks?.length || 0,
-        exception: res?.exception?.message || 'None'
+        exception: res?.exception?.message || 'None',
+        playlistName: res?.playlistInfo?.name || 'N/A'
+      });
+      
+      // Store result for debugging
+      allResults.push({
+        strategy: strategy.name,
+        loadType: res?.loadType,
+        tracksCount: res?.tracks?.length || 0,
+        exception: res?.exception?.message
       });
       
       // Handle different load types properly
       if (res?.loadType === 'track' && res?.tracks?.length > 0) {
         track = res.tracks[0];
         successfulStrategy = strategy.name;
-        console.log(`✅ Success with ${strategy.name}: ${track.info?.title} by ${track.info?.author}`);
+        console.log(`✅ SUCCESS with ${strategy.name}: ${track.info?.title} by ${track.info?.author}`);
         break;
       } else if (res?.loadType === 'playlist' && res?.tracks?.length > 0) {
-        track = res.tracks[0]; // Take first track from playlist
+        track = res.tracks[0];
         successfulStrategy = strategy.name;
-        console.log(`✅ Success with ${strategy.name} (playlist): ${track.info?.title} by ${track.info?.author}`);
+        console.log(`✅ SUCCESS with ${strategy.name} (playlist): ${track.info?.title} by ${track.info?.author}`);
         break;
       } else if (res?.loadType === 'search' && res?.tracks?.length > 0) {
-        track = res.tracks[0]; // Take first search result
+        track = res.tracks[0];
         successfulStrategy = strategy.name;
-        console.log(`✅ Success with ${strategy.name} (search): ${track.info?.title} by ${track.info?.author}`);
+        console.log(`✅ SUCCESS with ${strategy.name} (search): ${track.info?.title} by ${track.info?.author}`);
         break;
       } else if (res?.exception) {
         console.log(`❌ ${strategy.name} failed with exception: ${res.exception.message}`);
         lastError = res.exception.message;
+      } else if (res?.loadType === 'error') {
+        console.log(`❌ ${strategy.name} returned error loadType`);
+        lastError = 'Search returned error';
       } else {
         console.log(`❌ ${strategy.name} returned no usable results (loadType: ${res?.loadType})`);
       }
     } catch (error) {
       console.log(`❌ ${strategy.name} failed with error: ${error.message}`);
       lastError = error.message;
+      allResults.push({
+        strategy: strategy.name,
+        error: error.message
+      });
     }
   }
 
-  // Handle no results with better suggestions
+  // Enhanced no results handling with debugging info
   if (!track) {
+    console.log('🔍 DEBUG: All search results:', JSON.stringify(allResults, null, 2));
+    
     const suggestionEmbed = new (await import('discord.js')).EmbedBuilder()
       .setColor('#FF4757')
       .setTitle('🎭 No results found!')
-      .setDescription(`😔 Couldn't find "${query}" on any platform\n${lastError ? `\n🔍 Last error: ${lastError}` : ''}`)
+      .setDescription([
+        `😔 Couldn't find "${query}" on any platform`,
+        lastError ? `\n🔍 Last error: ${lastError}` : '',
+        '\n**Debug Info:**',
+        allResults.slice(0, 3).map(r => 
+          `• ${r.strategy}: ${r.error || `${r.loadType} (${r.tracksCount} tracks)`}`
+        ).join('\n')
+      ].join(''))
       .addFields(
         {
-          name: '💡 Try These Alternatives',
+          name: '💡 Try These Instead',
           value: [
-            '🎵 **Search by song name instead of URL**',
-            '🔍 Try: `artist name - song title`',
-            '🎤 Try: `song title cover` or `song title remix`',
-            '📻 Use more popular/mainstream songs'
+            '🎵 **Use song names instead of URLs**',
+            '✅ Example: `never gonna give you up`',
+            '✅ Example: `imagine dragons believer`',
+            '✅ Example: `lofi hip hop study music`'
           ].join('\n'),
           inline: false
         },
         {
-          name: '🎯 Working Examples',
+          name: '🎯 What Works Best',
           value: [
-            '✅ `never gonna give you up`',
-            '✅ `imagine dragons - believer`',
-            '✅ `lofi hip hop study music`'
+            '• Popular songs and artists',
+            '• YouTube searches work most reliably',
+            '• Avoid region-restricted content',
+            '• Try different variations of the song name'
           ].join('\n'),
           inline: false
         }
@@ -198,45 +229,34 @@ export async function handleQueueModal(modal, rootInteraction) {
 
     if (isSoundCloudUrl) {
       suggestionEmbed.addFields({
-        name: '🟠 SoundCloud URL Issues',
+        name: '🟠 SoundCloud Issues',
         value: [
-          '• Some SoundCloud tracks are region-restricted',
-          '• Private or deleted tracks won\'t work',
-          '• Try searching for the song name instead'
-        ].join('\n'),
-        inline: false
-      });
-    } else if (isYouTubeUrl) {
-      suggestionEmbed.addFields({
-        name: '🔴 YouTube URL Issues',
-        value: [
-          '• Many YouTube videos are blocked for bots',
-          '• Music videos often have copyright restrictions',
-          '• Try searching for the song name instead'
+          '• This track might be private or deleted',
+          '• Could be region-restricted',
+          '• Try searching for: `artist - song name`'
         ].join('\n'),
         inline: false
       });
     }
 
-    suggestionEmbed.setFooter({ text: 'Song names work better than URLs! 🎵' });
+    suggestionEmbed.setFooter({ text: 'Song names work much better than URLs! 🎵' });
 
     return modal.editReply({ embeds: [suggestionEmbed] });
   }
 
-  // Play the track
+  // SUCCESS - Play the track
   try {
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
     
-    // Use the proper Shoukaku method to play
     await player.playTrack({ track: track.encoded });
 
-    // Success message
-    const successColor = successfulStrategy.includes('SoundCloud') ? '#FF6B35' : 
-                         successfulStrategy.includes('YouTube') ? '#FF0000' : 
+    // Success message with detailed info
+    const successColor = successfulStrategy.includes('YouTube') ? '#FF0000' : 
+                         successfulStrategy.includes('SoundCloud') ? '#FF6B35' : 
                          successfulStrategy.includes('Spotify') ? '#1DB954' : '#00FF94';
 
-    const sourceEmoji = successfulStrategy.includes('SoundCloud') ? '🟠' :
-                       successfulStrategy.includes('YouTube') ? '🔴' :
+    const sourceEmoji = successfulStrategy.includes('YouTube') ? '🔴' :
+                       successfulStrategy.includes('SoundCloud') ? '🟠' :
                        successfulStrategy.includes('Spotify') ? '🟢' : '🎵';
 
     await modal.editReply({
@@ -247,7 +267,8 @@ export async function handleQueueModal(modal, rootInteraction) {
           `✨ **${track.info.title}**`,
           `👤 *by ${track.info.author}*`,
           `${sourceEmoji} Found via: **${successfulStrategy}**`,
-          `⏱️ Duration: ${formatDuration(track.info.length)}`
+          `⏱️ Duration: ${formatDuration(track.info.length)}`,
+          `🔗 [Source](${track.info.uri})`
         ].join('\n'))
         .addFields({
           name: `${sourceEmoji} Source: ${getSourceName(successfulStrategy)}`,
@@ -280,34 +301,65 @@ export async function handleQueueModal(modal, rootInteraction) {
   }
 }
 
-// Helper functions
+// Enhanced extraction functions
 function extractSoundCloudInfo(url) {
   try {
-    // Extract artist and track name from SoundCloud URL
+    // Extract from URL like: https://soundcloud.com/onthehuntmusic/lizard
     const parts = url.split('/');
-    const artist = parts[parts.length - 2];
-    const track = parts[parts.length - 1];
-    return `${artist} ${track}`.replace(/-/g, ' ');
+    if (parts.length >= 5) {
+      const artist = parts[parts.length - 2].replace(/-/g, ' ');
+      const track = parts[parts.length - 1].split('?')[0].replace(/-/g, ' ');
+      return `${artist} ${track}`;
+    }
+    return url;
   } catch {
     return url;
   }
 }
 
-function extractSpotifyInfo(url) {
+function extractArtistAndSong(url) {
   try {
-    // For now, just return the track ID
-    const trackId = url.split('/track/')[1]?.split('?')[0];
-    return trackId || url;
+    // More aggressive extraction for SoundCloud
+    const parts = url.split('/');
+    if (parts.length >= 5) {
+      const artist = parts[parts.length - 2];
+      const track = parts[parts.length - 1].split('?')[0];
+      
+      // Clean up the strings
+      const cleanArtist = artist.replace(/[-_]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+      const cleanTrack = track.replace(/[-_]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+      
+      return `${cleanArtist} - ${cleanTrack}`;
+    }
+    return url;
   } catch {
     return url;
   }
 }
 
-function extractYouTubeInfo(url) {
+function generateSearchTermsFromYouTube(url) {
   try {
-    // Extract video ID
+    // Extract video ID and try to generate search terms
     const videoId = url.match(/(?:v=|\/embed\/|\/\d+\/|\/vi\/|youtu\.be\/)([^&\n?#]+)/)?.[1];
     return videoId || url;
+  } catch {
+    return url;
+  }
+}
+
+function extractYouTubeVideoId(url) {
+  try {
+    const match = url.match(/(?:v=|\/embed\/|\/\d+\/|\/vi\/|youtu\.be\/)([^&\n?#]+)/);
+    return match ? match[1] : url;
+  } catch {
+    return url;
+  }
+}
+
+function extractSpotifyTrackId(url) {
+  try {
+    const trackId = url.split('/track/')[1]?.split('?')[0];
+    return trackId || url;
   } catch {
     return url;
   }
@@ -327,25 +379,22 @@ function formatDuration(ms) {
 }
 
 function getSourceName(strategy) {
-  if (strategy.includes('SoundCloud')) return 'SoundCloud';
   if (strategy.includes('YouTube')) return 'YouTube';
+  if (strategy.includes('SoundCloud')) return 'SoundCloud';
   if (strategy.includes('Spotify')) return 'Spotify';
   if (strategy.includes('Bandcamp')) return 'Bandcamp';
   return 'Other';
 }
 
 function getSourceMessage(strategy) {
-  if (strategy.includes('SoundCloud')) {
-    return '*Great choice! SoundCloud provides high-quality audio streaming.*';
-  }
   if (strategy.includes('YouTube')) {
-    return '*Successfully found on YouTube!*';
+    return '*Successfully found on YouTube! This platform works most reliably.*';
+  }
+  if (strategy.includes('SoundCloud')) {
+    return '*Found on SoundCloud! Great for independent artists.*';
   }
   if (strategy.includes('Spotify')) {
     return '*Playing via Spotify integration.*';
-  }
-  if (strategy.includes('Bandcamp')) {
-    return '*High-quality audio from Bandcamp!*';
   }
   return '*Successfully found and playing!*';
 }
