@@ -128,14 +128,28 @@ export async function handleQueueModal(modal, rootInteraction) {
 
     const res = await node.rest.resolve(query);
     console.log('Search result:', res?.tracks?.length || 0, 'tracks found');
+    console.log('Search response:', JSON.stringify(res, null, 2));
     
-    const track = res?.tracks?.[0];
+    let track = res?.tracks?.[0];
     
     if (!track) {
       console.log('No tracks found for query:', query);
-      return modal.editReply({
-        embeds: [UtaUI.errorEmbed(`Uta couldn't find "${query}". Try a different search term or check the URL format!`)]
-      });
+      
+      // Try alternative search methods
+      console.log('🔄 Trying alternative search with ytsearch prefix...');
+      const ytRes = await node.rest.resolve(`ytsearch:${query}`);
+      console.log('YT Search result:', ytRes?.tracks?.length || 0, 'tracks found');
+      
+      const ytTrack = ytRes?.tracks?.[0];
+      if (ytTrack) {
+        console.log('✅ Found track via YouTube search:', ytTrack.info?.title);
+        // Use the YouTube track
+        track = ytTrack;
+      } else {
+        return modal.editReply({
+          embeds: [UtaUI.errorEmbed(`Uta couldn't find "${query}". Try a simpler search term like just the song name!`)]
+        });
+      }
     }
 
     console.log('Found track:', track.info?.title);
