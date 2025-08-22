@@ -89,14 +89,21 @@ class StreamManager {
 
   getStreamUrls(channel) {
     // Check for premium API key
-    const apiKey = process.env.DIFM_API_KEY;
+    const apiKey = cfg.difm?.apiKey || process.env.DIFM_API_KEY;
+    
     if (apiKey) {
-      console.log('Using premium DI.FM stream');
-      return [`http://prem2.di.fm/${channel}?${apiKey}`];
+      console.log('✅ Using premium DI.FM stream with API key');
+      // Premium DI.FM stream URLs with your Listen Key
+      return [
+        `https://prem2.di.fm:443/${channel}?${apiKey}`,
+        `https://prem1.di.fm:443/${channel}?${apiKey}`,
+        `https://prem3.di.fm:443/${channel}?${apiKey}`
+      ];
     }
     
-    // Fallback to free streams (though these are blocked)
-    console.log('No premium key found, using free streams');
+    console.warn('⚠️ No premium DI.FM key found, attempting free streams (likely to fail)');
+    console.warn('💡 Add DIFM_API_KEY to your environment variables for premium access');
+    // Fallback to free streams (these will likely be blocked)
     return [
       `http://pub7.di.fm/${channel}`,
       `http://pub6.di.fm/${channel}`,
@@ -271,6 +278,7 @@ export const execute = async (interaction) => {
   console.log('Member roles:', interaction.member?.roles?.cache?.map(r => r.name) || []);
   console.log('Authorized role ID:', cfg.uta.authorizedRoleId);
   console.log('Is authorized:', isAuthorized(interaction.member, cfg.uta.authorizedRoleId));
+  console.log('DI.FM API Key configured:', !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY));
 
   // Authorization check
   if (!isAuthorized(interaction.member, cfg.uta.authorizedRoleId)) {
@@ -469,8 +477,15 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
   } catch (error) {
     console.error('Failed to play radio stream:', error);
     console.error('Stream error details:', error.stack);
+    
+    // Provide helpful error message based on API key status
+    const hasApiKey = !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY);
+    const errorMessage = hasApiKey 
+      ? `Failed to play ${channelInfo.name}. The premium stream may be temporarily unavailable.`
+      : `Failed to play ${channelInfo.name}. Free streams are blocked - please add your DI.FM API key for premium access.`;
+    
     await selectInteraction.editReply({
-      embeds: [createErrorEmbed(`Failed to play ${channelInfo.name}. All servers may be unavailable.`)]
+      embeds: [createErrorEmbed(errorMessage)]
     });
   }
   
@@ -508,6 +523,8 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
 }
 
 function createRadioEmbed(title, currentChannel = null) {
+  const hasApiKey = !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY);
+  
   const embed = new EmbedBuilder()
     .setColor('#1DB954')
     .setTitle(`📻 ${title}`)
@@ -524,8 +541,21 @@ function createRadioEmbed(title, currentChannel = null) {
         inline: false
       }
     )
-    .setFooter({ text: 'DI.FM - Addictive Electronic Music' })
+    .setFooter({ 
+      text: hasApiKey 
+        ? 'DI.FM Premium - High Quality Streams ✨' 
+        : 'DI.FM - Add API key for premium access'
+    })
     .setTimestamp();
+
+  // Add API key status field
+  embed.addFields({
+    name: hasApiKey ? '✅ Premium Access' : '⚠️ Free Access (Limited)',
+    value: hasApiKey 
+      ? 'Premium DI.FM subscription active - enjoy uninterrupted high-quality streams!'
+      : 'Add your DI.FM API key to environment variables for premium access',
+    inline: false
+  });
 
   if (currentChannel && DIFM_CHANNELS[currentChannel]) {
     const channelInfo = DIFM_CHANNELS[currentChannel];
