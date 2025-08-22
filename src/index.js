@@ -65,6 +65,30 @@ const RADIO_STATIONS = {
     url: 'http://ice1.somafm.com/dronezone-256-mp3',
     genre: 'Drone'
   },
+  'lofi_girl': { 
+    name: 'Lofi Girl Radio', 
+    description: '24/7 chill lo-fi hip hop beats',
+    url: 'http://stream.zeno.fm/f3wvbbqmdg8uv',
+    genre: 'Lo-Fi'
+  },
+  'chillhop_radio': { 
+    name: 'Chillhop Radio', 
+    description: 'Instrumental hip hop and jazz',
+    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/audio/',
+    genre: 'Lo-Fi'
+  },
+  'lofi_cafe': { 
+    name: 'Lo-Fi Cafe', 
+    description: 'Relaxing lo-fi beats for studying',
+    url: 'http://hyades.shoutca.st:8043/stream',
+    genre: 'Lo-Fi'
+  },
+  'chill_corner': { 
+    name: 'Chill Corner Radio', 
+    description: 'Downtempo and chillout music',
+    url: 'http://149.56.147.197:8105/stream',
+    genre: 'Lo-Fi'
+  },
   'radio_paradise': { 
     name: 'Radio Paradise Main', 
     description: 'Eclectic music discovery',
