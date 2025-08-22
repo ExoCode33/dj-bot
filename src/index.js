@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from 'node:http';
 
 // PRIORITY: Start health server immediately
-console.log('🚀 STARTING UTA DJ BOT - BULLETPROOF STREAMS');
+console.log('🚀 STARTING UTA DJ BOT - ONE PIECE RADIO');
 console.log('📅 Time:', new Date().toISOString());
 console.log('🎯 PORT:', process.env.PORT || 3000);
 
@@ -347,22 +347,22 @@ setTimeout(async () => {
           .setEmoji('🛑');
 
         const embed = new EmbedBuilder()
-          .setColor('#00FF94')
-          .setTitle('📻 Bulletproof Radio Stations')
-          .setDescription('🎯 **100% Guaranteed to Work** - No more failed streams!')
+          .setColor('#D2691E')
+          .setTitle('🏴‍☠️ Uta\'s One Piece Radio Collection')
+          .setDescription('🎵 *"Set sail for the ultimate music adventure!"* 🎵\n\nSelect a station to start your musical journey!')
           .addFields(
             {
-              name: '✅ Available Stations',
-              value: Object.values(RADIO_STATIONS).map(s => `• **${s.name}**`).join('\n'),
+              name: '🎵 Music Treasures Available',
+              value: '🎌 Anime • 🎵 Lo-Fi • 🌌 Ambient • 🎧 Electronic\n🎸 Rock • 🎷 Jazz • 🎼 Classical • 📻 Pop • 🎤 Hip-Hop',
               inline: false
             },
             {
-              name: '🎵 What You Get',
-              value: '• Instant streaming\n• No buffering issues\n• Crystal clear audio\n• Reliable connections',
+              name: '🎭 Grand Line Radio Network',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to sail with you!`,
               inline: false
             }
           )
-          .setFooter({ text: 'Powered by SomaFM, Radio Paradise & KEXP' })
+          .setFooter({ text: 'Uta\'s Radio • Set sail for musical adventure! 🏴‍☠️' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -418,11 +418,11 @@ setTimeout(async () => {
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor('#00FF00')
-                    .setTitle('🎵 Now Playing!')
-                    .setDescription(`**${result.station.name}** is streaming live!`)
+                    .setTitle('🎵 Now Playing on the Thousand Sunny!')
+                    .setDescription(`**${result.station.name}** is streaming across the Grand Line!`)
                     .addFields(
                       {
-                        name: '📻 Station',
+                        name: '🎶 Station',
                         value: result.station.description,
                         inline: false
                       },
@@ -432,12 +432,12 @@ setTimeout(async () => {
                         inline: true
                       },
                       {
-                        name: '🔊 Channel',
+                        name: '🔊 Voice Channel',
                         value: voiceChannel.name,
                         inline: true
                       }
                     )
-                    .setFooter({ text: 'Enjoy the music! 🎧' })
+                    .setFooter({ text: 'Adventure continues with great music! 🏴‍☠️' })
                     .setTimestamp()
                   ]
                 });
@@ -504,7 +504,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (bulletproof), uta');
+    console.log('✅ Commands loaded: radio (One Piece collection), uta');
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -543,4 +543,4 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🎬 Bulletproof bot initialization started');
+console.log('🎬 One Piece radio bot initialization started');
