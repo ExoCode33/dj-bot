@@ -1,9 +1,9 @@
+// src/features/music/lavalink.js
 import { Shoukaku, Connectors } from 'shoukaku';
 import { cfg } from '../../config/index.js';
 import { log } from '../../utils/logger.js';
 
 export function initLavalink(client) {
-  // Just use your Railway instance for now
   const nodes = [
     { 
       name: cfg.lavalink.name, 
@@ -15,11 +15,22 @@ export function initLavalink(client) {
 
   log.info(`Connecting to Lavalink: ${cfg.lavalink.url} (secure: ${cfg.lavalink.secure})`);
 
+  // FIXED: Increased timeouts to handle slow searches
   const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
     resume: true,
     reconnectTries: 5,
-    restTimeout: 10000,
-    reconnectInterval: 5000
+    restTimeout: 60000,        // ✅ INCREASED: 60 seconds instead of 10
+    reconnectInterval: 5000,
+    retryDelay: 5000,          // ✅ ADDED: Delay between retries
+    userAgent: 'UTA-DJ-BOT/1.0.0', // ✅ ADDED: Custom user agent
+    structures: {
+      // ✅ ADDED: Custom structures for better error handling
+      rest: {
+        timeout: 60000,        // 60 second timeout for REST requests
+        offset: 100,           // Retry offset
+        retryLimit: 3          // Max 3 retries per request
+      }
+    }
   });
 
   // Handle all possible events to prevent unhandled errors
