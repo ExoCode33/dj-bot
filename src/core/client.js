@@ -9,6 +9,5 @@ export function createClient() {
   client.commands = new Collection();
   client.shoukaku = initLavalink(client);
 
-  import('./loader.js');
   return client;
 }
