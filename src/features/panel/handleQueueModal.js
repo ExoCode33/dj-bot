@@ -3,6 +3,32 @@ import { UtaUI } from './ui.js';
 import { toDisplay } from '../music/state.js';
 import { cfg } from '../../config/index.js';
 
+// Smart node selection that prefers public nodes for YouTube
+function selectBestNode(client) {
+  const nodeMap = client.shoukaku.nodes;
+  
+  // Get all connected nodes
+  const connectedNodes = Array.from(nodeMap.values()).filter(node => node.connected);
+  
+  if (connectedNodes.length === 0) {
+    return null;
+  }
+  
+  // Prefer public nodes for better YouTube access
+  const publicNodes = connectedNodes.filter(node => node.name.includes('public'));
+  const privateNodes = connectedNodes.filter(node => !node.name.includes('public'));
+  
+  // Use public node if available, otherwise use private
+  const preferredNodes = publicNodes.length > 0 ? publicNodes : privateNodes;
+  
+  // From preferred nodes, pick the one with lowest load
+  return preferredNodes.sort((a, b) => {
+    const aLoad = a.stats?.cpu?.systemLoad || 0;
+    const bLoad = b.stats?.cpu?.systemLoad || 0;
+    return aLoad - bLoad;
+  })[0];
+}
+
 export async function handleQueueModal(modal, rootInteraction) {
   console.log('🎵 Modal handler called!');
   console.log('Modal customId:', modal.customId);
@@ -41,42 +67,21 @@ export async function handleQueueModal(modal, rootInteraction) {
     return;
   }
 
-  console.log('🎵 Getting Lavalink node...');
+  console.log('🎵 Getting best Lavalink node...');
   console.log('Available nodes:', modal.client.shoukaku.nodes.size);
   
-  // Try different ways to get the node
-  const nodeMap = modal.client.shoukaku.nodes;
-  console.log('Node map keys:', Array.from(nodeMap.keys()));
-  
-  // Get the node by name first
-  let node = nodeMap.get('railway-node');
-  if (!node) {
-    // Fallback to any available node
-    node = nodeMap.values().next().value;
-  }
-  
-  console.log('Node found:', !!node);
-  if (node) {
-    console.log('Node connected:', node.connected);
-    console.log('Node state:', node.state);
-  }
+  // Use smart node selection
+  const node = selectBestNode(modal.client);
   
   if (!node) {
-    console.log('❌ No Lavalink node found at all');
+    console.log('❌ No Lavalink nodes available');
     return modal.editReply({
-      embeds: [UtaUI.errorEmbed("Uta's sound system is not available. Please try again later!")]
+      embeds: [UtaUI.errorEmbed("No Lavalink nodes available. Please try again later!")]
     });
   }
   
-  console.log('🔍 About to check node state. State:', node.state, 'Expected: 2 (connected) or 3 (reconnecting)');
-  // Check if node is connected (state 2 = CONNECTED, state 3 = RECONNECTING in Shoukaku)
-  if (node.state !== 2 && node.state !== 3) {
-    console.log('❌ Lavalink node found but not connected, state:', node.state);
-    return modal.editReply({
-      embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
-    });
-  }
-  console.log('✅ Lavalink node is available and connected - proceeding!');
+  console.log(`🎵 Using node: ${node.name} (${node.connected ? 'connected' : 'disconnected'})`);
+  console.log('Node state:', node.state);
 
   console.log('🎮 Getting player...');
   let player = modal.client.shoukaku.players.get(modal.guildId);
@@ -115,14 +120,14 @@ export async function handleQueueModal(modal, rootInteraction) {
   console.log('🔍 Starting search process...');
 
   try {
-    // Show searching message with timeout protection
+    // Show searching message with node info
     try {
       await modal.editReply({
         embeds: [new (await import('discord.js')).EmbedBuilder()
           .setColor('#FFA502')
           .setTitle('🔍 Uta is searching for your song...')
-          .setDescription(`🎵 Looking for: **${query}**\n⏳ *"Give me just a moment to find that perfect track!"*`)
-          .setFooter({ text: 'Searching through multiple sources... 📚' })
+          .setDescription(`🎵 Looking for: **${query}**\n🌐 Using node: **${node.name}**\n⏳ *"Let me find that perfect track!"*`)
+          .setFooter({ text: 'Trying multiple search strategies... 📚' })
         ]
       });
     } catch (editError) {
@@ -130,61 +135,73 @@ export async function handleQueueModal(modal, rootInteraction) {
       return; // Exit if we can't communicate with the user
     }
 
-    // Try multiple search strategies for better success rate
+    // Try multiple search strategies with smart ordering
     let track = null;
+    let successfulStrategy = null;
+    
     const searchStrategies = [
-      query, // Direct search (works for URLs)
-      `ytsearch:${query}`, // YouTube search
-      `scsearch:${query}`, // SoundCloud search
-      `${query} official`, // Try with "official"
-      `${query} audio`, // Try with "audio"
-      `${query} music`, // Try with "music"
+      { name: 'Direct URL', query: query },
+      { name: 'YouTube Search', query: `ytsearch:${query}` },
+      { name: 'SoundCloud Search', query: `scsearch:${query}` },
+      { name: 'YouTube + Official', query: `ytsearch:${query} official` },
+      { name: 'YouTube + Audio', query: `ytsearch:${query} audio` },
+      { name: 'SoundCloud + Official', query: `scsearch:${query} official` }
     ];
 
-    for (const searchQuery of searchStrategies) {
+    for (const strategy of searchStrategies) {
       try {
-        console.log(`🔍 Trying search strategy: ${searchQuery}`);
-        const res = await node.rest.resolve(searchQuery);
-        console.log(`Search result for "${searchQuery}":`, res?.tracks?.length || 0, 'tracks found');
+        console.log(`🔍 [${node.name}] Trying ${strategy.name}: ${strategy.query}`);
+        const res = await node.rest.resolve(strategy.query);
+        console.log(`Search result for "${strategy.name}":`, res?.tracks?.length || 0, 'tracks found');
         
         if (res?.tracks?.length > 0) {
           track = res.tracks[0];
-          console.log(`✅ Found track via strategy "${searchQuery}":`, track.info?.title);
+          successfulStrategy = strategy.name;
+          console.log(`✅ [${node.name}] Success with ${strategy.name}: ${track.info?.title}`);
           break;
+        } else {
+          console.log(`❌ [${node.name}] ${strategy.name} returned no results`);
         }
       } catch (error) {
-        console.log(`❌ Search strategy "${searchQuery}" failed:`, error.message);
+        console.log(`❌ [${node.name}] ${strategy.name} failed: ${error.message}`);
         continue; // Try next strategy
       }
     }
 
-    // If no track found, provide helpful error message with suggestions
+    // If no track found, provide helpful error with node info
     if (!track) {
-      console.log('❌ No tracks found with any search strategy');
+      console.log('❌ No tracks found with any search strategy on any node');
       return modal.editReply({
         embeds: [new (await import('discord.js')).EmbedBuilder()
           .setColor('#FF4757')
-          .setTitle('🎭 Uta couldn\'t find that song!')
-          .setDescription(`😔 *"I searched everywhere but couldn't find '${query}'"*\n\n**Try these alternatives:**`)
+          .setTitle('🎭 No results found!')
+          .setDescription(`😔 Couldn't find "${query}" on any platform\n🌐 Searched using: **${node.name}**`)
           .addFields(
-            { 
-              name: '🔗 Direct Links (Most Reliable)', 
-              value: '• Copy YouTube URL: `https://youtube.com/watch?v=...`\n• Copy SoundCloud URL: `https://soundcloud.com/...`\n• Direct links work even when search is blocked!', 
-              inline: false 
+            {
+              name: '🎯 Try These Instead:',
+              value: '**Direct URLs (Most Reliable):**\n' +
+                     '🔴 `https://youtube.com/watch?v=...`\n' +
+                     '🟠 `https://soundcloud.com/...`\n' +
+                     '🔵 `https://bandcamp.com/...`',
+              inline: false
             },
-            { 
-              name: '🎵 Search Tips', 
-              value: '• Use simpler terms: "Artist - Song"\n• Try just the song name\n• Check spelling carefully\n• Add "official" or "audio" to your search', 
-              inline: false 
+            {
+              name: '🔍 Search Tips:',
+              value: '• Use artist + song name\n' +
+                     '• Try simpler terms\n' +
+                     '• Check spelling\n' +
+                     '• SoundCloud often works better',
+              inline: false
             },
-            { 
-              name: '🎪 Supported Platforms', 
-              value: '✅ YouTube • ✅ SoundCloud • ✅ Bandcamp • ✅ Twitch\n*Direct URLs work best for YouTube!*', 
-              inline: false 
+            {
+              name: '🌐 Node Status:',
+              value: `Current: **${node.name}**\n` +
+                     `Connected nodes: **${Array.from(modal.client.shoukaku.nodes.values()).filter(n => n.connected).length}**`,
+              inline: false
             }
           )
-          .setFooter({ text: 'Uta believes in you! Try a direct link! 💪' })
-        ]
+          .setFooter({ text: 'Direct links work best! 🎵' })
+      ]
       });
     }
 
@@ -196,9 +213,14 @@ export async function handleQueueModal(modal, rootInteraction) {
     console.log('🎵 Starting playback...');
     await player.playTrack({ track: track.encoded });
 
-    // Success response
+    // Success with detailed info
     await modal.editReply({
-      embeds: [UtaUI.successEmbed(track.info.title, wasEmpty)]
+      embeds: [new (await import('discord.js')).EmbedBuilder()
+        .setColor('#00FF94')
+        .setTitle(wasEmpty ? '🎤 Now Playing!' : '🎵 Added to Queue!')
+        .setDescription(`✨ **${track.info.title}** ✨\n🎯 Found via: **${successfulStrategy}**\n🌐 Node: **${node.name}**`)
+        .setFooter({ text: wasEmpty ? 'Enjoy the music! 🎭' : 'Added to Uta\'s setlist! 🎵' })
+      ]
     });
 
     // Update the main panel with error handling
