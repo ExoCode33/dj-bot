@@ -93,11 +93,14 @@ class StreamManager {
     
     if (apiKey) {
       console.log('✅ Using premium DI.FM stream with API key');
-      // Premium DI.FM stream URLs with your Listen Key
+      // ✅ FIXED: Correct DI.FM premium stream URLs
       return [
-        `https://prem2.di.fm:443/${channel}?${apiKey}`,
-        `https://prem1.di.fm:443/${channel}?${apiKey}`,
-        `https://prem3.di.fm:443/${channel}?${apiKey}`
+        `https://listen.di.fm/premium_high/${channel}.pls?listen_key=${apiKey}`,
+        `https://listen.di.fm/premium/${channel}.pls?listen_key=${apiKey}`,
+        `http://listen.di.fm/premium_high/${channel}.pls?listen_key=${apiKey}`,
+        // ✅ ADDED: Alternative direct stream format
+        `https://listen.di.fm/premium_high/${channel}?listen_key=${apiKey}`,
+        `http://listen.di.fm/premium/${channel}?listen_key=${apiKey}`
       ];
     }
     
