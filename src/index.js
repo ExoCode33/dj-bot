@@ -83,6 +83,7 @@ async function startBot() {
     console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
     console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
     console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
+    console.log(`  - DI.FM API Key: ${cfg.difm?.apiKey ? 'SET' : 'NOT SET'}`);
 
     // Start health check server (for Railway monitoring)
     if (process.env.NODE_ENV === 'production') {
@@ -172,8 +173,8 @@ async function startBot() {
 
     console.log('🔍 Phase 5: Event Registration');
     
-    // Ready event
-    client.once('ready', () => {
+    // ✅ FIXED: Use clientReady instead of ready to avoid deprecation warning
+    client.once('clientReady', () => {
       console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
       console.log(`👥 Total users: ${client.users.cache.size}`);
