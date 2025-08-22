@@ -16,7 +16,14 @@ export async function handleQueueModal(modal, rootInteraction) {
     });
   }
 
-  await modal.deferReply({ ephemeral: true });
+  // Check if we can defer the reply
+  try {
+    await modal.deferReply({ ephemeral: true });
+  } catch (error) {
+    // If deferReply fails, the interaction might be expired
+    console.error('Failed to defer modal reply:', error.message);
+    return;
+  }
 
   const node = modal.client.shoukaku.nodes.values().next().value;
   
@@ -54,15 +61,20 @@ export async function handleQueueModal(modal, rootInteraction) {
   }
 
   try {
-    // Show searching message
-    await modal.editReply({
-      embeds: [new (await import('discord.js')).EmbedBuilder()
-        .setColor('#FFA502')
-        .setTitle('🔍 Uta is searching for your song...')
-        .setDescription(`🎵 Looking for: **${query}**\n⏳ *"Give me just a moment to find that perfect track!"*`)
-        .setFooter({ text: 'Searching through the music library... 📚' })
-      ]
-    });
+    // Show searching message with timeout protection
+    try {
+      await modal.editReply({
+        embeds: [new (await import('discord.js')).EmbedBuilder()
+          .setColor('#FFA502')
+          .setTitle('🔍 Uta is searching for your song...')
+          .setDescription(`🎵 Looking for: **${query}**\n⏳ *"Give me just a moment to find that perfect track!"*`)
+          .setFooter({ text: 'Searching through the music library... 📚' })
+        ]
+      });
+    } catch (editError) {
+      console.error('Failed to edit modal reply:', editError.message);
+      return; // Exit if we can't communicate with the user
+    }
 
     const res = await node.rest.resolve(query);
     const track = res?.tracks?.[0];
@@ -89,12 +101,17 @@ export async function handleQueueModal(modal, rootInteraction) {
       embeds: [UtaUI.successEmbed(track.info.title, wasEmpty)]
     });
 
-    // Update the main panel
-    const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
-    await rootInteraction.editReply({ 
-      embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
-      components: [UtaUI.buttons(player.paused, hasTrack)] 
-    });
+    // Update the main panel with error handling
+    try {
+      const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
+      await rootInteraction.editReply({ 
+        embeds: [UtaUI.panelEmbed({ current: toDisplay(player) })], 
+        components: [UtaUI.buttons(player.paused, hasTrack)] 
+      });
+    } catch (panelError) {
+      console.error('Failed to update main panel:', panelError.message);
+      // Don't return error to user since the song was successfully added
+    }
 
   } catch (error) {
     console.error('Error in queue modal:', error);
