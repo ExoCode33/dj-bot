@@ -129,16 +129,29 @@ class StreamManager {
           return { success: true, url };
         } else if (result.loadType === 'track') {
           // Handle live radio streams that don't populate tracks array
-          console.log('Detected live stream, attempting direct playback');
+          console.log('Detected live stream, creating virtual track');
           try {
-            await player.playTrack({ track: url });
+            // Create a virtual track for the live stream
+            const virtualTrack = {
+              track: Buffer.from(JSON.stringify({
+                identifier: url,
+                isSeekable: false,
+                author: "DI.FM",
+                length: 0,
+                isStream: true,
+                title: `DI.FM ${DIFM_CHANNELS[channel]?.name || channel}`,
+                uri: url
+              })).toString('base64')
+            };
+            
+            await player.playTrack(virtualTrack);
             player.currentRadioChannel = channel;
             this.reconnectAttempts.set(guildId, 0);
             this.setupEventHandlers(player, channel, guildId);
-            console.log(`Successfully started live stream: ${url}`);
+            console.log(`Successfully started virtual track for: ${url}`);
             return { success: true, url };
-          } catch (directPlayError) {
-            console.log(`Direct play failed: ${directPlayError.message}`);
+          } catch (virtualTrackError) {
+            console.log(`Virtual track creation failed: ${virtualTrackError.message}`);
           }
         }
       } catch (error) {
