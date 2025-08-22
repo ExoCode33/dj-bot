@@ -10,147 +10,261 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Enhanced logging for Railway deployment debugging
+console.log('🚀 UTA DJ BOT - STARTING UP');
+console.log('📅 Timestamp:', new Date().toISOString());
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+console.log('🔧 Node Version:', process.version);
+console.log('📍 Working Directory:', process.cwd());
+console.log('📂 Script Directory:', __dirname);
+
 async function startBot() {
-  console.log('🚀 Starting Uta DJ Bot...');
+  try {
+    console.log('🔍 Phase 1: Environment Validation');
 
-  // Validate required environment variables
-  const requiredEnvVars = [
-    'DISCORD_TOKEN',
-    'CLIENT_ID',
-    'LAVALINK_URL',
-    'LAVALINK_AUTH'
-  ];
+    // Validate required environment variables
+    const requiredEnvVars = [
+      'DISCORD_TOKEN',
+      'CLIENT_ID',
+      'LAVALINK_URL',
+      'LAVALINK_AUTH'
+    ];
 
-  console.log('🔍 Checking environment variables...');
-  const missing = requiredEnvVars.filter(key => !process.env[key]);
-  if (missing.length > 0) {
-    console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
-    process.exit(1);
-  }
-  console.log('✅ All required environment variables found');
+    console.log('🔍 Checking environment variables...');
+    const missing = requiredEnvVars.filter(key => {
+      const hasVar = !!process.env[key];
+      console.log(`  ${hasVar ? '✅' : '❌'} ${key}: ${hasVar ? 'SET' : 'MISSING'}`);
+      return !hasVar;
+    });
 
-  // Log configuration (without sensitive data)
-  console.log('📋 Bot configuration:');
-  console.log(`- Client ID: ${cfg.discord.clientId}`);
-  console.log(`- Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
-  console.log(`- Lavalink URL: ${cfg.lavalink.url}`);
-  console.log(`- Lavalink Secure: ${cfg.lavalink.secure}`);
-  console.log(`- Default Volume: ${cfg.uta.defaultVolume}`);
+    if (missing.length > 0) {
+      console.error(`❌ FATAL: Missing required environment variables: ${missing.join(', ')}`);
+      console.error('💡 Please check your Railway environment variables configuration');
+      process.exit(1);
+    }
+    console.log('✅ All required environment variables found');
 
-  console.log('🤖 Creating Discord client...');
-  const client = createClient();
+    // Log configuration (without sensitive data)
+    console.log('📋 Bot Configuration:');
+    console.log(`  - Client ID: ${cfg.discord.clientId}`);
+    console.log(`  - Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
+    console.log(`  - Lavalink URL: ${cfg.lavalink.url}`);
+    console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
+    console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
+    console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
 
-  // Load commands directly here
-  console.log('📂 Loading commands...');
-  const commandsDir = path.join(__dirname, 'commands');
-  console.log(`📁 Commands directory: ${commandsDir}`);
-  
-  if (!fs.existsSync(commandsDir)) {
-    console.error('❌ Commands directory does not exist!');
-    process.exit(1);
-  }
+    console.log('🔍 Phase 2: Discord Client Creation');
+    const client = createClient();
+    console.log('✅ Discord client created successfully');
 
-  const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js'));
-  console.log(`📄 Found ${files.length} command files:`, files);
+    console.log('🔍 Phase 3: Command Loading');
+    const commandsDir = path.join(__dirname, 'commands');
+    console.log(`📁 Commands directory: ${commandsDir}`);
+    
+    if (!fs.existsSync(commandsDir)) {
+      console.error('❌ FATAL: Commands directory does not exist!');
+      console.error(`Expected path: ${commandsDir}`);
+      process.exit(1);
+    }
 
-  const slashDefs = [];
-  for (const f of files) {
+    const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js'));
+    console.log(`📄 Found ${files.length} command files:`, files);
+
+    if (files.length === 0) {
+      console.error('❌ FATAL: No command files found!');
+      process.exit(1);
+    }
+
+    const slashDefs = [];
+    for (const f of files) {
+      try {
+        console.log(`⚡ Loading command file: ${f}`);
+        const filePath = path.join(commandsDir, f);
+        const mod = await import(filePath);
+        
+        if (!mod?.data || !mod?.execute) {
+          console.error(`❌ Invalid command file ${f}: missing data or execute`);
+          continue;
+        }
+        
+        const commandName = mod.data.name;
+        console.log(`✅ Loaded command: ${commandName}`);
+        
+        client.commands.set(commandName, mod);
+        slashDefs.push(mod.data.toJSON());
+      } catch (error) {
+        console.error(`❌ Error loading command file ${f}:`, error.message);
+        console.error(error.stack);
+      }
+    }
+
+    console.log(`📋 Total commands loaded: ${slashDefs.length}`);
+    console.log(`🎯 Command names: ${slashDefs.map(cmd => cmd.name).join(', ')}`);
+
+    if (slashDefs.length === 0) {
+      console.error('❌ FATAL: No commands loaded successfully!');
+      process.exit(1);
+    }
+
+    console.log('🔍 Phase 4: Slash Command Registration');
     try {
-      console.log(`⚡ Loading command file: ${f}`);
-      const filePath = path.join(commandsDir, f);
-      const mod = await import(filePath);
+      const rest = new REST({ version: '10' }).setToken(cfg.discord.token);
+
+      if (cfg.discord.guildId) {
+        console.log(`🎯 Registering to guild: ${cfg.discord.guildId}`);
+        await rest.put(Routes.applicationGuildCommands(cfg.discord.clientId, cfg.discord.guildId), { body: slashDefs });
+        console.log('✅ Registered GUILD commands successfully');
+      } else {
+        console.log('🌍 Registering global commands...');
+        await rest.put(Routes.applicationCommands(cfg.discord.clientId), { body: slashDefs });
+        console.log('✅ Registered GLOBAL commands successfully');
+      }
+    } catch (error) {
+      console.error('❌ Slash command registration failed:', error.message);
+      if (error.code === 50001) {
+        console.error('💡 Error 50001: Missing Access - Check your bot permissions');
+        console.error('   - Make sure the bot is added to your server');
+        console.error('   - Ensure the bot has "applications.commands" scope');
+      }
+      if (error.code === 50035) {
+        console.error('💡 Error 50035: Invalid Form Body - Check your command definitions');
+      }
+      // Don't exit here, the bot can still work with existing commands
+      console.warn('⚠️  Continuing without registering new commands...');
+    }
+
+    console.log('🔍 Phase 5: Event Registration');
+    
+    // Ready event
+    client.once('ready', () => {
+      console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
+      console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
+      console.log(`👥 Total users: ${client.users.cache.size}`);
+      console.log(`🎵 Lavalink nodes: ${client.shoukaku.nodes.size}`);
       
-      if (!mod?.data || !mod?.execute) {
-        console.error(`❌ Invalid command file ${f}: missing data or execute`);
-        continue;
+      // List connected guilds
+      client.guilds.cache.forEach(guild => {
+        console.log(`  📍 Guild: ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
+      });
+      
+      console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
+    });
+
+    // Interaction handler
+    client.on('interactionCreate', async (i) => {
+      if (!i.isChatInputCommand()) return;
+      
+      console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
+      
+      const cmd = client.commands.get(i.commandName);
+      if (!cmd) {
+        console.error(`❌ Unknown command: ${i.commandName}`);
+        return;
       }
       
-      const commandName = mod.data.name;
-      console.log(`✅ Loaded command: ${commandName}`);
-      
-      client.commands.set(commandName, mod);
-      slashDefs.push(mod.data.toJSON());
-    } catch (error) {
-      console.error(`❌ Error loading command file ${f}:`, error);
-    }
-  }
+      try {
+        await cmd.execute(i);
+        console.log(`✅ Command /${i.commandName} executed successfully`);
+      } catch (error) {
+        console.error(`❌ Command /${i.commandName} execution failed:`, error.message);
+        console.error(error.stack);
+        
+        try {
+          if (i.deferred || i.replied) {
+            await i.editReply('Something went wrong while executing this command.');
+          } else {
+            await i.reply({ content: 'Something went wrong while executing this command.', ephemeral: true });
+          }
+        } catch (replyError) {
+          console.error('❌ Failed to send error reply:', replyError.message);
+        }
+      }
+    });
 
-  console.log(`📋 Total commands loaded: ${slashDefs.length}`);
-  console.log(`🎯 Command names: ${slashDefs.map(cmd => cmd.name).join(', ')}`);
+    // Lavalink connection logging
+    client.shoukaku.on('ready', (name) => {
+      console.log(`🎵 [LAVALINK] Node "${name}" is ready!`);
+    });
 
-  // Register commands directly
-  console.log('⚡ Registering slash commands...');
-  try {
-    const rest = new REST({ version: '10' }).setToken(cfg.discord.token);
+    client.shoukaku.on('error', (name, error) => {
+      console.error(`🎵 [LAVALINK] Node "${name}" error:`, error.message);
+    });
 
-    if (cfg.discord.guildId) {
-      console.log(`🎯 Registering to guild: ${cfg.discord.guildId}`);
-      await rest.put(Routes.applicationGuildCommands(cfg.discord.clientId, cfg.discord.guildId), { body: slashDefs });
-      console.log('✅ Registered GUILD commands.');
-    } else {
-      console.log('🌍 Registering global commands...');
-      await rest.put(Routes.applicationCommands(cfg.discord.clientId), { body: slashDefs });
-      console.log('✅ Registered GLOBAL commands.');
-    }
-    console.log('✅ Slash commands registered successfully');
-  } catch (error) {
-    console.error('❌ Slash registration failed:', error.message);
-    if (error.code === 50001) {
-      console.error('Missing Access - Check your bot permissions');
-    }
-  }
+    client.shoukaku.on('disconnect', (name, reason) => {
+      console.warn(`🎵 [LAVALINK] Node "${name}" disconnected:`, reason);
+    });
 
-  console.log('📝 Loading events...');
-  // Register events directly
-  client.once('ready', () => {
-    console.log(`[READY] Logged in as ${client.user.tag}`);
-  });
+    client.shoukaku.on('reconnecting', (name, delay) => {
+      console.log(`🎵 [LAVALINK] Node "${name}" reconnecting in ${delay}ms`);
+    });
 
-  client.on('interactionCreate', async (i) => {
-    if (!i.isChatInputCommand()) return;
-    const cmd = client.commands.get(i.commandName);
-    if (!cmd) return;
-    try {
-      await cmd.execute(i);
-    } catch (e) {
-      console.error('Command execution error:', e);
-      if (i.deferred || i.replied) await i.editReply('Something went wrong.');
-      else await i.reply({ content: 'Something went wrong.', ephemeral: true });
-    }
-  });
-
-  console.log('🔑 Logging in to Discord...');
-  // Enhanced error handling for login
-  try {
+    console.log('🔍 Phase 6: Discord Login');
+    console.log('🔑 Attempting to log in to Discord...');
+    
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Login successful');
+    console.log('✅ Login request sent successfully');
+
   } catch (error) {
-    console.error('❌ Login failed:', error.message);
+    console.error('💥 FATAL ERROR during bot startup:', error.message);
+    console.error('📋 Full error details:', error);
+    
     if (error.code === 'TokenInvalid') {
-      console.error('Invalid bot token - check your DISCORD_TOKEN');
+      console.error('🔑 Invalid bot token - check your DISCORD_TOKEN environment variable');
+    } else if (error.code === 'DisallowedIntents') {
+      console.error('🔒 Missing intents - check your bot configuration in Discord Developer Portal');
+    } else if (error.code === 'ENOTFOUND') {
+      console.error('🌐 Network error - check your internet connection');
     }
+    
     process.exit(1);
   }
 }
 
-// Handle uncaught errors
+// Enhanced error handling
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('💥 [UNHANDLED REJECTION]');
+  console.error('📍 Promise:', promise);
+  console.error('📋 Reason:', reason);
+  
+  // Don't exit for Lavalink connection errors
+  if (reason?.code === 'ERR_UNHANDLED_ERROR' && reason?.context) {
+    console.error(`🎵 Lavalink connection error for node: ${reason.context}`);
+    console.error('⚠️  Bot will continue running without music functionality until Lavalink connects.');
+    return;
+  }
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  // Don't exit for Shoukaku/Lavalink errors, just log them
+  console.error('💥 [UNCAUGHT EXCEPTION]:', error.message);
+  console.error('📋 Stack trace:', error.stack);
+  
+  // Don't exit for Shoukaku/Lavalink errors
   if (error.code === 'ERR_UNHANDLED_ERROR' && error.context) {
-    console.error(`Lavalink connection error for node: ${error.context}`);
-    console.error('Bot will continue running without music functionality until Lavalink connects.');
-    return; // Don't exit
+    console.error(`🎵 Lavalink connection error for node: ${error.context}`);
+    console.error('⚠️  Bot will continue running without music functionality until Lavalink connects.');
+    return;
   }
+  
+  console.error('💀 Process will exit due to uncaught exception');
   process.exit(1);
 });
 
+process.on('SIGTERM', () => {
+  console.log('📡 Received SIGTERM signal');
+  console.log('🛑 Gracefully shutting down...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('📡 Received SIGINT signal (Ctrl+C)');
+  console.log('🛑 Gracefully shutting down...');
+  process.exit(0);
+});
+
 // Start the bot
+console.log('🎬 Starting bot initialization...');
 startBot().catch((error) => {
-  console.error('❌ Failed to start bot:', error);
+  console.error('💥 Failed to start bot:', error.message);
+  console.error('📋 Error details:', error);
   process.exit(1);
 });
