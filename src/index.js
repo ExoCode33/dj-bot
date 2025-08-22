@@ -116,23 +116,59 @@ class SimpleRadioManager {
       // Handle different response types - FIXED PLAYTRACK SYNTAX
       if (result.loadType === 'track' && result.data) {
         // Use the correct playTrack syntax for Shoukaku
+        console.log(`🎵 Attempting to play track with encoded data...`);
         await player.playTrack({ 
           encoded: result.data.encoded
         });
+        
+        // Wait and check if track started
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`📊 Player state after playTrack:`, {
+          playing: player.playing,
+          paused: player.paused,
+          track: !!player.track,
+          position: player.position,
+          volume: player.volume
+        });
+        
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
         
       } else if (result.tracks && result.tracks.length > 0) {
+        console.log(`🎵 Attempting to play from tracks array...`);
         await player.playTrack({ 
           encoded: result.tracks[0].encoded
         });
+        
+        // Wait and check if track started
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`📊 Player state after playTrack:`, {
+          playing: player.playing,
+          paused: player.paused,
+          track: !!player.track,
+          position: player.position,
+          volume: player.volume
+        });
+        
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
         
       } else if (result.loadType === 'playlist' && result.data?.tracks?.length > 0) {
+        console.log(`🎵 Attempting to play from playlist...`);
         await player.playTrack({ 
           encoded: result.data.tracks[0].encoded
         });
+        
+        // Wait and check if track started
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`📊 Player state after playTrack:`, {
+          playing: player.playing,
+          paused: player.paused,
+          track: !!player.track,
+          position: player.position,
+          volume: player.volume
+        });
+        
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
       }
@@ -302,18 +338,33 @@ setTimeout(async () => {
               
               await componentInteraction.deferReply({ ephemeral: true });
 
-              // Get or create player
+              // Get or create player with better error handling
               let player = client.shoukaku.players.get(interaction.guildId);
               
               if (!player) {
-                console.log(`🔊 Joining voice channel: ${voiceChannel.name}`);
+                console.log(`🔊 Bot not in voice channel. Joining: ${voiceChannel.name}`);
+                
+                // Check bot permissions first
+                const permissions = voiceChannel.permissionsFor(interaction.client.user);
+                if (!permissions.has(['Connect', 'Speak'])) {
+                  throw new Error('Bot missing Connect/Speak permissions in voice channel');
+                }
+                
                 player = await client.shoukaku.joinVoiceChannel({
                   guildId: interaction.guildId,
                   channelId: voiceChannel.id,
                   shardId: interaction.guild.shardId
                 });
-                await player.setGlobalVolume(50);
-                console.log('✅ Voice connection established');
+                
+                // Wait a moment for connection to stabilize
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await player.setGlobalVolume(75); // Increased volume
+                console.log('✅ Voice connection established and volume set to 75');
+              } else {
+                console.log('🔊 Bot already in voice channel');
+                // Make sure volume is set
+                await player.setGlobalVolume(75);
               }
 
               try {
