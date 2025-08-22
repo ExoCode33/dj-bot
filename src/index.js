@@ -113,25 +113,25 @@ class SimpleRadioManager {
         encoded: !!result?.data?.encoded
       });
       
-      // Handle different response types - FIXED PLAYBACK
+      // Handle different response types - FIXED PLAYTRACK SYNTAX
       if (result.loadType === 'track' && result.data) {
-        // Use the track data directly with correct syntax
+        // Use the correct playTrack syntax for Shoukaku
         await player.playTrack({ 
-          track: result.data.encoded
+          encoded: result.data.encoded
         });
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
         
       } else if (result.tracks && result.tracks.length > 0) {
         await player.playTrack({ 
-          track: result.tracks[0].encoded
+          encoded: result.tracks[0].encoded
         });
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
         
       } else if (result.loadType === 'playlist' && result.data?.tracks?.length > 0) {
         await player.playTrack({ 
-          track: result.data.tracks[0].encoded
+          encoded: result.data.tracks[0].encoded
         });
         console.log(`✅ Successfully started ${station.name}`);
         return { success: true, station };
