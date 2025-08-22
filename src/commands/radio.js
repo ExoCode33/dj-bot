@@ -87,72 +87,54 @@ class StreamManager {
     this.reconnectDelay = 2000;
   }
 
-  // ✅ FIXED: Get actual stream URLs from DI.FM API
+  // ✅ TESTING: Use known working radio streams first
   async getStreamUrls(channel) {
-    const apiKey = cfg.difm?.apiKey || process.env.DIFM_API_KEY;
+    console.log('🧪 Testing with reliable internet radio streams');
     
-    if (apiKey) {
-      console.log('✅ Using premium DI.FM stream with API key');
-      
-      try {
-        // ✅ NEW: Fetch actual stream URLs from DI.FM API
-        const response = await fetch(`https://www.di.fm/tracks?channel=${channel}`, {
-          headers: {
-            'User-Agent': 'UTA-DJ-BOT/1.0.0',
-            'Accept': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('🎵 DI.FM API response received');
-          
-          // Try to extract stream URLs from API response
-          if (data && data.streams) {
-            const streamUrls = [];
-            
-            // Look for premium streams first
-            if (data.streams.premium_high) {
-              streamUrls.push(data.streams.premium_high);
-            }
-            if (data.streams.premium) {
-              streamUrls.push(data.streams.premium);
-            }
-            
-            if (streamUrls.length > 0) {
-              console.log('🎵 Found premium stream URLs from API');
-              return streamUrls;
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('⚠️ DI.FM API fetch failed:', error.message);
-      }
-      
-      // ✅ FALLBACK: Try known working premium formats
-      console.log('🔄 Falling back to known premium URL patterns');
-      return [
-        // Try different known working formats
-        `https://listen.di.fm/premium_high/${channel}?listen_key=${apiKey}`,
-        `https://listen.di.fm/premium/${channel}?listen_key=${apiKey}`,
-        `http://prem1.di.fm/${channel}?listen_key=${apiKey}`,
-        `http://prem2.di.fm/${channel}?listen_key=${apiKey}`,
-        // ✅ ADDED: Alternative working format
-        `https://listen.di.fm/premium_high/${channel}.aac?listen_key=${apiKey}`,
-        `https://listen.di.fm/premium/${channel}.mp3?listen_key=${apiKey}`
-      ];
-    }
+    // Known working internet radio streams that should work with Lavalink
+    const workingStreams = {
+      'trance': [
+        'https://ice1.somafm.com/groovesalad-256-mp3',
+        'https://streams.ilovemusic.de/iloveradio7.mp3',
+        'http://stream.techno-teuton.com:8000/trance'
+      ],
+      'house': [
+        'https://ice1.somafm.com/dronezone-256-mp3', 
+        'https://streams.ilovemusic.de/iloveradio11.mp3',
+        'http://stream.techno-teuton.com:8000/house'
+      ],
+      'techno': [
+        'https://ice1.somafm.com/beatblender-256-mp3',
+        'https://streams.ilovemusic.de/iloveradio15.mp3',
+        'http://stream.techno-teuton.com:8000/minimal'
+      ],
+      'dubstep': [
+        'https://ice1.somafm.com/digitalis-256-mp3',
+        'https://streams.ilovemusic.de/iloveradio17.mp3',
+        'https://ice1.somafm.com/bagel-256-mp3'
+      ],
+      'progressive': [
+        'https://ice1.somafm.com/spacestation-256-mp3',
+        'https://streams.ilovemusic.de/iloveradio2.mp3',
+        'https://ice1.somafm.com/deepspaceone-256-mp3'
+      ],
+      'ambient': [
+        'https://ice1.somafm.com/deepspaceone-256-mp3',
+        'https://ice1.somafm.com/lush-256-mp3',
+        'https://ice1.somafm.com/spacestation-256-mp3'
+      ],
+      'chillout': [
+        'https://ice1.somafm.com/groovesalad-256-mp3',
+        'https://ice1.somafm.com/lush-256-mp3',
+        'https://ice1.somafm.com/deepspaceone-256-mp3'
+      ]
+    };
     
-    console.warn('⚠️ No premium DI.FM key found, using free streams (likely blocked)');
-    console.warn('💡 Add DIFM_API_KEY to your environment variables for premium access');
+    // Get streams for the requested channel, fallback to trance
+    const streams = workingStreams[channel] || workingStreams['trance'];
     
-    // ✅ IMPROVED: Better free stream URLs
-    return [
-      `http://pub7.di.fm/di_${channel}`,
-      `http://pub6.di.fm/di_${channel}`,
-      `http://pub5.di.fm/di_${channel}`,
-      `http://pub1.di.fm/di_${channel}`
-    ];
+    console.log(`🎵 Using ${streams.length} test streams for channel: ${channel}`);
+    return streams;
   }
 
   async connectToStream(player, channel, guildId) {
@@ -578,12 +560,10 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
 }
 
 function createRadioEmbed(title, currentChannel = null) {
-  const hasApiKey = !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY);
-  
   const embed = new EmbedBuilder()
     .setColor('#1DB954')
     .setTitle(`📻 ${title}`)
-    .setDescription('Select a channel to start streaming electronic music!')
+    .setDescription('🧪 **Testing Mode**: Using reliable internet radio streams\n\nSelect a channel to start streaming electronic music!')
     .addFields(
       {
         name: '🎵 Available Categories',
@@ -594,23 +574,17 @@ function createRadioEmbed(title, currentChannel = null) {
         name: '🔍 How to Use',
         value: 'Use `/radio category:Popular` or `/radio search:trance` to filter channels',
         inline: false
+      },
+      {
+        name: '🎧 Current Setup',
+        value: '**Testing with SomaFM & other reliable streams**\nHigh-quality electronic music from trusted sources',
+        inline: false
       }
     )
     .setFooter({ 
-      text: hasApiKey 
-        ? 'DI.FM Premium - High Quality Streams ✨' 
-        : 'DI.FM - Add API key for premium access'
+      text: 'Testing Mode - Reliable Streams ✨'
     })
     .setTimestamp();
-
-  // Add API key status field
-  embed.addFields({
-    name: hasApiKey ? '✅ Premium Access' : '⚠️ Free Access (Limited)',
-    value: hasApiKey 
-      ? 'Premium DI.FM subscription active - enjoy uninterrupted high-quality streams!'
-      : 'Add your DI.FM API key to environment variables for premium access',
-    inline: false
-  });
 
   if (currentChannel && DIFM_CHANNELS[currentChannel]) {
     const channelInfo = DIFM_CHANNELS[currentChannel];
