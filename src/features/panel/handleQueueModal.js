@@ -93,7 +93,7 @@ export async function handleQueueModal(modal, rootInteraction) {
     
     try {
       console.log('🔗 Creating new player for channel:', vc.name);
-      player = await node.joinChannel({ 
+      player = await modal.client.shoukaku.joinVoiceChannel({ 
         guildId: modal.guildId, 
         channelId: vc.id, 
         shardId: modal.guild.shardId 
