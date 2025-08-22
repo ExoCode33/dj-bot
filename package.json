@@ -4,32 +4,15 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node --max-old-space-size=512 src/index.js",
-    "start:debug": "node --inspect=0.0.0.0:9229 --max-old-space-size=512 src/index.js",
-    "register": "node src/index.js --register-only",
-    "install-deps": "npm install",
-    "setup": "npm install && echo '✅ All dependencies installed successfully!'",
-    "health": "curl -f http://localhost:${PORT:-3000}/health || exit 1",
-    "test": "echo 'No tests specified' && exit 0"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
   },
   "dependencies": {
-    "chalk": "^5.3.0",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "shoukaku": "^4.0.1"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
-  },
-  "keywords": [
-    "discord",
-    "music",
-    "bot",
-    "lavalink",
-    "uta"
-  ],
-  "author": "Your Name",
-  "license": "MIT"
+    "node": ">=18.0.0"
+  }
 }
