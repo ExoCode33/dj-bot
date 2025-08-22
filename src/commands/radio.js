@@ -88,22 +88,72 @@ class StreamManager {
   }
 
   getStreamUrls(channel) {
-    const servers = [
-      'http://pub7.di.fm',
-      'http://pub6.di.fm', 
-      'http://pub5.di.fm',
-      'http://pub8.di.fm'
+    // SomaFM channel mappings (these actually work with bots)
+    const somaChannels = {
+      'trance': 'beatblender',
+      'house': 'beatblender', 
+      'techno': 'beatblender',
+      'progressive': 'groovesalad',
+      'dubstep': 'dubstepbeyond',
+      'drum-and-bass': 'beatblender',
+      'deep-house': 'deepspaceone',
+      'tech-house': 'beatblender',
+      'electro-house': 'beatblender',
+      'future-house': 'beatblender',
+      'tribal-house': 'beatblender',
+      'funky-house': 'beatblender',
+      'vocal-house': 'beatblender',
+      'uplifting-trance': 'beatblender',
+      'vocal-trance': 'beatblender',
+      'tech-trance': 'beatblender',
+      'psytrance': 'beatblender',
+      'classic-trance': 'beatblender',
+      'chillout': 'groovesalad',
+      'ambient': 'dronezone',
+      'lounge': 'groovesalad',
+      'downtempo': 'groovesalad',
+      'chillstep': 'groovesalad',
+      'liquid-dnb': 'groovesalad',
+      'bass': 'dubstepbeyond',
+      'trap': 'dubstepbeyond',
+      'future-bass': 'dubstepbeyond',
+      'neurofunk': 'dubstepbeyond',
+      'jumpup': 'dubstepbeyond',
+      'hardcore': 'dubstepbeyond',
+      'hardstyle': 'dubstepbeyond',
+      'minimal': 'deepspaceone',
+      'experimental': 'deepspaceone',
+      'IDM': 'deepspaceone',
+      'glitch': 'deepspaceone',
+      'dark-ambient': 'dronezone',
+      'breaks': 'beatblender',
+      'nu-breaks': 'beatblender',
+      'big-beat': 'beatblender',
+      'classic-eurodance': 'rustyrelics',
+      'old-school-rave': 'rustyrelics',
+      'classic-techno': 'rustyrelics',
+      'retro-electro': 'rustyrelics',
+      'synthwave': 'defcon',
+      'vaporwave': 'deepspaceone',
+      'uk-garage': 'beatblender',
+      'grime': 'beatblender',
+      'future-garage': 'beatblender',
+      '2-step': 'beatblender',
+      'space-dreams': 'spacestation',
+      'nature': 'dronezone',
+      'meditation': 'dronezone',
+      'sleep': 'dronezone'
+    };
+    
+    const somaChannel = somaChannels[channel] || 'groovesalad';
+    
+    // SomaFM stream URLs that actually work with bots
+    console.log(`Using SomaFM channel: ${somaChannel} for request: ${channel}`);
+    return [
+      `http://ice1.somafm.com/${somaChannel}-128-mp3`,
+      `http://ice2.somafm.com/${somaChannel}-128-mp3`,
+      `http://ice6.somafm.com/${somaChannel}-128-mp3`
     ];
-    
-    // Check for premium API key
-    const apiKey = process.env.DIFM_API_KEY;
-    if (apiKey) {
-      console.log('Using premium DI.FM stream');
-      return [`http://prem2.di.fm/${channel}?${apiKey}`];
-    }
-    
-    console.log('Using free DI.FM streams');
-    return servers.map(server => `${server}/${channel}`);
   }
 
   async connectToStream(player, channel, guildId) {
