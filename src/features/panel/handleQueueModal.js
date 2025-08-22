@@ -1,17 +1,10 @@
 // src/features/panel/handleQueueModal.js
-// Enhanced version with better SoundCloud handling and fallback strategies
+// Simplified version without LavaSrc plugin dependency
 
 import { UI } from '../../constants/ui.js';
 import { UtaUI } from './ui.js';
 import { toDisplay } from '../music/state.js';
 import { cfg } from '../../config/index.js';
-
-// SoundCloud Client ID (public, rotates occasionally)
-const SOUNDCLOUD_CLIENT_IDS = [
-  'iZIs9mchVcX5lhVRyQGGAYlNPVldzAoX',
-  'z8LRYFPM4UK5MMLaBe9vixfph5kqNA25',
-  '2t9loNQH90kzJcsFCODdigxfp325aq4z'
-];
 
 export async function handleQueueModal(modal, rootInteraction) {
   console.log('🎵 Modal handler called!');
@@ -78,80 +71,60 @@ export async function handleQueueModal(modal, rootInteraction) {
   const urlPatterns = {
     soundcloud: /(?:soundcloud\.com|snd\.sc)/i,
     youtube: /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/i,
-    spotify: /spotify\.com\/track\//i,
     bandcamp: /\.bandcamp\.com/i,
     directFile: /\.(mp3|wav|ogg|m4a|flac|webm|mp4)$/i
   };
 
   const detectedSource = Object.entries(urlPatterns).find(([_, pattern]) => pattern.test(query))?.[0];
 
-  // Show searching message with source info
+  // Show searching message
   await modal.editReply({
     embeds: [new (await import('discord.js')).EmbedBuilder()
       .setColor('#FF6B35')
       .setTitle('🔍 Uta is searching for your song...')
       .setDescription(
         detectedSource === 'soundcloud' 
-          ? `🟠 **SoundCloud Detected**\n🎵 Processing: **${query}**\n✨ *Best source for reliability!*`
+          ? `🟠 **SoundCloud Detected**\n🎵 Processing: **${query}**\n✨ *Direct URL - best reliability!*`
           : detectedSource
           ? `🎵 **${detectedSource.charAt(0).toUpperCase() + detectedSource.slice(1)} Detected**\n🔄 Processing: **${query}**`
-          : `🎵 Searching for: **${query}**\n🔄 *Prioritizing SoundCloud...*`
+          : `🎵 Searching for: **${query}**\n🔄 *Trying multiple sources...*`
       )
-      .setFooter({ text: 'Optimized for SoundCloud playback 🟠' })
+      .setFooter({ text: 'Basic Lavalink - Direct URLs work best! 🎵' })
     ]
   });
 
-  // Enhanced search strategies with SoundCloud priority
+  // Simplified search strategies (no plugin dependency)
   let searchStrategies = [];
   
-  if (detectedSource === 'soundcloud') {
-    // For SoundCloud URLs - try multiple approaches
+  if (detectedSource === 'soundcloud' || detectedSource === 'youtube' || detectedSource === 'bandcamp') {
+    // Direct URLs
     searchStrategies = [
-      { name: 'Direct SoundCloud URL', query: query, priority: 'critical' },
-      { name: 'SoundCloud HTTP', query: query.replace('https://', 'http://'), priority: 'high' },
-      { name: 'SoundCloud API', query: await resolveSoundCloudUrl(query), priority: 'high' },
-      { name: 'SoundCloud Search Extract', query: `scsearch:${extractSoundCloudInfo(query)}`, priority: 'medium' }
+      { name: `Direct ${detectedSource} URL`, query: query, priority: 'critical' }
     ];
   } else if (detectedSource === 'directFile') {
     // Direct audio file URLs
     searchStrategies = [
       { name: 'Direct HTTP Stream', query: query, priority: 'critical' }
     ];
-  } else if (!detectedSource) {
-    // Text search - prioritize SoundCloud
-    searchStrategies = [
-      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'critical' },
-      { name: 'SoundCloud Official', query: `scsearch:${query} official`, priority: 'high' },
-      { name: 'SoundCloud Remix', query: `scsearch:${query} remix`, priority: 'medium' },
-      { name: 'Bandcamp Search', query: `bcsearch:${query}`, priority: 'medium' },
-      { name: 'Direct Search', query: query, priority: 'low' },
-      { name: 'YouTube Fallback', query: `ytsearch:${query}`, priority: 'low' }
-    ];
   } else {
-    // Other sources - still try SoundCloud first
-    const searchTerms = extractSearchTerms(query);
+    // Text search - use Lavalink's built-in search
     searchStrategies = [
-      { name: `Direct ${detectedSource} URL`, query: query, priority: 'high' },
-      { name: 'SoundCloud Alternative', query: `scsearch:${searchTerms}`, priority: 'high' },
-      { name: 'Bandcamp Alternative', query: `bcsearch:${searchTerms}`, priority: 'medium' },
-      { name: 'YouTube Search', query: `ytsearch:${searchTerms}`, priority: 'low' }
+      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'high' },
+      { name: 'YouTube Search', query: `ytsearch:${query}`, priority: 'high' },
+      { name: 'Direct Search', query: query, priority: 'medium' }
     ];
   }
 
-  // Execute search with enhanced retry logic
+  // Execute search
   let track = null;
   let successfulStrategy = null;
   let attempts = [];
-  
-  // Sort strategies by priority
-  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  searchStrategies.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   
   for (const strategy of searchStrategies) {
     try {
       console.log(`🔍 [${strategy.priority.toUpperCase()}] Trying ${strategy.name}: ${strategy.query.substring(0, 100)}`);
       
-      const res = await searchWithRetry(node, strategy.query, strategy.priority === 'critical' ? 3 : 2);
+      const res = await searchWithRetry(node, strategy.query, 2);
       
       attempts.push({
         strategy: strategy.name,
@@ -177,42 +150,32 @@ export async function handleQueueModal(modal, rootInteraction) {
     }
   }
 
-  // No results found - provide detailed help
+  // No results found
   if (!track) {
     const failedEmbed = new (await import('discord.js')).EmbedBuilder()
       .setColor('#FF4757')
       .setTitle('🎭 No results found!')
-      .setDescription(`😔 Couldn't find "${query.substring(0, 100)}" on any platform`)
+      .setDescription(`😔 Couldn't find "${query.substring(0, 100)}"`)
       .addFields(
         {
-          name: '🟠 Best Solution: Use SoundCloud Directly',
+          name: '💡 Try These Options',
           value: [
-            '1️⃣ Go to [soundcloud.com](https://soundcloud.com)',
-            '2️⃣ Search for your song there',
-            '3️⃣ Copy the URL from your browser',
-            '4️⃣ Paste it here for guaranteed playback!'
+            '🟠 **SoundCloud**: Direct URLs work best!',
+            '🔴 **YouTube**: Use direct video URLs',
+            '🟢 **Bandcamp**: Direct track URLs',
+            '📁 **Direct Files**: .mp3, .wav, .ogg URLs'
           ].join('\n'),
           inline: false
         },
         {
           name: '📊 Search Attempts',
-          value: attempts.slice(0, 5).map(a => 
-            `${a.success ? '✅' : '❌'} ${a.strategy} (${a.priority})`
+          value: attempts.slice(0, 3).map(a => 
+            `${a.success ? '✅' : '❌'} ${a.strategy}`
           ).join('\n') || 'No attempts logged',
-          inline: false
-        },
-        {
-          name: '💡 Alternative Options',
-          value: [
-            '• Try searching with "artist - song title"',
-            '• Use direct audio file URLs (.mp3, .wav)',
-            '• Check Bandcamp for indie/underground music',
-            '• Ensure the song exists on streaming platforms'
-          ].join('\n'),
           inline: false
         }
       )
-      .setFooter({ text: 'SoundCloud URLs have the highest success rate! 🟠' });
+      .setFooter({ text: 'Direct URLs have the highest success rate! 🎵' });
 
     return modal.editReply({ embeds: [failedEmbed] });
   }
@@ -225,7 +188,6 @@ export async function handleQueueModal(modal, rootInteraction) {
 
     // Success message
     const sourceColor = successfulStrategy.includes('SoundCloud') ? '#FF6B35' : 
-                       successfulStrategy.includes('Bandcamp') ? '#629AA0' : 
                        successfulStrategy.includes('YouTube') ? '#FF0000' : '#00FF94';
 
     await modal.editReply({
@@ -239,10 +201,8 @@ export async function handleQueueModal(modal, rootInteraction) {
           `🔗 [Source](${track.info.uri})`
         ].join('\n'))
         .addFields({
-          name: `🎵 Played via ${successfulStrategy}`,
-          value: successfulStrategy.includes('SoundCloud') 
-            ? '*Excellent! SoundCloud provides the most reliable playback.*'
-            : '*Successfully found and ready to play!*',
+          name: `🎵 Found via ${successfulStrategy}`,
+          value: '*Successfully loaded and ready to play!*',
           inline: false
         })
         .setFooter({ text: wasEmpty ? 'Enjoy the music! 🎭' : 'Added to playlist! 🎵' })
@@ -266,7 +226,6 @@ export async function handleQueueModal(modal, rootInteraction) {
 }
 
 // Helper Functions
-
 async function searchWithRetry(node, query, maxRetries = 2) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -285,52 +244,6 @@ async function searchWithRetry(node, query, maxRetries = 2) {
     }
   }
   return null;
-}
-
-async function resolveSoundCloudUrl(url) {
-  // Try to resolve SoundCloud URL using API
-  try {
-    for (const clientId of SOUNDCLOUD_CLIENT_IDS) {
-      const apiUrl = `https://api-v2.soundcloud.com/resolve?url=${encodeURIComponent(url)}&client_id=${clientId}`;
-      const response = await fetch(apiUrl);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.permalink_url) {
-          return data.permalink_url;
-        }
-      }
-    }
-  } catch (error) {
-    console.error('SoundCloud API resolution failed:', error);
-  }
-  return url;
-}
-
-function extractSoundCloudInfo(url) {
-  try {
-    const parts = url.split('/').filter(p => p);
-    if (parts.length >= 2) {
-      const artist = parts[parts.length - 2].replace(/[-_]/g, ' ');
-      const track = parts[parts.length - 1].split('?')[0].replace(/[-_]/g, ' ');
-      return `${artist} ${track}`;
-    }
-  } catch {}
-  return url;
-}
-
-function extractSearchTerms(url) {
-  // Extract search terms from various URL formats
-  try {
-    if (url.includes('spotify.com')) {
-      return url.split('/track/')[1]?.split('?')[0] || url;
-    }
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      return url.match(/[?&]v=([^&]+)/)?.[1] || url;
-    }
-    return url;
-  } catch {
-    return url;
-  }
 }
 
 function formatDuration(ms) {
