@@ -87,36 +87,79 @@ class StreamManager {
     this.reconnectDelay = 2000;
   }
 
-  getStreamUrls(channel) {
-    // Check for premium API key
+  // ✅ FIXED: Get actual stream URLs from DI.FM API
+  async getStreamUrls(channel) {
     const apiKey = cfg.difm?.apiKey || process.env.DIFM_API_KEY;
     
     if (apiKey) {
       console.log('✅ Using premium DI.FM stream with API key');
-      // ✅ FIXED: Correct DI.FM premium stream URLs
+      
+      try {
+        // ✅ NEW: Fetch actual stream URLs from DI.FM API
+        const response = await fetch(`https://www.di.fm/tracks?channel=${channel}`, {
+          headers: {
+            'User-Agent': 'UTA-DJ-BOT/1.0.0',
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🎵 DI.FM API response received');
+          
+          // Try to extract stream URLs from API response
+          if (data && data.streams) {
+            const streamUrls = [];
+            
+            // Look for premium streams first
+            if (data.streams.premium_high) {
+              streamUrls.push(data.streams.premium_high);
+            }
+            if (data.streams.premium) {
+              streamUrls.push(data.streams.premium);
+            }
+            
+            if (streamUrls.length > 0) {
+              console.log('🎵 Found premium stream URLs from API');
+              return streamUrls;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ DI.FM API fetch failed:', error.message);
+      }
+      
+      // ✅ FALLBACK: Try known working premium formats
+      console.log('🔄 Falling back to known premium URL patterns');
       return [
-        `https://listen.di.fm/premium_high/${channel}.pls?listen_key=${apiKey}`,
-        `https://listen.di.fm/premium/${channel}.pls?listen_key=${apiKey}`,
-        `http://listen.di.fm/premium_high/${channel}.pls?listen_key=${apiKey}`,
-        // ✅ ADDED: Alternative direct stream format
+        // Try different known working formats
         `https://listen.di.fm/premium_high/${channel}?listen_key=${apiKey}`,
-        `http://listen.di.fm/premium/${channel}?listen_key=${apiKey}`
+        `https://listen.di.fm/premium/${channel}?listen_key=${apiKey}`,
+        `http://prem1.di.fm/${channel}?listen_key=${apiKey}`,
+        `http://prem2.di.fm/${channel}?listen_key=${apiKey}`,
+        // ✅ ADDED: Alternative working format
+        `https://listen.di.fm/premium_high/${channel}.aac?listen_key=${apiKey}`,
+        `https://listen.di.fm/premium/${channel}.mp3?listen_key=${apiKey}`
       ];
     }
     
-    console.warn('⚠️ No premium DI.FM key found, attempting free streams (likely to fail)');
+    console.warn('⚠️ No premium DI.FM key found, using free streams (likely blocked)');
     console.warn('💡 Add DIFM_API_KEY to your environment variables for premium access');
-    // Fallback to free streams (these will likely be blocked)
+    
+    // ✅ IMPROVED: Better free stream URLs
     return [
-      `http://pub7.di.fm/${channel}`,
-      `http://pub6.di.fm/${channel}`,
-      `http://pub5.di.fm/${channel}`
+      `http://pub7.di.fm/di_${channel}`,
+      `http://pub6.di.fm/di_${channel}`,
+      `http://pub5.di.fm/di_${channel}`,
+      `http://pub1.di.fm/di_${channel}`
     ];
   }
 
   async connectToStream(player, channel, guildId) {
     console.log(`Attempting to connect to channel: ${channel}`);
-    const streamUrls = this.getStreamUrls(channel);
+    
+    // ✅ FIXED: Make getStreamUrls async
+    const streamUrls = await this.getStreamUrls(channel);
     let lastError;
     
     for (let i = 0; i < streamUrls.length; i++) {
@@ -127,7 +170,8 @@ class StreamManager {
         const result = await player.node.rest.resolve(url);
         console.log(`Resolve result:`, {
           loadType: result?.loadType,
-          trackCount: result?.tracks?.length || 0
+          trackCount: result?.tracks?.length || 0,
+          exception: result?.exception?.message || 'none'
         });
         
         if (result.tracks && result.tracks.length > 0) {
@@ -135,14 +179,14 @@ class StreamManager {
           player.currentRadioChannel = channel;
           this.reconnectAttempts.set(guildId, 0);
           this.setupEventHandlers(player, channel, guildId);
-          console.log(`Successfully started stream: ${url}`);
+          console.log(`✅ Successfully started stream: ${url}`);
           return { success: true, url };
         } else if (result.loadType === 'track') {
           // Handle live radio streams that don't populate tracks array
-          console.log('Detected live stream, creating virtual track');
+          console.log('🔄 Detected live stream, attempting direct playback');
           try {
-            // Create a virtual track for the live stream
-            const virtualTrack = {
+            // ✅ IMPROVED: Better handling for live streams
+            await player.playTrack({ 
               track: Buffer.from(JSON.stringify({
                 identifier: url,
                 isSeekable: false,
@@ -150,27 +194,35 @@ class StreamManager {
                 length: 0,
                 isStream: true,
                 title: `DI.FM ${DIFM_CHANNELS[channel]?.name || channel}`,
-                uri: url
+                uri: url,
+                artworkUrl: `https://www.di.fm/img/channels/${channel}.png`
               })).toString('base64')
-            };
+            });
             
-            await player.playTrack(virtualTrack);
             player.currentRadioChannel = channel;
             this.reconnectAttempts.set(guildId, 0);
             this.setupEventHandlers(player, channel, guildId);
-            console.log(`Successfully started virtual track for: ${url}`);
+            console.log(`✅ Successfully started live stream: ${url}`);
             return { success: true, url };
           } catch (virtualTrackError) {
-            console.log(`Virtual track creation failed: ${virtualTrackError.message}`);
+            console.log(`❌ Live stream playback failed: ${virtualTrackError.message}`);
           }
+        } else if (result.loadType === 'playlist' && result.tracks?.length === 0) {
+          // ✅ ADDED: Handle empty playlists (often indicates auth issues)
+          console.log(`⚠️ Empty playlist returned - may be auth issue`);
         }
       } catch (error) {
         lastError = error;
-        console.log(`Stream URL failed: ${streamUrls[i]} - ${error.message}`);
+        console.log(`❌ Stream URL failed: ${streamUrls[i]} - ${error.message}`);
       }
     }
     
-    throw lastError || new Error('All stream URLs failed');
+    // ✅ IMPROVED: Better error reporting
+    const errorMessage = lastError ? lastError.message : 'All stream URLs failed';
+    console.error(`❌ Failed to connect to any stream for channel: ${channel}`);
+    console.error(`❌ Last error: ${errorMessage}`);
+    
+    throw new Error(`Failed to connect to DI.FM channel "${channel}": ${errorMessage}`);
   }
 
   setupEventHandlers(player, channel, guildId) {
