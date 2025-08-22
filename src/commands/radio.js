@@ -1,187 +1,73 @@
 import { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { cfg } from '../config/index.js';
-import { isAuthorized } from '../utils/permissions.js';
 
-// DI.FM channels with proper API names and working stream URLs
+// DI.FM channels that are known to work
 const DIFM_CHANNELS = {
-  'trance': { name: 'Trance', description: 'Uplifting and euphoric trance music', category: 'Popular' },
-  'house': { name: 'House', description: 'Classic and modern house beats', category: 'Popular' },
-  'techno': { name: 'Techno', description: 'Underground techno sounds', category: 'Popular' },
-  'progressive': { name: 'Progressive', description: 'Progressive electronic music', category: 'Popular' },
-  'dubstep': { name: 'Dubstep', description: 'Heavy bass and electronic drops', category: 'Popular' },
-  'drumandbass': { name: 'Drum & Bass', description: 'Fast breakbeats and bass', category: 'Popular' },
-  'deephouse': { name: 'Deep House', description: 'Deep and soulful house music', category: 'House' },
-  'ambient': { name: 'Ambient', description: 'Atmospheric soundscapes', category: 'Chill' },
-  'chillout': { name: 'Chillout', description: 'Relaxing ambient electronic', category: 'Chill' }
+  'trance': { name: 'Trance', description: 'Uplifting and euphoric trance music' },
+  'house': { name: 'House', description: 'Classic and modern house beats' },
+  'techno': { name: 'Techno', description: 'Underground techno sounds' },
+  'progressive': { name: 'Progressive', description: 'Progressive electronic music' },
+  'dubstep': { name: 'Dubstep', description: 'Heavy bass and electronic drops' },
+  'drumandbass': { name: 'Drum & Bass', description: 'Fast breakbeats and bass' }
 };
-
-class DiFMManager {
-  constructor() {
-    this.apiKey = cfg.difm?.apiKey || process.env.DIFM_API_KEY;
-    console.log('DI.FM Manager initialized with API key:', this.apiKey ? 'YES' : 'NO');
-  }
-
-  async getChannelStreamUrl(channelKey) {
-    if (!this.apiKey) {
-      console.log('No DI.FM API key, using free streams');
-      // Updated free stream URLs that work better with Lavalink
-      return [
-        `http://pub1.di.fm/di_${channelKey}`,
-        `http://pub2.di.fm/di_${channelKey}`,
-        `http://pub3.di.fm/di_${channelKey}`,
-        `http://pub7.di.fm/di_${channelKey}`
-      ];
-    }
-
-    // Premium stream URLs with better compatibility
-    const streamUrls = [
-      // Working premium URLs
-      `http://prem1.di.fm:80/${channelKey}?listen_key=${this.apiKey}`,
-      `http://prem2.di.fm:80/${channelKey}?listen_key=${this.apiKey}`,
-      `http://prem3.di.fm:80/${channelKey}?listen_key=${this.apiKey}`,
-      // Fallback to free streams
-      `http://pub1.di.fm/di_${channelKey}`,
-      `http://pub2.di.fm/di_${channelKey}`,
-      `http://pub7.di.fm/di_${channelKey}`
-    ];
-
-    return streamUrls;
-  }
-
-  async connectToStream(player, channel, guildId) {
-    console.log(`🎵 Connecting to DI.FM channel: ${channel}`);
-    
-    try {
-      const streamUrls = await this.getChannelStreamUrl(channel);
-      const urls = Array.isArray(streamUrls) ? streamUrls : [streamUrls];
-      
-      // Try each URL until one works
-      for (let i = 0; i < urls.length; i++) {
-        const streamUrl = urls[i];
-        console.log(`🔄 Trying stream URL ${i + 1}/${urls.length}: ${streamUrl}`);
-        
-        try {
-          // Add timeout and better error handling
-          const result = await this.resolveWithTimeout(player.node.rest, streamUrl, 15000);
-          
-          console.log(`📊 Lavalink resolve result for ${streamUrl}:`, {
-            loadType: result?.loadType,
-            trackCount: result?.tracks?.length || (result?.data ? 1 : 0),
-            exception: result?.exception?.message || 'none',
-            hasData: !!result?.data
-          });
-          
-          // Handle different response formats
-          let trackToPlay = null;
-          
-          if (result.loadType === 'track' && result.data) {
-            // Single track format (newer Lavalink)
-            trackToPlay = result.data;
-          } else if (result.tracks && result.tracks.length > 0) {
-            // Track array format (older Lavalink)
-            trackToPlay = result.tracks[0];
-          } else if (result.loadType === 'empty' || result.loadType === 'error') {
-            console.log(`❌ Failed to load ${streamUrl}: ${result.loadType}`);
-            continue; // Try next URL
-          }
-          
-          if (trackToPlay) {
-            // Successfully got a track, now try to play it
-            await player.playTrack({ 
-              track: trackToPlay.encoded || trackToPlay.track,
-              options: { noReplace: false }
-            });
-            
-            player.currentRadioChannel = channel;
-            console.log(`✅ Successfully started DI.FM stream: ${channel} via ${streamUrl}`);
-            return { success: true, url: streamUrl, isPremium: streamUrl.includes('listen_key') };
-          }
-          
-        } catch (urlError) {
-          console.log(`❌ Failed to load ${streamUrl}:`, urlError.message);
-          continue; // Try next URL
-        }
-      }
-      
-      throw new Error('All stream URLs failed to load - DI.FM may be experiencing issues');
-      
-    } catch (error) {
-      console.error(`❌ Failed to connect to DI.FM channel ${channel}:`, error.message);
-      throw error;
-    }
-  }
-
-  async resolveWithTimeout(rest, url, timeout = 15000) {
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Request timed out after ${timeout}ms`));
-      }, timeout);
-
-      rest.resolve(url)
-        .then(result => {
-          clearTimeout(timeoutId);
-          resolve(result);
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          reject(error);
-        });
-    });
-  }
-}
-
-const difmManager = new DiFMManager();
 
 export const data = new SlashCommandBuilder()
   .setName('radio')
-  .setDescription('Stream DI.FM electronic music channels')
-  .addStringOption(option =>
-    option.setName('category')
-      .setDescription('Browse channels by category')
-      .setRequired(false)
-      .addChoices(
-        { name: 'Popular', value: 'Popular' },
-        { name: 'House Music', value: 'House' },
-        { name: 'Chill & Ambient', value: 'Chill' }
-      )
-  );
+  .setDescription('Stream DI.FM electronic music channels');
 
 export const execute = async (interaction) => {
-  if (!isAuthorized(interaction.member, cfg.uta.authorizedRoleId)) {
-    return interaction.reply({
-      embeds: [createErrorEmbed("Only authorized DJs can control the radio!")],
-      flags: 64 // EPHEMERAL flag
-    });
-  }
+  console.log('🎵 Radio command executed');
 
+  // Check if user is in voice channel
   const voiceChannel = interaction.member?.voice?.channel;
   if (!voiceChannel) {
     return interaction.reply({
-      embeds: [createErrorEmbed("You need to be in a voice channel!")],
-      flags: 64 // EPHEMERAL flag
+      embeds: [new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('❌ Voice Channel Required')
+        .setDescription('You need to be in a voice channel to use the radio!')
+      ],
+      ephemeral: true
     });
   }
 
-  // Check if Lavalink is ready
-  const nodeMap = interaction.client.shoukaku.nodes;
-  const node = nodeMap.get(cfg.lavalink.name) || nodeMap.values().next().value;
+  // Check if bot can connect to voice
+  if (!voiceChannel.permissionsFor(interaction.client.user).has(['Connect', 'Speak'])) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('❌ Missing Permissions')
+        .setDescription('I need Connect and Speak permissions in your voice channel!')
+      ],
+      ephemeral: true
+    });
+  }
+
+  // Check Lavalink connection
+  const nodes = interaction.client.shoukaku.nodes;
+  const node = nodes.get('railway-node') || nodes.values().next().value;
   
   if (!node || node.state !== 2) {
     return interaction.reply({
-      embeds: [createErrorEmbed("Music system is not ready yet. Please try again in a moment.")],
-      flags: 64 // EPHEMERAL flag
+      embeds: [new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('❌ Music Service Offline')
+        .setDescription('The music service is currently unavailable. Please try again later.')
+        .addFields({
+          name: 'Debug Info',
+          value: `Nodes: ${nodes.size}, State: ${node?.state || 'none'}`,
+          inline: true
+        })
+      ],
+      ephemeral: true
     });
   }
 
-  const category = interaction.options.getString('category') || 'Popular';
-  const channelOptions = Object.entries(DIFM_CHANNELS)
-    .filter(([_, channel]) => channel.category === category)
-    .slice(0, 25)
-    .map(([key, channel]) => ({
-      label: channel.name,
-      description: channel.description,
-      value: key
-    }));
+  // Create channel selection menu
+  const channelOptions = Object.entries(DIFM_CHANNELS).map(([key, channel]) => ({
+    label: channel.name,
+    description: channel.description,
+    value: key
+  }));
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('difm_select')
@@ -194,7 +80,24 @@ export const execute = async (interaction) => {
     .setStyle(ButtonStyle.Danger)
     .setEmoji('🛑');
 
-  const embed = createRadioEmbed(category);
+  const embed = new EmbedBuilder()
+    .setColor('#FF6B35')
+    .setTitle('📻 DI.FM Electronic Music Radio')
+    .setDescription('Select a channel to start streaming!')
+    .addFields(
+      {
+        name: '🎵 Available Channels',
+        value: Object.values(DIFM_CHANNELS).map(ch => `• **${ch.name}**`).join('\n'),
+        inline: false
+      },
+      {
+        name: '🔊 Current Voice Channel',
+        value: voiceChannel.name,
+        inline: true
+      }
+    )
+    .setFooter({ text: 'DI.FM - Addictive Electronic Music' })
+    .setTimestamp();
 
   const message = await interaction.reply({
     embeds: [embed],
@@ -204,7 +107,10 @@ export const execute = async (interaction) => {
     ]
   });
 
-  const collector = message.createMessageComponentCollector({ time: 300000 });
+  // Set up collectors
+  const collector = message.createMessageComponentCollector({ 
+    time: 300000 // 5 minutes
+  });
 
   collector.on('collect', async (componentInteraction) => {
     try {
@@ -214,18 +120,22 @@ export const execute = async (interaction) => {
         await handleStopRadio(componentInteraction, interaction);
       }
     } catch (error) {
-      console.error('❌ DI.FM interaction error:', error);
-      await componentInteraction.reply({
-        embeds: [createErrorEmbed("An error occurred while processing your request!")],
-        flags: 64 // EPHEMERAL flag
-      }).catch(() => {
-        // Ignore if already replied
-      });
+      console.error('❌ Radio interaction error:', error);
+      if (!componentInteraction.replied && !componentInteraction.deferred) {
+        await componentInteraction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('❌ Error')
+            .setDescription('An error occurred while processing your request.')
+          ],
+          ephemeral: true
+        }).catch(() => {});
+      }
     }
   });
 
   collector.on('end', () => {
-    console.log('📻 DI.FM radio collector ended');
+    console.log('📻 Radio collector ended');
   });
 };
 
@@ -233,141 +143,132 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
   const selectedChannel = selectInteraction.values[0];
   const channelInfo = DIFM_CHANNELS[selectedChannel];
   
-  await selectInteraction.deferReply({ flags: 64 }); // EPHEMERAL flag
-
-  let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
-  const voiceChannel = originalInteraction.member.voice.channel;
+  console.log(`🎵 User selected DI.FM channel: ${selectedChannel}`);
   
-  if (!player) {
-    try {
-      console.log(`🔊 Joining voice channel: ${voiceChannel.name}`);
+  await selectInteraction.deferReply({ ephemeral: true });
+
+  try {
+    // Get or create player
+    let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
+    const voiceChannel = originalInteraction.member.voice.channel;
+    
+    if (!player) {
+      console.log('🔊 Creating new voice connection...');
       player = await originalInteraction.client.shoukaku.joinVoiceChannel({
         guildId: originalInteraction.guildId,
         channelId: voiceChannel.id,
         shardId: originalInteraction.guild.shardId
       });
-      await player.setGlobalVolume(cfg.uta.defaultVolume);
-      console.log(`🔊 Successfully joined ${voiceChannel.name} and set volume to ${cfg.uta.defaultVolume}`);
-    } catch (error) {
-      console.error('❌ Failed to join voice channel:', error);
-      return selectInteraction.editReply({
-        embeds: [createErrorEmbed("Couldn't join voice channel! Please check bot permissions.")]
-      });
+      
+      // Set volume
+      await player.setGlobalVolume(35);
+      console.log('✅ Voice connection established');
     }
-  }
 
-  try {
-    console.log(`🎵 Starting DI.FM channel: ${selectedChannel} (${channelInfo.name})`);
-    const result = await difmManager.connectToStream(player, selectedChannel, originalInteraction.guildId);
-    
-    await selectInteraction.editReply({
-      embeds: [createSuccessEmbed(channelInfo, voiceChannel.name, result.url, result.isPremium)]
-    });
+    // Try different DI.FM stream URLs
+    const streamUrls = [
+      `http://pub1.di.fm/di_${selectedChannel}`,
+      `http://pub2.di.fm/di_${selectedChannel}`,
+      `http://pub7.di.fm/di_${selectedChannel}`
+    ];
 
-    console.log(`✅ DI.FM radio started successfully: ${channelInfo.name}`);
+    let success = false;
+    let usedUrl = '';
+
+    for (const streamUrl of streamUrls) {
+      try {
+        console.log(`🔄 Trying stream URL: ${streamUrl}`);
+        
+        const result = await player.node.rest.resolve(streamUrl);
+        console.log(`📊 Stream resolve result:`, {
+          loadType: result?.loadType,
+          hasData: !!result?.data,
+          hasTrack: !!result?.tracks?.length
+        });
+        
+        if (result?.data || (result?.tracks && result.tracks.length > 0)) {
+          const track = result.data || result.tracks[0];
+          await player.playTrack({ 
+            track: track.encoded || track.track,
+            options: { noReplace: false }
+          });
+          
+          success = true;
+          usedUrl = streamUrl;
+          console.log(`✅ Successfully started stream: ${streamUrl}`);
+          break;
+        }
+      } catch (urlError) {
+        console.log(`❌ Stream URL failed: ${streamUrl} - ${urlError.message}`);
+        continue;
+      }
+    }
+
+    if (success) {
+      await selectInteraction.editReply({
+        embeds: [new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('📻 DI.FM Radio Playing')
+          .setDescription(`🎵 **${channelInfo.name}** is now playing in **${voiceChannel.name}**`)
+          .addFields(
+            {
+              name: '🎶 Channel',
+              value: channelInfo.description,
+              inline: false
+            },
+            {
+              name: '🌐 Stream URL',
+              value: `\`${usedUrl}\``,
+              inline: false
+            }
+          )
+          .setTimestamp()
+        ]
+      });
+    } else {
+      throw new Error('All stream URLs failed');
+    }
 
   } catch (error) {
     console.error(`❌ Failed to start DI.FM channel ${selectedChannel}:`, error);
     await selectInteraction.editReply({
-      embeds: [createErrorEmbed(`Failed to start ${channelInfo.name}. DI.FM may be experiencing issues. Please try another channel.`)]
+      embeds: [new EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('❌ Stream Failed')
+        .setDescription(`Failed to start ${channelInfo.name}. Please try another channel.`)
+        .addFields({
+          name: 'Error Details',
+          value: error.message,
+          inline: false
+        })
+      ]
     });
   }
 }
 
 async function handleStopRadio(buttonInteraction, originalInteraction) {
-  await buttonInteraction.deferReply({ flags: 64 }); // EPHEMERAL flag
+  await buttonInteraction.deferReply({ ephemeral: true });
 
   const player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
   
   if (player) {
     try {
-      console.log('🛑 Stopping DI.FM radio and disconnecting player');
+      console.log('🛑 Stopping radio and disconnecting...');
       await player.stopTrack();
       await player.disconnect();
       originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
-      console.log('✅ Successfully stopped DI.FM radio');
+      console.log('✅ Radio stopped successfully');
     } catch (error) {
-      console.error('❌ Error stopping DI.FM radio:', error);
+      console.error('❌ Error stopping radio:', error);
     }
   }
 
   await buttonInteraction.editReply({
     embeds: [new EmbedBuilder()
       .setColor('#00FF00')
-      .setTitle('🛑 DI.FM Radio Stopped')
-      .setDescription('Radio has been disconnected successfully')
+      .setTitle('🛑 Radio Stopped')
+      .setDescription('DI.FM radio has been disconnected')
       .setTimestamp()
     ]
   });
-}
-
-function createRadioEmbed(category) {
-  const hasApiKey = !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY);
-  
-  return new EmbedBuilder()
-    .setColor('#FF6B35')
-    .setTitle('📻 DI.FM Electronic Music Radio')
-    .setDescription('The world\'s most addictive electronic music streaming service')
-    .addFields(
-      {
-        name: '🎵 Available Categories',
-        value: '**Popular** • **House** • **Chill & Ambient**',
-        inline: false
-      },
-      {
-        name: hasApiKey ? '✅ Premium Access Active' : '🆓 Free Access',
-        value: hasApiKey 
-          ? 'Premium DI.FM subscription detected - enjoying high quality streams!'
-          : 'Using free streams - consider upgrading for better quality',
-        inline: false
-      },
-      {
-        name: '🔧 Stream Quality',
-        value: hasApiKey ? '🎧 **320kbps Premium**' : '🎧 **128kbps Free**',
-        inline: true
-      }
-    )
-    .setFooter({ text: 'DI.FM - Addictive Electronic Music Since 1999' })
-    .setTimestamp();
-}
-
-function createSuccessEmbed(channelInfo, voiceChannelName, streamUrl, isPremium = false) {
-  return new EmbedBuilder()
-    .setColor('#00FF00')
-    .setTitle('📻 DI.FM Radio Playing')
-    .setDescription(`🎵 **${channelInfo.name}** is now playing in **${voiceChannelName}**`)
-    .addFields(
-      {
-        name: '🎶 Channel Description',
-        value: channelInfo.description,
-        inline: false
-      },
-      {
-        name: isPremium ? '💎 Premium Stream' : '🆓 Free Stream',
-        value: isPremium 
-          ? '🎧 High quality 320kbps premium audio' 
-          : '🎧 Standard quality 128kbps audio',
-        inline: true
-      },
-      {
-        name: '🌐 Stream Source',
-        value: `\`${streamUrl.split('?')[0]}\``,
-        inline: false
-      }
-    )
-    .setFooter({ text: 'Enjoy the music! Use the stop button to disconnect.' })
-    .setTimestamp();
-}
-
-function createErrorEmbed(message) {
-  return new EmbedBuilder()
-    .setColor('#FF0000')
-    .setTitle('❌ Radio Error')
-    .setDescription(message)
-    .addFields({
-      name: '💡 Troubleshooting',
-      value: '• Make sure you\'re in a voice channel\n• Check if the bot has voice permissions\n• Try a different DI.FM channel\n• DI.FM servers may be temporarily unavailable',
-      inline: false
-    })
-    .setTimestamp();
 }
