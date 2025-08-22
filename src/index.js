@@ -113,12 +113,15 @@ class SimpleRadioManager {
         encoded: !!result?.data?.encoded
       });
       
-      // Handle different response types - FIXED PLAYTRACK SYNTAX
+      // Handle different response types - CORRECTED PLAYTRACK METHOD
       if (result.loadType === 'track' && result.data) {
-        // Use the correct playTrack syntax for Shoukaku
+        // Use the correct Lavalink v4 playTrack syntax
         console.log(`🎵 Attempting to play track with encoded data...`);
-        await player.playTrack({ 
-          encoded: result.data.encoded
+        
+        await player.playTrack({
+          track: {
+            encoded: result.data.encoded
+          }
         });
         
         // Wait and check if track started
@@ -136,8 +139,11 @@ class SimpleRadioManager {
         
       } else if (result.tracks && result.tracks.length > 0) {
         console.log(`🎵 Attempting to play from tracks array...`);
-        await player.playTrack({ 
-          encoded: result.tracks[0].encoded
+        
+        await player.playTrack({
+          track: {
+            encoded: result.tracks[0].encoded
+          }
         });
         
         // Wait and check if track started
@@ -155,8 +161,11 @@ class SimpleRadioManager {
         
       } else if (result.loadType === 'playlist' && result.data?.tracks?.length > 0) {
         console.log(`🎵 Attempting to play from playlist...`);
-        await player.playTrack({ 
-          encoded: result.data.tracks[0].encoded
+        
+        await player.playTrack({
+          track: {
+            encoded: result.data.tracks[0].encoded
+          }
         });
         
         // Wait and check if track started
