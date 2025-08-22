@@ -60,13 +60,23 @@ export const execute = async (interaction) => {
 
   // Modal handler with better error handling
   const modalHandler = async (i) => {
-    if (!i.isModalSubmit()) return;
-    if (i.user.id !== interaction.user.id) return;
+    console.log('🎭 Interaction received:', i.type, i.isModalSubmit());
     
+    if (!i.isModalSubmit()) return;
+    
+    console.log('📝 Modal submit detected');
+    console.log('User ID match:', i.user.id, '===', interaction.user.id, '=', i.user.id === interaction.user.id);
+    
+    if (i.user.id !== interaction.user.id) {
+      console.log('❌ User ID does not match, ignoring');
+      return;
+    }
+    
+    console.log('✅ User ID matches, calling handler...');
     try {
       await handleQueueModal(i, interaction);
     } catch (error) {
-      console.error('Modal handler error:', error);
+      console.error('❌ Modal handler error:', error);
       try {
         if (!i.replied && !i.deferred) {
           await i.reply({
