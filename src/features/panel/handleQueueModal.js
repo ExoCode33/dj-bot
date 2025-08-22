@@ -1,5 +1,5 @@
 // src/features/panel/handleQueueModal.js
-// Fixed version with proper timeout handling and error logging
+// Fixed version with debug logging and removed problematic state check
 
 import { UI } from '../../constants/ui.js';
 import { UtaUI } from './ui.js';
@@ -30,13 +30,21 @@ export async function handleQueueModal(modal, rootInteraction) {
     return;
   }
 
-  // Get the Railway node
+  // Get the Railway node with debug logging
   const nodeMap = modal.client.shoukaku.nodes;
   let node = nodeMap.get(cfg.lavalink.name) || nodeMap.values().next().value;
   
-  if (!node || node.state !== 2) {
+  console.log('🔧 Debug info:');
+  console.log('  - Node map size:', nodeMap.size);
+  console.log('  - Node name:', node?.name || 'undefined');
+  console.log('  - Node state:', node?.state || 'undefined');
+  console.log('  - Node connected:', !!node);
+  
+  // Simplified node check - only verify node exists
+  if (!node) {
+    console.error('❌ No node found');
     return modal.editReply({
-      embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
+      embeds: [UtaUI.errorEmbed("No Lavalink node available!")]
     });
   }
 
@@ -61,6 +69,7 @@ export async function handleQueueModal(modal, rootInteraction) {
       });
       await player.setGlobalVolume(cfg.uta.defaultVolume);
     } catch (error) {
+      console.error('❌ Failed to join voice channel:', error);
       return modal.editReply({
         embeds: [UtaUI.errorEmbed("Couldn't join voice channel!")]
       });
@@ -89,11 +98,11 @@ export async function handleQueueModal(modal, rootInteraction) {
           ? `🎵 **${detectedSource.charAt(0).toUpperCase() + detectedSource.slice(1)} Detected**\n🔄 Processing: **${query}**`
           : `🎵 Searching for: **${query}**\n🔄 *Trying multiple sources...*`
       )
-      .setFooter({ text: 'Increased timeouts for better success rate! 🎵' })
+      .setFooter({ text: 'YouTube plugin enabled! 🎵' })
     ]
   });
 
-  // Simplified search strategies (no plugin dependency)
+  // Simplified search strategies
   let searchStrategies = [];
   
   if (detectedSource === 'soundcloud' || detectedSource === 'youtube' || detectedSource === 'bandcamp') {
@@ -109,13 +118,13 @@ export async function handleQueueModal(modal, rootInteraction) {
   } else {
     // Text search - use Lavalink's built-in search
     searchStrategies = [
-      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'high' },
       { name: 'YouTube Search', query: `ytsearch:${query}`, priority: 'high' },
+      { name: 'SoundCloud Search', query: `scsearch:${query}`, priority: 'high' },
       { name: 'Direct Search', query: query, priority: 'medium' }
     ];
   }
 
-  // Execute search with enhanced error handling
+  // Execute search with enhanced error handling and logging
   let track = null;
   let successfulStrategy = null;
   let attempts = [];
@@ -124,13 +133,14 @@ export async function handleQueueModal(modal, rootInteraction) {
     try {
       console.log(`🔍 [${strategy.priority.toUpperCase()}] Trying ${strategy.name}: ${strategy.query.substring(0, 100)}`);
       
-      // ✅ FIXED: Proper timeout and error handling
-      const res = await searchWithTimeout(node, strategy.query, 45000); // 45 second timeout
+      // Enhanced search with detailed logging
+      const res = await searchWithTimeout(node, strategy.query, 45000);
       
       console.log(`📊 Search result for ${strategy.name}:`, {
         loadType: res?.loadType,
         trackCount: res?.tracks?.length || 0,
-        playlistName: res?.playlistInfo?.name || 'N/A'
+        playlistName: res?.playlistInfo?.name || 'N/A',
+        exception: res?.exception?.message || 'none'
       });
       
       attempts.push({
@@ -138,7 +148,8 @@ export async function handleQueueModal(modal, rootInteraction) {
         priority: strategy.priority,
         success: !!res?.tracks?.length,
         loadType: res?.loadType,
-        trackCount: res?.tracks?.length || 0
+        trackCount: res?.tracks?.length || 0,
+        exception: res?.exception?.message || null
       });
       
       if (res?.tracks?.length > 0) {
@@ -147,10 +158,11 @@ export async function handleQueueModal(modal, rootInteraction) {
         console.log(`✅ SUCCESS with ${strategy.name}: ${track.info?.title}`);
         break;
       } else {
-        console.log(`❌ No tracks found with ${strategy.name}. LoadType: ${res?.loadType}`);
+        console.log(`❌ No tracks found with ${strategy.name}. LoadType: ${res?.loadType}, Exception: ${res?.exception?.message || 'none'}`);
       }
     } catch (error) {
       console.error(`❌ ${strategy.name} failed:`, error.message);
+      console.error('Full error:', error);
       attempts.push({
         strategy: strategy.name,
         priority: strategy.priority,
@@ -185,12 +197,11 @@ export async function handleQueueModal(modal, rootInteraction) {
           inline: false
         },
         {
-          name: '🔧 Troubleshooting',
+          name: '🔧 Debug Info',
           value: [
-            '• Try searching for "artist song title"',
-            '• Use the exact song name from the platform',
-            '• Check if the song is available in your region',
-            '• Try a different platform (SoundCloud/YouTube)'
+            `Node connected: ${!!node}`,
+            `Node state: ${node?.state || 'unknown'}`,
+            `Attempts made: ${attempts.length}`
           ].join('\n'),
           inline: false
         }
@@ -246,7 +257,7 @@ export async function handleQueueModal(modal, rootInteraction) {
   }
 }
 
-// ✅ FIXED: Enhanced search function with proper timeout and error handling
+// Enhanced search function with proper timeout and error handling
 async function searchWithTimeout(node, query, timeout = 45000) {
   return new Promise((resolve, reject) => {
     // Set a timeout
