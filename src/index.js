@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { createClient } from './core/client.js';
 import { log } from './utils/logger.js';
 import { cfg } from './config/index.js';
-import { REST, Routes, Events } from 'discord.js';  // ✅ ADDED: Import Events
+import { REST, Routes, Events } from 'discord.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,9 +56,7 @@ async function startBot() {
     // Validate required environment variables
     const requiredEnvVars = [
       'DISCORD_TOKEN',
-      'CLIENT_ID',
-      'LAVALINK_URL',
-      'LAVALINK_AUTH'
+      'CLIENT_ID'
     ];
 
     console.log('🔍 Checking environment variables...');
@@ -79,11 +77,8 @@ async function startBot() {
     console.log('📋 Bot Configuration:');
     console.log(`  - Client ID: ${cfg.discord.clientId}`);
     console.log(`  - Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
-    console.log(`  - Lavalink URL: ${cfg.lavalink.url}`);
-    console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
     console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
     console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
-    console.log(`  - DI.FM API Key: ${cfg.difm?.apiKey ? 'SET' : 'NOT SET'}`);
 
     // Start health check server (for Railway monitoring)
     if (process.env.NODE_ENV === 'production') {
@@ -173,12 +168,11 @@ async function startBot() {
 
     console.log('🔍 Phase 5: Event Registration');
     
-    // ✅ FIXED: Use Events.ClientReady enum instead of string to avoid deprecation warning
+    // Ready event
     client.once(Events.ClientReady, () => {
       console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
       console.log(`👥 Total users: ${client.users.cache.size}`);
-      console.log(`🎵 Lavalink nodes: ${client.shoukaku.nodes.size}`);
       
       // List connected guilds
       client.guilds.cache.forEach(guild => {
@@ -188,7 +182,7 @@ async function startBot() {
       console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
     });
 
-    // ✅ FIXED: Use Events.InteractionCreate enum for interaction handler
+    // Interaction handler
     client.on(Events.InteractionCreate, async (i) => {
       if (!i.isChatInputCommand()) return;
       
@@ -219,23 +213,6 @@ async function startBot() {
       }
     });
 
-    // Lavalink connection logging
-    client.shoukaku.on('ready', (name) => {
-      console.log(`🎵 [LAVALINK] Node "${name}" is ready!`);
-    });
-
-    client.shoukaku.on('error', (name, error) => {
-      console.error(`🎵 [LAVALINK] Node "${name}" error:`, error.message);
-    });
-
-    client.shoukaku.on('disconnect', (name, reason) => {
-      console.warn(`🎵 [LAVALINK] Node "${name}" disconnected:`, reason);
-    });
-
-    client.shoukaku.on('reconnecting', (name, delay) => {
-      console.log(`🎵 [LAVALINK] Node "${name}" reconnecting in ${delay}ms`);
-    });
-
     console.log('🔍 Phase 6: Discord Login');
     console.log('🔑 Attempting to log in to Discord...');
     
@@ -263,26 +240,11 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('💥 [UNHANDLED REJECTION]');
   console.error('📍 Promise:', promise);
   console.error('📋 Reason:', reason);
-  
-  // Don't exit for Lavalink connection errors
-  if (reason?.code === 'ERR_UNHANDLED_ERROR' && reason?.context) {
-    console.error(`🎵 Lavalink connection error for node: ${reason.context}`);
-    console.error('⚠️  Bot will continue running without music functionality until Lavalink connects.');
-    return;
-  }
 });
 
 process.on('uncaughtException', (error) => {
   console.error('💥 [UNCAUGHT EXCEPTION]:', error.message);
   console.error('📋 Stack trace:', error.stack);
-  
-  // Don't exit for Shoukaku/Lavalink errors
-  if (error.code === 'ERR_UNHANDLED_ERROR' && error.context) {
-    console.error(`🎵 Lavalink connection error for node: ${error.context}`);
-    console.error('⚠️  Bot will continue running without music functionality until Lavalink connects.');
-    return;
-  }
-  
   console.error('💀 Process will exit due to uncaught exception');
   process.exit(1);
 });
