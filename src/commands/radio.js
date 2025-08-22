@@ -87,53 +87,53 @@ class StreamManager {
     this.reconnectDelay = 2000;
   }
 
-  // ✅ TESTING: Use known working radio streams first
+  // ✅ SIMPLE: Use basic working streams that Lavalink handles well
   async getStreamUrls(channel) {
-    console.log('🧪 Testing with reliable internet radio streams');
+    console.log('🎵 Using simple direct streams for testing');
     
-    // Known working internet radio streams that should work with Lavalink
-    const workingStreams = {
+    // Very simple, direct MP3 streams that work reliably
+    const simpleStreams = {
       'trance': [
-        'https://ice1.somafm.com/groovesalad-256-mp3',
-        'https://streams.ilovemusic.de/iloveradio7.mp3',
-        'http://stream.techno-teuton.com:8000/trance'
+        'http://uk7.internet-radio.com:8226/stream',
+        'http://uk2.internet-radio.com:8194/stream',
+        'http://uk5.internet-radio.com:8313/stream'
       ],
       'house': [
-        'https://ice1.somafm.com/dronezone-256-mp3', 
-        'https://streams.ilovemusic.de/iloveradio11.mp3',
-        'http://stream.techno-teuton.com:8000/house'
+        'http://uk1.internet-radio.com:8024/stream',
+        'http://uk4.internet-radio.com:8266/stream', 
+        'http://uk3.internet-radio.com:8405/stream'
       ],
       'techno': [
-        'https://ice1.somafm.com/beatblender-256-mp3',
-        'https://streams.ilovemusic.de/iloveradio15.mp3',
-        'http://stream.techno-teuton.com:8000/minimal'
+        'http://uk6.internet-radio.com:8378/stream',
+        'http://uk8.internet-radio.com:8043/stream',
+        'http://uk9.internet-radio.com:8374/stream'
       ],
       'dubstep': [
-        'https://ice1.somafm.com/digitalis-256-mp3',
-        'https://streams.ilovemusic.de/iloveradio17.mp3',
-        'https://ice1.somafm.com/bagel-256-mp3'
+        'http://uk7.internet-radio.com:8070/stream',
+        'http://uk2.internet-radio.com:8442/stream',
+        'http://uk1.internet-radio.com:8350/stream'
+      ],
+      'drum-and-bass': [
+        'http://uk3.internet-radio.com:8106/stream',
+        'http://uk5.internet-radio.com:8280/stream',
+        'http://uk4.internet-radio.com:8338/stream'
       ],
       'progressive': [
-        'https://ice1.somafm.com/spacestation-256-mp3',
-        'https://streams.ilovemusic.de/iloveradio2.mp3',
-        'https://ice1.somafm.com/deepspaceone-256-mp3'
+        'http://uk8.internet-radio.com:8232/stream',
+        'http://uk6.internet-radio.com:8409/stream',
+        'http://uk9.internet-radio.com:8167/stream'
       ],
       'ambient': [
-        'https://ice1.somafm.com/deepspaceone-256-mp3',
-        'https://ice1.somafm.com/lush-256-mp3',
-        'https://ice1.somafm.com/spacestation-256-mp3'
-      ],
-      'chillout': [
-        'https://ice1.somafm.com/groovesalad-256-mp3',
-        'https://ice1.somafm.com/lush-256-mp3',
-        'https://ice1.somafm.com/deepspaceone-256-mp3'
+        'http://uk1.internet-radio.com:8073/stream',
+        'http://uk7.internet-radio.com:8295/stream',
+        'http://uk2.internet-radio.com:8384/stream'
       ]
     };
     
     // Get streams for the requested channel, fallback to trance
-    const streams = workingStreams[channel] || workingStreams['trance'];
+    const streams = simpleStreams[channel] || simpleStreams['trance'];
     
-    console.log(`🎵 Using ${streams.length} test streams for channel: ${channel}`);
+    console.log(`🎵 Selected ${streams.length} streams for channel: ${channel}`);
     return streams;
   }
 
@@ -167,18 +167,21 @@ class StreamManager {
           // Handle live radio streams that don't populate tracks array
           console.log('🔄 Detected live stream, attempting direct playback');
           try {
-            // ✅ IMPROVED: Better handling for live streams
+            // ✅ FIXED: Use proper Lavalink v4 track format
             await player.playTrack({ 
-              track: Buffer.from(JSON.stringify({
+              encodedTrack: null,
+              track: {
                 identifier: url,
                 isSeekable: false,
-                author: "DI.FM",
+                author: "Internet Radio",
                 length: 0,
                 isStream: true,
-                title: `DI.FM ${DIFM_CHANNELS[channel]?.name || channel}`,
+                title: `${DIFM_CHANNELS[channel]?.name || channel} Radio`,
                 uri: url,
-                artworkUrl: `https://www.di.fm/img/channels/${channel}.png`
-              })).toString('base64')
+                artworkUrl: null,
+                isrc: null,
+                sourceName: "http"
+              }
             });
             
             player.currentRadioChannel = channel;
@@ -188,6 +191,22 @@ class StreamManager {
             return { success: true, url };
           } catch (virtualTrackError) {
             console.log(`❌ Live stream playback failed: ${virtualTrackError.message}`);
+            
+            // ✅ FALLBACK: Try direct URL resolve
+            try {
+              console.log('🔄 Trying direct URL playback...');
+              await player.playTrack({ 
+                track: Buffer.from(url).toString('base64')
+              });
+              
+              player.currentRadioChannel = channel;
+              this.reconnectAttempts.set(guildId, 0);
+              this.setupEventHandlers(player, channel, guildId);
+              console.log(`✅ Successfully started direct stream: ${url}`);
+              return { success: true, url };
+            } catch (directError) {
+              console.log(`❌ Direct stream failed: ${directError.message}`);
+            }
           }
         } else if (result.loadType === 'playlist' && result.tracks?.length === 0) {
           // ✅ ADDED: Handle empty playlists (often indicates auth issues)
