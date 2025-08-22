@@ -1,344 +1,82 @@
-// src/commands/radio.js
-import { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, ComponentType, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection } from '@discordjs/voice';
+import { createReadStream } from 'fs';
+import { get } from 'https';
 import { cfg } from '../config/index.js';
 import { isAuthorized } from '../utils/permissions.js';
 
-// Complete DI.FM channel configuration
-const DIFM_CHANNELS = {
-  // Popular Electronic
-  'trance': { name: 'Trance', description: 'Uplifting and euphoric trance music', category: 'Popular' },
-  'house': { name: 'House', description: 'Classic and modern house beats', category: 'Popular' },
-  'techno': { name: 'Techno', description: 'Underground techno sounds', category: 'Popular' },
-  'progressive': { name: 'Progressive', description: 'Progressive electronic music', category: 'Popular' },
-  'dubstep': { name: 'Dubstep', description: 'Heavy bass and electronic drops', category: 'Popular' },
-  'drum-and-bass': { name: 'Drum & Bass', description: 'Fast breakbeats and bass', category: 'Popular' },
-  
-  // House Subgenres
-  'deep-house': { name: 'Deep House', description: 'Deep and soulful house music', category: 'House' },
-  'tech-house': { name: 'Tech House', description: 'Technical house music', category: 'House' },
-  'electro-house': { name: 'Electro House', description: 'Electronic house fusion', category: 'House' },
-  'future-house': { name: 'Future House', description: 'Modern future house', category: 'House' },
-  'tribal-house': { name: 'Tribal House', description: 'Tribal percussion house', category: 'House' },
-  'funky-house': { name: 'Funky House', description: 'Funky disco house', category: 'House' },
-  'vocal-house': { name: 'Vocal House', description: 'House with vocals', category: 'House' },
-  
-  // Trance Subgenres
-  'uplifting-trance': { name: 'Uplifting Trance', description: 'Euphoric uplifting trance', category: 'Trance' },
-  'vocal-trance': { name: 'Vocal Trance', description: 'Trance with vocals', category: 'Trance' },
-  'tech-trance': { name: 'Tech Trance', description: 'Technical trance music', category: 'Trance' },
-  'psytrance': { name: 'PsyTrance', description: 'Psychedelic trance music', category: 'Trance' },
-  'classic-trance': { name: 'Classic Trance', description: 'Classic trance hits', category: 'Trance' },
-  
-  // Ambient & Chill
-  'chillout': { name: 'Chillout', description: 'Relaxing ambient electronic', category: 'Chill' },
-  'ambient': { name: 'Ambient', description: 'Atmospheric soundscapes', category: 'Chill' },
-  'lounge': { name: 'Lounge', description: 'Sophisticated lounge music', category: 'Chill' },
-  'downtempo': { name: 'Downtempo', description: 'Slow tempo electronic', category: 'Chill' },
-  'chillstep': { name: 'Chillstep', description: 'Relaxed dubstep variant', category: 'Chill' },
-  'liquid-dnb': { name: 'Liquid D&B', description: 'Smooth liquid drum & bass', category: 'Chill' },
-  
-  // Bass Music
-  'bass': { name: 'Bass', description: 'Heavy bass electronic music', category: 'Bass' },
-  'trap': { name: 'Trap', description: 'Electronic trap music', category: 'Bass' },
-  'future-bass': { name: 'Future Bass', description: 'Melodic future bass', category: 'Bass' },
-  'neurofunk': { name: 'Neurofunk', description: 'Dark neurofunk D&B', category: 'Bass' },
-  'jumpup': { name: 'Jump Up', description: 'Jump up drum & bass', category: 'Bass' },
-  'hardcore': { name: 'Hardcore', description: 'Hard electronic dance music', category: 'Bass' },
-  'hardstyle': { name: 'Hardstyle', description: 'Hardstyle electronic dance', category: 'Bass' },
-  
-  // Underground
-  'minimal': { name: 'Minimal', description: 'Minimalist electronic sounds', category: 'Underground' },
-  'experimental': { name: 'Experimental', description: 'Experimental electronic', category: 'Underground' },
-  'IDM': { name: 'IDM', description: 'Intelligent dance music', category: 'Underground' },
-  'glitch': { name: 'Glitch', description: 'Glitch electronic music', category: 'Underground' },
-  'dark-ambient': { name: 'Dark Ambient', description: 'Dark atmospheric music', category: 'Underground' },
-  
-  // Breaks
-  'breaks': { name: 'Breaks', description: 'Breakbeat electronic music', category: 'Breaks' },
-  'nu-breaks': { name: 'Nu Breaks', description: 'Modern breakbeat', category: 'Breaks' },
-  'big-beat': { name: 'Big Beat', description: 'Big beat electronic', category: 'Breaks' },
-  
-  // Classic
-  'classic-eurodance': { name: 'Classic Eurodance', description: '90s Eurodance hits', category: 'Classic' },
-  'old-school-rave': { name: 'Old School Rave', description: 'Classic rave music', category: 'Classic' },
-  'classic-techno': { name: 'Classic Techno', description: 'Original techno sounds', category: 'Classic' },
-  'retro-electro': { name: 'Retro Electro', description: 'Retro electronic music', category: 'Classic' },
-  
-  // Modern
-  'synthwave': { name: 'Synthwave', description: 'Retro synthwave music', category: 'Modern' },
-  'vaporwave': { name: 'Vaporwave', description: 'Nostalgic vaporwave', category: 'Modern' },
-  'uk-garage': { name: 'UK Garage', description: 'UK garage music', category: 'Modern' },
-  'grime': { name: 'Grime', description: 'UK grime electronic', category: 'Modern' },
-  'future-garage': { name: 'Future Garage', description: 'Modern UK garage', category: 'Modern' },
-  '2-step': { name: '2-Step', description: '2-step garage music', category: 'Modern' },
-  
-  // Special
-  'space-dreams': { name: 'Space Dreams', description: 'Cosmic ambient music', category: 'Special' },
-  'nature': { name: 'Nature', description: 'Nature-inspired ambient', category: 'Special' },
-  'meditation': { name: 'Meditation', description: 'Meditative electronic', category: 'Special' },
-  'sleep': { name: 'Sleep', description: 'Sleep-inducing ambient', category: 'Special' }
+// Radio channels with direct HTTP streams
+const RADIO_CHANNELS = {
+  'trance': { 
+    name: 'Trance', 
+    description: 'Uplifting and euphoric trance music',
+    streams: [
+      'https://ice1.somafm.com/groovesalad-256-mp3',
+      'https://streams.ilovemusic.de/iloveradio7.mp3'
+    ]
+  },
+  'house': { 
+    name: 'House', 
+    description: 'Classic and modern house beats',
+    streams: [
+      'https://ice1.somafm.com/dronezone-256-mp3',
+      'https://streams.ilovemusic.de/iloveradio11.mp3'
+    ]
+  },
+  'techno': { 
+    name: 'Techno', 
+    description: 'Underground techno sounds',
+    streams: [
+      'https://ice1.somafm.com/beatblender-256-mp3',
+      'https://streams.ilovemusic.de/iloveradio15.mp3'
+    ]
+  },
+  'dubstep': { 
+    name: 'Dubstep', 
+    description: 'Heavy bass and electronic drops',
+    streams: [
+      'https://ice1.somafm.com/digitalis-256-mp3',
+      'https://ice1.somafm.com/bagel-256-mp3'
+    ]
+  },
+  'ambient': { 
+    name: 'Ambient', 
+    description: 'Atmospheric soundscapes',
+    streams: [
+      'https://ice1.somafm.com/deepspaceone-256-mp3',
+      'https://ice1.somafm.com/spacestation-256-mp3'
+    ]
+  },
+  'progressive': { 
+    name: 'Progressive', 
+    description: 'Progressive electronic music',
+    streams: [
+      'https://ice1.somafm.com/spacestation-256-mp3',
+      'https://ice1.somafm.com/lush-256-mp3'
+    ]
+  }
 };
 
-// Stream reliability manager
-class StreamManager {
-  constructor() {
-    this.reconnectAttempts = new Map();
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 2000;
-  }
-
-  // ✅ SIMPLE: Use basic working streams that Lavalink handles well
-  async getStreamUrls(channel) {
-    console.log('🎵 Using simple direct streams for testing');
-    
-    // Very simple, direct MP3 streams that work reliably
-    const simpleStreams = {
-      'trance': [
-        'http://uk7.internet-radio.com:8226/stream',
-        'http://uk2.internet-radio.com:8194/stream',
-        'http://uk5.internet-radio.com:8313/stream'
-      ],
-      'house': [
-        'http://uk1.internet-radio.com:8024/stream',
-        'http://uk4.internet-radio.com:8266/stream', 
-        'http://uk3.internet-radio.com:8405/stream'
-      ],
-      'techno': [
-        'http://uk6.internet-radio.com:8378/stream',
-        'http://uk8.internet-radio.com:8043/stream',
-        'http://uk9.internet-radio.com:8374/stream'
-      ],
-      'dubstep': [
-        'http://uk7.internet-radio.com:8070/stream',
-        'http://uk2.internet-radio.com:8442/stream',
-        'http://uk1.internet-radio.com:8350/stream'
-      ],
-      'drum-and-bass': [
-        'http://uk3.internet-radio.com:8106/stream',
-        'http://uk5.internet-radio.com:8280/stream',
-        'http://uk4.internet-radio.com:8338/stream'
-      ],
-      'progressive': [
-        'http://uk8.internet-radio.com:8232/stream',
-        'http://uk6.internet-radio.com:8409/stream',
-        'http://uk9.internet-radio.com:8167/stream'
-      ],
-      'ambient': [
-        'http://uk1.internet-radio.com:8073/stream',
-        'http://uk7.internet-radio.com:8295/stream',
-        'http://uk2.internet-radio.com:8384/stream'
-      ]
-    };
-    
-    // Get streams for the requested channel, fallback to trance
-    const streams = simpleStreams[channel] || simpleStreams['trance'];
-    
-    console.log(`🎵 Selected ${streams.length} streams for channel: ${channel}`);
-    return streams;
-  }
-
-  async connectToStream(player, channel, guildId) {
-    console.log(`Attempting to connect to channel: ${channel}`);
-    
-    // ✅ FIXED: Make getStreamUrls async
-    const streamUrls = await this.getStreamUrls(channel);
-    let lastError;
-    
-    for (let i = 0; i < streamUrls.length; i++) {
-      try {
-        const url = streamUrls[i];
-        console.log(`Trying stream URL: ${url}`);
-        
-        const result = await player.node.rest.resolve(url);
-        console.log(`Resolve result:`, {
-          loadType: result?.loadType,
-          trackCount: result?.tracks?.length || 0,
-          exception: result?.exception?.message || 'none'
-        });
-        
-        if (result.tracks && result.tracks.length > 0) {
-          await player.playTrack({ track: result.tracks[0].encoded });
-          player.currentRadioChannel = channel;
-          this.reconnectAttempts.set(guildId, 0);
-          this.setupEventHandlers(player, channel, guildId);
-          console.log(`✅ Successfully started stream: ${url}`);
-          return { success: true, url };
-        } else if (result.loadType === 'track') {
-          // Handle live radio streams that don't populate tracks array
-          console.log('🔄 Detected live stream, attempting direct playback');
-          try {
-            // ✅ FIXED: Use proper Lavalink v4 track format
-            await player.playTrack({ 
-              encodedTrack: null,
-              track: {
-                identifier: url,
-                isSeekable: false,
-                author: "Internet Radio",
-                length: 0,
-                isStream: true,
-                title: `${DIFM_CHANNELS[channel]?.name || channel} Radio`,
-                uri: url,
-                artworkUrl: null,
-                isrc: null,
-                sourceName: "http"
-              }
-            });
-            
-            player.currentRadioChannel = channel;
-            this.reconnectAttempts.set(guildId, 0);
-            this.setupEventHandlers(player, channel, guildId);
-            console.log(`✅ Successfully started live stream: ${url}`);
-            return { success: true, url };
-          } catch (virtualTrackError) {
-            console.log(`❌ Live stream playback failed: ${virtualTrackError.message}`);
-            
-            // ✅ FALLBACK: Try direct URL resolve
-            try {
-              console.log('🔄 Trying direct URL playback...');
-              await player.playTrack({ 
-                track: Buffer.from(url).toString('base64')
-              });
-              
-              player.currentRadioChannel = channel;
-              this.reconnectAttempts.set(guildId, 0);
-              this.setupEventHandlers(player, channel, guildId);
-              console.log(`✅ Successfully started direct stream: ${url}`);
-              return { success: true, url };
-            } catch (directError) {
-              console.log(`❌ Direct stream failed: ${directError.message}`);
-            }
-          }
-        } else if (result.loadType === 'playlist' && result.tracks?.length === 0) {
-          // ✅ ADDED: Handle empty playlists (often indicates auth issues)
-          console.log(`⚠️ Empty playlist returned - may be auth issue`);
-        }
-      } catch (error) {
-        lastError = error;
-        console.log(`❌ Stream URL failed: ${streamUrls[i]} - ${error.message}`);
-      }
-    }
-    
-    // ✅ IMPROVED: Better error reporting
-    const errorMessage = lastError ? lastError.message : 'All stream URLs failed';
-    console.error(`❌ Failed to connect to any stream for channel: ${channel}`);
-    console.error(`❌ Last error: ${errorMessage}`);
-    
-    throw new Error(`Failed to connect to DI.FM channel "${channel}": ${errorMessage}`);
-  }
-
-  setupEventHandlers(player, channel, guildId) {
-    console.log('Setting up event handlers for stream reconnection');
-    
-    // Remove existing listeners to prevent duplicates
-    player.removeAllListeners('trackEnd');
-    player.removeAllListeners('trackException');
-    
-    player.on('trackEnd', async (event) => {
-      console.log(`Track ended: ${event.reason}`);
-      if (event.reason === 'finished' || event.reason === 'loadFailed') {
-        await this.handleReconnection(player, channel, guildId);
-      }
-    });
-
-    player.on('trackException', async (event) => {
-      console.error('Stream error:', event.exception);
-      await this.handleReconnection(player, channel, guildId);
-    });
-  }
-
-  async handleReconnection(player, channel, guildId) {
-    const attempts = this.reconnectAttempts.get(guildId) || 0;
-    console.log(`Handling reconnection attempt ${attempts + 1}/${this.maxReconnectAttempts}`);
-    
-    if (attempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts.set(guildId, attempts + 1);
-      
-      setTimeout(async () => {
-        try {
-          await this.connectToStream(player, channel, guildId);
-          console.log(`Stream reconnected successfully (attempt ${attempts + 1})`);
-        } catch (error) {
-          console.error(`Reconnection failed (attempt ${attempts + 1}):`, error.message);
-        }
-      }, this.reconnectDelay * (attempts + 1));
-    }
-  }
-}
-
-const streamManager = new StreamManager();
-
-// Search channels function
-function searchChannels(query) {
-  const lowercaseQuery = query.toLowerCase();
-  
-  return Object.entries(DIFM_CHANNELS)
-    .filter(([key, channel]) => 
-      key.includes(lowercaseQuery) || 
-      channel.name.toLowerCase().includes(lowercaseQuery) ||
-      channel.description.toLowerCase().includes(lowercaseQuery)
-    )
-    .slice(0, 25)
-    .map(([key, channel]) => ({
-      label: channel.name,
-      description: channel.description.slice(0, 100),
-      value: key
-    }));
-}
-
-// Get channels by category
-function getChannelsByCategory(category) {
-  return Object.entries(DIFM_CHANNELS)
-    .filter(([_, channel]) => channel.category === category)
-    .slice(0, 25)
-    .map(([key, channel]) => ({
-      label: channel.name,
-      description: channel.description.slice(0, 100),
-      value: key
-    }));
-}
+// Store active players
+const activeConnections = new Map();
 
 export const data = new SlashCommandBuilder()
   .setName('radio')
-  .setDescription('Stream electronic music from DI.FM radio channels')
-  .addStringOption(option =>
-    option.setName('search')
-      .setDescription('Search for a specific channel')
-      .setRequired(false)
-  )
+  .setDescription('Stream electronic music radio channels')
   .addStringOption(option =>
     option.setName('category')
       .setDescription('Browse channels by category')
       .setRequired(false)
       .addChoices(
-        { name: 'Popular', value: 'Popular' },
-        { name: 'House Music', value: 'House' },
-        { name: 'Trance', value: 'Trance' },
-        { name: 'Chill & Ambient', value: 'Chill' },
-        { name: 'Bass Music', value: 'Bass' },
-        { name: 'Underground', value: 'Underground' },
-        { name: 'Breaks', value: 'Breaks' },
-        { name: 'Classic', value: 'Classic' },
-        { name: 'Modern', value: 'Modern' },
-        { name: 'Special', value: 'Special' }
+        { name: 'All Channels', value: 'all' }
       )
   );
 
 export const execute = async (interaction) => {
-  console.log('====== RADIO COMMAND DEBUG ======');
-  console.log('Radio command executed by:', interaction.user.tag);
-  console.log('Guild ID:', interaction.guildId);
-  console.log('Channel ID:', interaction.channelId);
-  console.log('User in voice channel:', !!interaction.member?.voice?.channel);
-  console.log('Voice channel name:', interaction.member?.voice?.channel?.name);
-  console.log('Voice channel ID:', interaction.member?.voice?.channel?.id);
-  console.log('Member roles:', interaction.member?.roles?.cache?.map(r => r.name) || []);
-  console.log('Authorized role ID:', cfg.uta.authorizedRoleId);
-  console.log('Is authorized:', isAuthorized(interaction.member, cfg.uta.authorizedRoleId));
-  console.log('DI.FM API Key configured:', !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY));
-
+  console.log('====== DIRECT RADIO COMMAND ======');
+  
   // Authorization check
   if (!isAuthorized(interaction.member, cfg.uta.authorizedRoleId)) {
-    console.log('Authorization failed - user not authorized');
     return interaction.reply({
       embeds: [createErrorEmbed("Only authorized DJs can control the radio!")],
       ephemeral: true
@@ -348,112 +86,51 @@ export const execute = async (interaction) => {
   // Voice channel check
   const voiceChannel = interaction.member?.voice?.channel;
   if (!voiceChannel) {
-    console.log('Voice channel check failed - user not in voice channel');
     return interaction.reply({
       embeds: [createErrorEmbed("You need to be in a voice channel to use the radio!")],
       ephemeral: true
     });
   }
 
-  console.log('All checks passed, building interface...');
-
-  const searchQuery = interaction.options.getString('search');
-  const category = interaction.options.getString('category');
-  
-  console.log('Search query:', searchQuery);
-  console.log('Category:', category);
-  
-  let channelOptions;
-  let title;
-  
-  if (searchQuery) {
-    channelOptions = searchChannels(searchQuery);
-    title = `Search Results for "${searchQuery}"`;
-  } else if (category) {
-    channelOptions = getChannelsByCategory(category);
-    title = `${category} Channels`;
-  } else {
-    channelOptions = getChannelsByCategory('Popular');
-    title = 'Popular Channels';
-  }
-
-  console.log('Channel options count:', channelOptions.length);
-  console.log('First few options:', channelOptions.slice(0, 3));
-
-  if (channelOptions.length === 0) {
-    console.log('No channels found for criteria');
-    return interaction.reply({
-      embeds: [createErrorEmbed(`No channels found ${searchQuery ? `for "${searchQuery}"` : 'in that category'}.`)],
-      ephemeral: true
-    });
-  }
+  const channelOptions = Object.entries(RADIO_CHANNELS).map(([key, channel]) => ({
+    label: channel.name,
+    description: channel.description,
+    value: key
+  }));
 
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId('radio_channel_select')
+    .setCustomId('direct_radio_select')
     .setPlaceholder('Choose a radio channel...')
     .addOptions(channelOptions);
 
-  const actionRow = new ActionRowBuilder().addComponents(selectMenu);
-  
-  // Add stop button
   const stopButton = new ButtonBuilder()
-    .setCustomId('radio_stop')
+    .setCustomId('direct_radio_stop')
     .setLabel('Stop Radio')
     .setStyle(ButtonStyle.Danger)
     .setEmoji('⏹️');
 
-  const buttonRow = new ActionRowBuilder().addComponents(stopButton);
-
-  // Get current playing info
-  const player = interaction.client.shoukaku.players.get(interaction.guildId);
-  const currentChannel = player?.currentRadioChannel || null;
-  
-  console.log('Current player exists:', !!player);
-  console.log('Current channel:', currentChannel);
-
-  const embed = createRadioEmbed(title, currentChannel);
-
-  console.log('Sending interaction reply...');
+  const embed = createRadioEmbed();
 
   const message = await interaction.reply({
     embeds: [embed],
-    components: [actionRow, buttonRow],
-    ephemeral: false
+    components: [
+      new ActionRowBuilder().addComponents(selectMenu),
+      new ActionRowBuilder().addComponents(stopButton)
+    ]
   });
-
-  console.log('Interaction reply sent, setting up collector...');
 
   // Create collector
-  const collector = message.createMessageComponentCollector({
-    time: 300000 // 5 minutes
-  });
+  const collector = message.createMessageComponentCollector({ time: 300000 });
 
   collector.on('collect', async (componentInteraction) => {
-    console.log('====== COMPONENT INTERACTION ======');
-    console.log('Component interaction type:', componentInteraction.componentType);
-    console.log('Custom ID:', componentInteraction.customId);
-    console.log('User:', componentInteraction.user.tag);
-    
-    try {
-      if (componentInteraction.customId === 'radio_channel_select') {
-        console.log('Selected values:', componentInteraction.values);
-        await handleChannelSelection(componentInteraction, interaction);
-      } else if (componentInteraction.customId === 'radio_stop') {
-        console.log('Stop button pressed');
-        await handleStopRadio(componentInteraction, interaction);
-      }
-    } catch (error) {
-      console.error('Radio interaction error:', error);
-      console.error('Error stack:', error.stack);
-      await componentInteraction.reply({
-        embeds: [createErrorEmbed("An error occurred!")],
-        ephemeral: true
-      });
+    if (componentInteraction.customId === 'direct_radio_select') {
+      await handleChannelSelection(componentInteraction, voiceChannel);
+    } else if (componentInteraction.customId === 'direct_radio_stop') {
+      await handleStopRadio(componentInteraction);
     }
   });
 
   collector.on('end', async () => {
-    console.log('Collector ended, disabling components');
     try {
       const disabledComponents = [
         new ActionRowBuilder().addComponents(
@@ -465,163 +142,165 @@ export const execute = async (interaction) => {
       ];
       await message.edit({ components: disabledComponents });
     } catch (error) {
-      console.log('Error disabling components (expected if message deleted):', error.message);
+      console.log('Error disabling components:', error.message);
     }
   });
-
-  console.log('====== RADIO COMMAND COMPLETE ======');
 };
 
-async function handleChannelSelection(selectInteraction, originalInteraction) {
-  console.log('====== HANDLING CHANNEL SELECTION ======');
-  const selectedChannel = selectInteraction.values[0];
-  const channelInfo = DIFM_CHANNELS[selectedChannel];
+async function handleChannelSelection(interaction, voiceChannel) {
+  const selectedChannel = interaction.values[0];
+  const channelInfo = RADIO_CHANNELS[selectedChannel];
   
-  console.log('Selected channel:', selectedChannel);
-  console.log('Channel info:', channelInfo);
-
-  await selectInteraction.deferReply({ ephemeral: true });
-
-  let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
-  const voiceChannel = originalInteraction.member.voice.channel;
-  
-  console.log('Existing player:', !!player);
-  console.log('Voice channel for join:', voiceChannel?.name);
-  
-  if (!player) {
-    try {
-      console.log('Creating new player and joining voice channel...');
-      console.log('Join parameters:', {
-        guildId: originalInteraction.guildId,
-        channelId: voiceChannel.id,
-        shardId: originalInteraction.guild.shardId
-      });
-      
-      player = await originalInteraction.client.shoukaku.joinVoiceChannel({
-        guildId: originalInteraction.guildId,
-        channelId: voiceChannel.id,
-        shardId: originalInteraction.guild.shardId
-      });
-      
-      await player.setGlobalVolume(cfg.uta.defaultVolume);
-      console.log('Successfully joined voice channel and set volume');
-    } catch (error) {
-      console.error('Failed to join voice channel:', error);
-      console.error('Error details:', error.stack);
-      return selectInteraction.editReply({
-        embeds: [createErrorEmbed("Couldn't join the voice channel!")]
-      });
-    }
-  } else {
-    console.log('Using existing player');
-  }
+  await interaction.deferReply({ ephemeral: true });
 
   try {
-    console.log('Attempting to connect to stream...');
-    await streamManager.connectToStream(player, selectedChannel, originalInteraction.guildId);
+    console.log(`Starting radio channel: ${channelInfo.name}`);
     
-    console.log('Stream connected successfully');
+    // Join voice channel
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: interaction.guildId,
+      adapterCreator: interaction.guild.voiceAdapterCreator,
+    });
+
+    // Create audio player
+    const player = createAudioPlayer();
     
-    await selectInteraction.editReply({
+    // Try streams until one works
+    let streamStarted = false;
+    for (const streamUrl of channelInfo.streams) {
+      try {
+        console.log(`Trying stream: ${streamUrl}`);
+        
+        // Create audio resource from HTTP stream
+        const resource = await createAudioResourceFromUrl(streamUrl);
+        
+        // Play the resource
+        player.play(resource);
+        connection.subscribe(player);
+        
+        console.log(`Successfully started stream: ${streamUrl}`);
+        streamStarted = true;
+        break;
+      } catch (error) {
+        console.log(`Stream failed: ${streamUrl} - ${error.message}`);
+      }
+    }
+
+    if (!streamStarted) {
+      throw new Error('All streams failed to start');
+    }
+
+    // Store connection info
+    activeConnections.set(interaction.guildId, {
+      connection,
+      player,
+      channel: selectedChannel
+    });
+
+    // Handle player events
+    player.on(AudioPlayerStatus.Playing, () => {
+      console.log(`Radio playing: ${channelInfo.name}`);
+    });
+
+    player.on(AudioPlayerStatus.Idle, () => {
+      console.log(`Radio stopped: ${channelInfo.name}`);
+    });
+
+    player.on('error', (error) => {
+      console.error(`Radio error: ${error.message}`);
+    });
+
+    await interaction.editReply({
       embeds: [createSuccessEmbed(channelInfo, voiceChannel.name)]
     });
 
-    await originalInteraction.editReply({
-      embeds: [createRadioEmbed('DI.FM Radio', selectedChannel)]
-    });
-
   } catch (error) {
-    console.error('Failed to play radio stream:', error);
-    console.error('Stream error details:', error.stack);
-    
-    // Provide helpful error message based on API key status
-    const hasApiKey = !!(cfg.difm?.apiKey || process.env.DIFM_API_KEY);
-    const errorMessage = hasApiKey 
-      ? `Failed to play ${channelInfo.name}. The premium stream may be temporarily unavailable.`
-      : `Failed to play ${channelInfo.name}. Free streams are blocked - please add your DI.FM API key for premium access.`;
-    
-    await selectInteraction.editReply({
-      embeds: [createErrorEmbed(errorMessage)]
+    console.error('Radio start error:', error);
+    await interaction.editReply({
+      embeds: [createErrorEmbed(`Failed to start radio: ${error.message}`)]
     });
   }
-  
-  console.log('====== CHANNEL SELECTION COMPLETE ======');
 }
 
-async function handleStopRadio(buttonInteraction, originalInteraction) {
-  console.log('====== HANDLING STOP RADIO ======');
-  await buttonInteraction.deferReply({ ephemeral: true });
+async function handleStopRadio(interaction) {
+  await interaction.deferReply({ ephemeral: true });
 
-  const player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
+  const connectionInfo = activeConnections.get(interaction.guildId);
   
-  console.log('Player exists for stop:', !!player);
-  
-  if (player) {
+  if (connectionInfo) {
     try {
-      await player.stopTrack();
-      await player.disconnect();
-      originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
-      console.log('Successfully stopped and disconnected player');
+      connectionInfo.player.stop();
+      connectionInfo.connection.destroy();
+      activeConnections.delete(interaction.guildId);
+      
+      await interaction.editReply({
+        embeds: [createSuccessEmbed({ name: 'Radio Stopped', description: 'Radio disconnected' }, 'Voice Channel')]
+      });
     } catch (error) {
-      console.error('Error stopping player:', error);
+      console.error('Stop radio error:', error);
+      await interaction.editReply({
+        embeds: [createErrorEmbed('Failed to stop radio')]
+      });
     }
+  } else {
+    await interaction.editReply({
+      embeds: [createErrorEmbed('No active radio connection found')]
+    });
   }
-
-  await buttonInteraction.editReply({
-    embeds: [createSuccessEmbed({ name: 'Radio Stopped', description: 'Radio has been disconnected' }, 'Voice Channel')]
-  });
-
-  await originalInteraction.editReply({
-    embeds: [createRadioEmbed('DI.FM Radio', null)]
-  });
-  
-  console.log('====== STOP RADIO COMPLETE ======');
 }
 
-function createRadioEmbed(title, currentChannel = null) {
-  const embed = new EmbedBuilder()
+async function createAudioResourceFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const request = get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+        return;
+      }
+
+      try {
+        const resource = createAudioResource(response, {
+          inputType: 'arbitrary'
+        });
+        resolve(resource);
+      } catch (error) {
+        reject(error);
+      }
+    });
+
+    request.on('error', reject);
+    request.setTimeout(10000, () => {
+      request.destroy();
+      reject(new Error('Connection timeout'));
+    });
+  });
+}
+
+function createRadioEmbed() {
+  return new EmbedBuilder()
     .setColor('#1DB954')
-    .setTitle(`📻 ${title}`)
-    .setDescription('🧪 **Testing Mode**: Using reliable internet radio streams\n\nSelect a channel to start streaming electronic music!')
+    .setTitle('📻 Direct Radio Streaming')
+    .setDescription('High-quality electronic music streams\nPowered by Node.js direct streaming')
     .addFields(
       {
-        name: '🎵 Available Categories',
-        value: 'Popular • House • Trance • Chill • Bass • Underground • Classic',
+        name: '🎵 Available Channels',
+        value: Object.values(RADIO_CHANNELS).map(ch => `**${ch.name}** - ${ch.description}`).join('\n'),
         inline: false
       },
       {
-        name: '🔍 How to Use',
-        value: 'Use `/radio category:Popular` or `/radio search:trance` to filter channels',
-        inline: false
-      },
-      {
-        name: '🎧 Current Setup',
-        value: '**Testing with SomaFM & other reliable streams**\nHigh-quality electronic music from trusted sources',
+        name: '🔧 Technology',
+        value: 'Direct HTTP streaming via @discordjs/voice\nNo external dependencies required',
         inline: false
       }
     )
-    .setFooter({ 
-      text: 'Testing Mode - Reliable Streams ✨'
-    })
+    .setFooter({ text: 'Direct Node.js Streaming' })
     .setTimestamp();
-
-  if (currentChannel && DIFM_CHANNELS[currentChannel]) {
-    const channelInfo = DIFM_CHANNELS[currentChannel];
-    embed.addFields({
-      name: '🔴 Currently Playing',
-      value: `**${channelInfo.name}**\n${channelInfo.description}`,
-      inline: false
-    });
-    embed.setColor('#FF4444');
-  }
-
-  return embed;
 }
 
 function createSuccessEmbed(channelInfo, voiceChannelName) {
   return new EmbedBuilder()
     .setColor('#00FF00')
-    .setTitle('📻 Radio Update')
+    .setTitle('📻 Radio Started')
     .setDescription(`**${channelInfo.name}** in **${voiceChannelName}**`)
     .addFields({
       name: '🎵 Channel Info',
