@@ -77,40 +77,28 @@ const RADIO_STATIONS = {
     url: 'http://streams.fluxfm.de/Chillhop/mp3-320/audio/',
     genre: 'Lo-Fi'
   },
-  'lofi_cafe': { 
-    name: 'Lo-Fi Cafe', 
-    description: 'Relaxing lo-fi beats for studying',
-    url: 'http://hyades.shoutca.st:8043/stream',
+  'soma_lush': { 
+    name: 'SomaFM Lush', 
+    description: 'Sensual and chill electronic beats',
+    url: 'http://ice1.somafm.com/lush-128-mp3',
     genre: 'Lo-Fi'
   },
-  'chill_corner': { 
-    name: 'Chill Corner Radio', 
-    description: 'Downtempo and chillout music',
-    url: 'http://149.56.147.197:8105/stream',
+  'soma_secretagent': { 
+    name: 'SomaFM Secret Agent', 
+    description: 'Downtempo spy jazz and lounge',
+    url: 'http://ice1.somafm.com/secretagent-128-mp3',
     genre: 'Lo-Fi'
   },
-  'anison_radio': { 
-    name: 'Anison.FM', 
-    description: '24/7 anime songs and J-pop',
-    url: 'http://pool.anison.fm:9000/anime.mp3',
+  'listen_moe': { 
+    name: 'LISTEN.moe (KPOP)', 
+    description: 'K-Pop and Japanese music 24/7',
+    url: 'https://listen.moe/kpop/stream',
     genre: 'Anime'
   },
-  'jpop_radio': { 
-    name: 'J-Pop PowerPlay', 
-    description: 'Japanese pop and anime music',
-    url: 'http://kathy.torontocast.com:1025/stream',
-    genre: 'Anime'
-  },
-  'anime_nexus': { 
-    name: 'Anime Nexus Radio', 
-    description: 'Anime openings, endings and OSTs',
-    url: 'http://radio.animenexus.mx:8000/animenexus.mp3',
-    genre: 'Anime'
-  },
-  'jpop_project': { 
-    name: 'J-Pop Project Radio', 
-    description: 'Japanese music and anime themes',
-    url: 'http://kathy.torontocast.com:1025/',
+  'radio_swiss_jazz': { 
+    name: 'Radio Swiss Jazz', 
+    description: 'Jazz and chill instrumental music',
+    url: 'http://stream.srg-ssr.ch/m/rsj/mp3_128',
     genre: 'Anime'
   },
   'radio_paradise': { 
