@@ -19,57 +19,70 @@ export async function handleQueueModal(modal, rootInteraction) {
   
   // Enhanced input validation
   if (!query) {
+    console.log('❌ Empty query provided');
     return modal.reply({
       embeds: [UtaUI.errorEmbed("Please enter a song name, YouTube URL, or Spotify link!")],
       ephemeral: true
     });
   }
 
+  console.log('🔄 Attempting to defer reply...');
   // Check if we can defer the reply
   try {
     await modal.deferReply({ ephemeral: true });
+    console.log('✅ Successfully deferred reply');
   } catch (error) {
     // If deferReply fails, the interaction might be expired
-    console.error('Failed to defer modal reply:', error.message);
+    console.error('❌ Failed to defer modal reply:', error.message);
     return;
   }
 
+  console.log('🎵 Getting Lavalink node...');
   const node = modal.client.shoukaku.nodes.values().next().value;
   
   if (!node || !node.connected) {
+    console.log('❌ Lavalink node not available or not connected');
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
     });
   }
+  console.log('✅ Lavalink node is available and connected');
 
+  console.log('🎮 Getting player...');
   let player = modal.client.shoukaku.players.get(modal.guildId);
+  console.log('Player exists:', !!player);
   
   if (!player) {
+    console.log('🎤 No existing player, creating new one...');
     const member = await modal.guild.members.fetch(modal.user.id);
     const vc = member?.voice?.channel;
+    console.log('User voice channel:', vc?.name || 'none');
     
     if (!vc) {
+      console.log('❌ User not in voice channel');
       return modal.editReply({
         embeds: [UtaUI.errorEmbed("Please join a voice channel first so Uta knows where to perform!")]
       });
     }
     
     try {
-      console.log('Creating new player for channel:', vc.name);
+      console.log('🔗 Creating new player for channel:', vc.name);
       player = await node.joinChannel({ 
         guildId: modal.guildId, 
         channelId: vc.id, 
         shardId: modal.guild.shardId 
       });
       await player.setGlobalVolume(cfg.uta.defaultVolume);
-      console.log('Player created successfully');
+      console.log('✅ Player created successfully');
     } catch (error) {
-      console.error('Failed to create player:', error);
+      console.error('❌ Failed to create player:', error);
       return modal.editReply({
         embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check permissions!")]
       });
     }
   }
+
+  console.log('🔍 Starting search process...');
 
   try {
     // Show searching message with timeout protection
