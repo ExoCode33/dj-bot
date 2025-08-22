@@ -1,367 +1,234 @@
 import 'dotenv/config';
-import { createClient } from './core/client.js';
-import { log } from './utils/logger.js';
-import { cfg } from './config/index.js';
-import { REST, Routes, Events } from 'discord.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// PRIORITY: Start health server immediately
+console.log('🚀 STARTING UTA DJ BOT');
+console.log('📅 Time:', new Date().toISOString());
+console.log('🎯 PORT:', process.env.PORT || 3000);
 
-// Enhanced logging for Railway deployment debugging
-console.log('🚀 UTA DJ BOT - STARTING UP');
-console.log('📅 Timestamp:', new Date().toISOString());
-console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
-console.log('🔧 Node Version:', process.version);
-console.log('📍 Working Directory:', process.cwd());
-console.log('📂 Script Directory:', __dirname);
+const port = process.env.PORT || 3000;
 
-// Simple health check server for Railway
-function createHealthServer() {
-  const port = process.env.PORT || 3000;
+// Health server - MUST start first for Railway
+const server = http.createServer((req, res) => {
+  console.log(`📡 Health request: ${req.method} ${req.url}`);
   
-  const server = http.createServer((req, res) => {
-    if (req.url === '/health' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        service: 'uta-dj-bot',
-        discord: {
-          connected: global.discordConnected || false
-        },
-        lavalink: {
-          connected: global.lavalinkConnected || false,
-          nodes: global.lavalinkNodes || 0
-        },
-        commands: {
-          loaded: global.commandsLoaded || 0
-        }
-      }));
-    } else if (req.url === '/' && req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <html>
-          <head><title>Uta DJ Bot</title></head>
-          <body>
-            <h1>🎤 Uta DJ Bot</h1>
-            <p>Status: Running</p>
-            <p>Discord: ${global.discordConnected ? 'Connected' : 'Disconnected'}</p>
-            <p>Lavalink: ${global.lavalinkConnected ? 'Connected' : 'Disconnected'}</p>
-            <p>Commands: ${global.commandsLoaded || 0} loaded</p>
-            <p><a href="/health">Health Check JSON</a></p>
-          </body>
-        </html>
-      `);
-    } else {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not Found' }));
-    }
-  });
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      service: 'uta-dj-bot',
+      discord: global.discordReady || false,
+      lavalink: global.lavalinkReady || false
+    }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Uta DJ Bot is running!');
+  }
+});
 
-  server.listen(port, () => {
-    console.log(`🏥 Health check server running on port ${port}`);
-  });
+server.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Health server running on 0.0.0.0:${port}`);
+});
 
-  server.on('error', (error) => {
-    console.error('❌ Health server error:', error.message);
-  });
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error.message);
+  // Don't exit - keep health server running
+});
 
-  return server;
-}
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason);
+  // Don't exit - keep health server running
+});
 
-async function startBot() {
+// Start Discord bot after health server is stable
+setTimeout(async () => {
   try {
-    console.log('🔍 Phase 1: Environment Validation');
-
-    // Validate required environment variables
-    const requiredEnvVars = [
-      'DISCORD_TOKEN',
-      'CLIENT_ID'
-    ];
-
-    console.log('🔍 Checking environment variables...');
-    const missing = requiredEnvVars.filter(key => {
-      const hasVar = !!process.env[key];
-      console.log(`  ${hasVar ? '✅' : '❌'} ${key}: ${hasVar ? 'SET' : 'MISSING'}`);
-      return !hasVar;
-    });
-
-    if (missing.length > 0) {
-      console.error(`❌ FATAL: Missing required environment variables: ${missing.join(', ')}`);
-      console.error('💡 Please check your Railway environment variables configuration');
-      process.exit(1);
-    }
-    console.log('✅ All required environment variables found');
-
-    // Log configuration (without sensitive data)
-    console.log('📋 Bot Configuration:');
-    console.log(`  - Client ID: ${cfg.discord.clientId}`);
-    console.log(`  - Guild ID: ${cfg.discord.guildId || 'Global commands'}`);
-    console.log(`  - Lavalink URL: ${cfg.lavalink.url}`);
-    console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
-    console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
-    console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
-    console.log(`  - DI.FM API Key: ${cfg.difm.apiKey ? 'SET' : 'NOT SET'}`);
-
-    // Start health check server (for Railway monitoring)
-    console.log('🏥 Starting health check server...');
-    createHealthServer();
-
-    console.log('🔍 Phase 2: Discord Client Creation');
-    const client = createClient();
-    console.log('✅ Discord client created successfully');
-
-    // Enhanced Lavalink event handlers
-    client.shoukaku.on('ready', (name) => {
-      log.ready(`🎵 Lavalink node "${name}" is ready!`);
-      global.lavalinkConnected = true;
-      global.lavalinkNodes = client.shoukaku.nodes.size;
-    });
-
-    client.shoukaku.on('error', (name, error) => {
-      log.error(`🎵 Lavalink node "${name}" error:`, error.message);
-      global.lavalinkConnected = false;
-      
-      // Specific error handling for common issues
-      if (error.code === 'ECONNREFUSED') {
-        log.error(`🚫 Connection refused to ${name} - Lavalink service may be down`);
-      } else if (error.code === 'ENOTFOUND') {
-        log.error(`🌐 DNS lookup failed for ${name} - check LAVALINK_URL`);
-      }
-    });
-
-    client.shoukaku.on('disconnect', (name, reason) => {
-      log.warn(`🎵 Lavalink node "${name}" disconnected:`, reason);
-      global.lavalinkConnected = false;
-      
-      if (reason === 1006) {
-        log.info(`🔄 Node "${name}" disconnected abnormally - this is normal on Railway`);
-        log.info(`🕐 Automatic reconnection will begin shortly...`);
-      }
-    });
-
-    client.shoukaku.on('reconnecting', (name, delay) => {
-      log.info(`🔄 Lavalink node "${name}" reconnecting in ${delay}ms`);
-      global.lavalinkConnected = false;
-    });
-
-    console.log('🔍 Phase 3: Command Loading');
-    const commandsDir = path.join(__dirname, 'commands');
-    console.log(`📁 Commands directory: ${commandsDir}`);
+    console.log('🤖 Starting Discord bot...');
     
-    if (!fs.existsSync(commandsDir)) {
-      console.error('❌ FATAL: Commands directory does not exist!');
-      console.error(`Expected path: ${commandsDir}`);
-      process.exit(1);
+    // Check required environment variables
+    if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID) {
+      console.error('❌ Missing DISCORD_TOKEN or CLIENT_ID');
+      console.log('⚠️ Health server will continue running...');
+      return;
     }
 
-    const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js'));
-    console.log(`📄 Found ${files.length} command files:`, files);
-
-    if (files.length === 0) {
-      console.error('❌ FATAL: No command files found!');
-      process.exit(1);
-    }
-
-    const slashDefs = [];
-    for (const f of files) {
-      try {
-        console.log(`⚡ Loading command file: ${f}`);
-        const filePath = path.join(commandsDir, f);
-        const mod = await import(filePath);
-        
-        if (!mod?.data || !mod?.execute) {
-          console.error(`❌ Invalid command file ${f}: missing data or execute`);
-          continue;
-        }
-        
-        const commandName = mod.data.name;
-        console.log(`✅ Loaded command: ${commandName}`);
-        
-        client.commands.set(commandName, mod);
-        slashDefs.push(mod.data.toJSON());
-      } catch (error) {
-        console.error(`❌ Error loading command file ${f}:`, error.message);
-        console.error(error.stack);
-      }
-    }
-
-    console.log(`📋 Total commands loaded: ${slashDefs.length}`);
-    console.log(`🎯 Command names: ${slashDefs.map(cmd => cmd.name).join(', ')}`);
-    global.commandsLoaded = slashDefs.length;
-
-    if (slashDefs.length === 0) {
-      console.error('❌ FATAL: No commands loaded successfully!');
-      process.exit(1);
-    }
-
-    console.log('🔍 Phase 4: Slash Command Registration');
+    // Dynamic imports with error handling
+    let discord, shoukaku;
+    
     try {
-      const rest = new REST({ version: '10' }).setToken(cfg.discord.token);
-
-      if (cfg.discord.guildId) {
-        console.log(`🎯 Registering to guild: ${cfg.discord.guildId}`);
-        await rest.put(Routes.applicationGuildCommands(cfg.discord.clientId, cfg.discord.guildId), { body: slashDefs });
-        console.log('✅ Registered GUILD commands successfully');
-      } else {
-        console.log('🌍 Registering global commands...');
-        await rest.put(Routes.applicationCommands(cfg.discord.clientId), { body: slashDefs });
-        console.log('✅ Registered GLOBAL commands successfully');
-      }
-    } catch (error) {
-      console.error('❌ Slash command registration failed:', error.message);
-      if (error.code === 50001) {
-        console.error('💡 Error 50001: Missing Access - Check your bot permissions');
-        console.error('   - Make sure the bot is added to your server');
-        console.error('   - Ensure the bot has "applications.commands" scope');
-      }
-      if (error.code === 50035) {
-        console.error('💡 Error 50035: Invalid Form Body - Check your command definitions');
-      }
-      // Don't exit here, the bot can still work with existing commands
-      console.warn('⚠️  Continuing without registering new commands...');
+      console.log('📦 Loading Discord.js...');
+      discord = await import('discord.js');
+      console.log('✅ Discord.js loaded');
+    } catch (discordError) {
+      console.error('❌ Failed to load Discord.js:', discordError.message);
+      return;
     }
 
-    console.log('🔍 Phase 5: Event Registration');
+    try {
+      console.log('📦 Loading Shoukaku...');
+      shoukaku = await import('shoukaku');
+      console.log('✅ Shoukaku loaded');
+    } catch (shoukakuError) {
+      console.error('❌ Failed to load Shoukaku:', shoukakuError.message);
+      console.log('⚠️ Continuing without Lavalink...');
+    }
+
+    // Create Discord client
+    const { Client, GatewayIntentBits, Collection, Events, SlashCommandBuilder, EmbedBuilder, REST, Routes } = discord;
     
-    // FIXED: Use ClientReady instead of deprecated Ready
-    client.once(Events.ClientReady, () => {
-      console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
-      console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
-      console.log(`👥 Total users: ${client.users.cache.size}`);
-      global.discordConnected = true;
-      
-      // List connected guilds
-      client.guilds.cache.forEach(guild => {
-        console.log(`  📍 Guild: ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
-      });
-      
-      console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
+    const client = new Client({
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
     });
 
-    // Enhanced interaction handler with better error handling
-    client.on(Events.InteractionCreate, async (i) => {
-      if (i.isChatInputCommand()) {
-        console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
+    client.commands = new Collection();
+
+    // Setup Lavalink if available
+    if (shoukaku && process.env.LAVALINK_URL) {
+      try {
+        console.log('🎵 Setting up Lavalink...');
+        const nodes = [{
+          name: process.env.LAVALINK_NAME || 'railway-node',
+          url: process.env.LAVALINK_URL,
+          auth: process.env.LAVALINK_AUTH || 'UtaUtaDj',
+          secure: process.env.LAVALINK_SECURE === 'true'
+        }];
+
+        client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
+          resume: true,
+          resumeKey: 'uta-bot-simple',
+          resumeTimeout: 30,
+          reconnectTries: 3,
+          reconnectInterval: 2000
+        });
+
+        client.shoukaku.on('ready', (name) => {
+          console.log(`✅ Lavalink "${name}" ready`);
+          global.lavalinkReady = true;
+        });
+
+        client.shoukaku.on('error', (name, error) => {
+          console.error(`❌ Lavalink "${name}" error:`, error.message);
+          global.lavalinkReady = false;
+        });
+
+        console.log('✅ Lavalink configured');
+      } catch (lavalinkError) {
+        console.error('❌ Lavalink setup failed:', lavalinkError.message);
+      }
+    }
+
+    // Simple radio command
+    const radioCommand = {
+      data: new SlashCommandBuilder()
+        .setName('radio')
+        .setDescription('Test radio command'),
+      async execute(interaction) {
+        console.log('🎵 Radio command executed');
         
-        const cmd = client.commands.get(i.commandName);
-        if (!cmd) {
-          console.error(`❌ Unknown command: ${i.commandName}`);
-          return;
-        }
+        const embed = new EmbedBuilder()
+          .setColor('#FF6B35')
+          .setTitle('📻 Radio Test')
+          .setDescription('Radio command is working!')
+          .addFields(
+            { name: 'Status', value: 'Command loaded successfully', inline: true },
+            { name: 'Lavalink', value: global.lavalinkReady ? 'Connected' : 'Disconnected', inline: true }
+          );
+
+        await interaction.reply({ embeds: [embed] });
+      }
+    };
+
+    // Simple uta command
+    const utaCommand = {
+      data: new SlashCommandBuilder()
+        .setName('uta')
+        .setDescription('Test uta command'),
+      async execute(interaction) {
+        console.log('🎤 Uta command executed');
         
-        try {
-          await cmd.execute(i);
-          console.log(`✅ Command /${i.commandName} executed successfully`);
-        } catch (error) {
-          console.error(`❌ Command /${i.commandName} execution failed:`, error.message);
-          console.error(error.stack);
-          
-          try {
-            if (i.deferred || i.replied) {
-              await i.editReply('Something went wrong while executing this command.');
-            } else {
-              await i.reply({ content: 'Something went wrong while executing this command.', flags: 64 });
-            }
-          } catch (replyError) {
-            console.error('❌ Failed to send error reply:', replyError.message);
-          }
+        const embed = new EmbedBuilder()
+          .setColor('#FF6B9D')
+          .setTitle('🎤 Uta Test')
+          .setDescription('Uta command is working!')
+          .addFields(
+            { name: 'Status', value: 'Command loaded successfully', inline: true },
+            { name: 'Voice Channel', value: interaction.member?.voice?.channel?.name || 'Not connected', inline: true }
+          );
+
+        await interaction.reply({ embeds: [embed] });
+      }
+    };
+
+    // Register commands
+    client.commands.set('radio', radioCommand);
+    client.commands.set('uta', utaCommand);
+
+    console.log('✅ Commands loaded: radio, uta');
+
+    // Register slash commands
+    try {
+      const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+      const commands = [radioCommand.data.toJSON(), utaCommand.data.toJSON()];
+      
+      if (process.env.GUILD_ID) {
+        await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
+        console.log('✅ Guild commands registered');
+      } else {
+        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+        console.log('✅ Global commands registered');
+      }
+    } catch (regError) {
+      console.error('❌ Command registration failed:', regError.message);
+    }
+
+    // Event handlers
+    client.once(Events.ClientReady, () => {
+      console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
+      console.log(`🏢 Guilds: ${client.guilds.cache.size}`);
+      global.discordReady = true;
+    });
+
+    client.on(Events.InteractionCreate, async (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      
+      console.log(`🎯 Command: /${interaction.commandName} from ${interaction.user.tag}`);
+      
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
+
+      try {
+        await command.execute(interaction);
+        console.log(`✅ Command /${interaction.commandName} executed`);
+      } catch (error) {
+        console.error(`❌ Command error:`, error.message);
+        
+        const content = 'There was an error executing this command!';
+        if (interaction.replied || interaction.deferred) {
+          await interaction.editReply({ content, ephemeral: true });
+        } else {
+          await interaction.reply({ content, ephemeral: true });
         }
-      } else if (i.isButton() || i.isStringSelectMenu()) {
-        // Handle component interactions (radio, music controls, etc.)
-        console.log(`🎛️ Component interaction: ${i.customId} from ${i.user.tag}`);
-        // These will be handled by their respective command collectors
-      } else if (i.isModalSubmit()) {
-        // Handle modal submissions
-        console.log(`📝 Modal submission: ${i.customId} from ${i.user.tag}`);
-        // These are handled by the modal collectors in the respective commands
       }
     });
 
-    // Enhanced error event handler
     client.on('error', (error) => {
-      console.error('❌ Discord client error:', error.message);
-      console.error('📋 Error details:', error);
-      global.discordConnected = false;
+      console.error('❌ Discord error:', error.message);
+      global.discordReady = false;
     });
 
-    client.on('warn', (info) => {
-      console.warn('⚠️ Discord client warning:', info);
-    });
-
-    // Handle disconnections gracefully
-    client.on('disconnect', (event) => {
-      console.warn('🔌 Discord client disconnected:', event);
-      global.discordConnected = false;
-    });
-
-    client.on('reconnecting', () => {
-      console.log('🔄 Discord client reconnecting...');
-    });
-
-    console.log('🔍 Phase 6: Discord Login');
-    console.log('🔑 Attempting to log in to Discord...');
-    
+    // Login to Discord
+    console.log('🔑 Logging in to Discord...');
     await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Login request sent successfully');
+    console.log('✅ Discord login initiated');
 
   } catch (error) {
-    console.error('💥 FATAL ERROR during bot startup:', error.message);
-    console.error('📋 Full error details:', error);
-    
-    if (error.code === 'TokenInvalid') {
-      console.error('🔑 Invalid bot token - check your DISCORD_TOKEN environment variable');
-    } else if (error.code === 'DisallowedIntents') {
-      console.error('🔒 Missing intents - check your bot configuration in Discord Developer Portal');
-    } else if (error.code === 'ENOTFOUND') {
-      console.error('🌐 Network error - check your internet connection');
-    }
-    
-    process.exit(1);
+    console.error('💥 Bot startup failed:', error.message);
+    console.error('📋 Stack:', error.stack);
+    console.log('⚠️ Health server continues running...');
   }
-}
+}, 1000);
 
-// Enhanced error handling
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 [UNHANDLED REJECTION]');
-  console.error('📍 Promise:', promise);
-  console.error('📋 Reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('💥 [UNCAUGHT EXCEPTION]:', error.message);
-  console.error('📋 Stack trace:', error.stack);
-  
-  // Only exit if it's a critical error
-  if (error.code === 'EADDRINUSE' || error.code === 'EACCES') {
-    console.error('💀 Critical error - process will exit');
-    process.exit(1);
-  } else {
-    console.warn('⚠️ Non-critical uncaught exception - continuing...');
-  }
-});
-
-process.on('SIGTERM', () => {
-  console.log('📡 Received SIGTERM signal');
-  console.log('🛑 Gracefully shutting down...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('📡 Received SIGINT signal (Ctrl+C)');
-  console.log('🛑 Gracefully shutting down...');
-  process.exit(0);
-});
-
-// Start the bot
-console.log('🎬 Starting bot initialization...');
-startBot().catch((error) => {
-  console.error('💥 Failed to start bot:', error.message);
-  console.error('📋 Error details:', error);
-  process.exit(1);
-});
+console.log('🎬 Bot initialization started');
