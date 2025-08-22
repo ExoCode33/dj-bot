@@ -38,10 +38,34 @@ export async function handleQueueModal(modal, rootInteraction) {
   }
 
   console.log('🎵 Getting Lavalink node...');
-  const node = modal.client.shoukaku.nodes.values().next().value;
+  console.log('Available nodes:', modal.client.shoukaku.nodes.size);
   
-  if (!node || !node.connected) {
-    console.log('❌ Lavalink node not available or not connected');
+  // Try different ways to get the node
+  const nodeMap = modal.client.shoukaku.nodes;
+  console.log('Node map keys:', Array.from(nodeMap.keys()));
+  
+  // Get the node by name first
+  let node = nodeMap.get('railway-node');
+  if (!node) {
+    // Fallback to any available node
+    node = nodeMap.values().next().value;
+  }
+  
+  console.log('Node found:', !!node);
+  if (node) {
+    console.log('Node connected:', node.connected);
+    console.log('Node state:', node.state);
+  }
+  
+  if (!node) {
+    console.log('❌ No Lavalink node found at all');
+    return modal.editReply({
+      embeds: [UtaUI.errorEmbed("Uta's sound system is not available. Please try again later!")]
+    });
+  }
+  
+  if (!node.connected) {
+    console.log('❌ Lavalink node found but not connected');
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
     });
