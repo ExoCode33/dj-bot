@@ -51,13 +51,12 @@ export async function handleButton(btn, rootInteraction) {
     
     if (!player) {
       try {
-        player = await node.joinChannel({
+        player = await btn.client.shoukaku.joinVoiceChannel({
           guildId: btn.guildId,
           channelId: vc.id,
-          shardId: btn.guild.shardId,
-          deaf: true
+          shardId: btn.guild.shardId
         });
-        player.setVolume(cfg.uta.defaultVolume);
+        await player.setGlobalVolume(cfg.uta.defaultVolume);
         
         // Welcome message when Uta joins
         await btn.followUp({
