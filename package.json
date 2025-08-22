@@ -13,5 +13,12 @@
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "shoukaku": "^4.0.1"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "register": "node src/index.js --register-only",
+    "install-deps": "npm install",
+    "setup": "npm install && echo '✅ All dependencies installed successfully!'"
   }
 }
