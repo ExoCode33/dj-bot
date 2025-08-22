@@ -1,5 +1,4 @@
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
-import { initLavalink } from '../features/music/lavalink.js';
 
 export function createClient() {
   const client = new Client({
@@ -7,7 +6,6 @@ export function createClient() {
   });
 
   client.commands = new Collection();
-  client.shoukaku = initLavalink(client);
 
   import('./loader.js');
   return client;
