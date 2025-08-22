@@ -1,5 +1,5 @@
 // src/features/panel/handleQueueModal.js
-// Simplified version without LavaSrc plugin dependency
+// Fixed version with proper timeout handling and error logging
 
 import { UI } from '../../constants/ui.js';
 import { UtaUI } from './ui.js';
@@ -89,7 +89,7 @@ export async function handleQueueModal(modal, rootInteraction) {
           ? `🎵 **${detectedSource.charAt(0).toUpperCase() + detectedSource.slice(1)} Detected**\n🔄 Processing: **${query}**`
           : `🎵 Searching for: **${query}**\n🔄 *Trying multiple sources...*`
       )
-      .setFooter({ text: 'Basic Lavalink - Direct URLs work best! 🎵' })
+      .setFooter({ text: 'Increased timeouts for better success rate! 🎵' })
     ]
   });
 
@@ -115,7 +115,7 @@ export async function handleQueueModal(modal, rootInteraction) {
     ];
   }
 
-  // Execute search
+  // Execute search with enhanced error handling
   let track = null;
   let successfulStrategy = null;
   let attempts = [];
@@ -124,13 +124,21 @@ export async function handleQueueModal(modal, rootInteraction) {
     try {
       console.log(`🔍 [${strategy.priority.toUpperCase()}] Trying ${strategy.name}: ${strategy.query.substring(0, 100)}`);
       
-      const res = await searchWithRetry(node, strategy.query, 2);
+      // ✅ FIXED: Proper timeout and error handling
+      const res = await searchWithTimeout(node, strategy.query, 45000); // 45 second timeout
+      
+      console.log(`📊 Search result for ${strategy.name}:`, {
+        loadType: res?.loadType,
+        trackCount: res?.tracks?.length || 0,
+        playlistName: res?.playlistInfo?.name || 'N/A'
+      });
       
       attempts.push({
         strategy: strategy.name,
         priority: strategy.priority,
         success: !!res?.tracks?.length,
-        loadType: res?.loadType
+        loadType: res?.loadType,
+        trackCount: res?.tracks?.length || 0
       });
       
       if (res?.tracks?.length > 0) {
@@ -138,6 +146,8 @@ export async function handleQueueModal(modal, rootInteraction) {
         successfulStrategy = strategy.name;
         console.log(`✅ SUCCESS with ${strategy.name}: ${track.info?.title}`);
         break;
+      } else {
+        console.log(`❌ No tracks found with ${strategy.name}. LoadType: ${res?.loadType}`);
       }
     } catch (error) {
       console.error(`❌ ${strategy.name} failed:`, error.message);
@@ -150,7 +160,7 @@ export async function handleQueueModal(modal, rootInteraction) {
     }
   }
 
-  // No results found
+  // No results found - provide detailed help
   if (!track) {
     const failedEmbed = new (await import('discord.js')).EmbedBuilder()
       .setColor('#FF4757')
@@ -160,18 +170,28 @@ export async function handleQueueModal(modal, rootInteraction) {
         {
           name: '💡 Try These Options',
           value: [
-            '🟠 **SoundCloud**: Direct URLs work best!',
+            '🟠 **SoundCloud**: Paste direct track URLs',
             '🔴 **YouTube**: Use direct video URLs',
-            '🟢 **Bandcamp**: Direct track URLs',
+            '🟢 **Bandcamp**: Direct track URLs work best',
             '📁 **Direct Files**: .mp3, .wav, .ogg URLs'
           ].join('\n'),
           inline: false
         },
         {
           name: '📊 Search Attempts',
-          value: attempts.slice(0, 3).map(a => 
-            `${a.success ? '✅' : '❌'} ${a.strategy}`
+          value: attempts.slice(0, 4).map(a => 
+            `${a.success ? '✅' : '❌'} ${a.strategy} ${a.loadType ? `(${a.loadType})` : ''}`
           ).join('\n') || 'No attempts logged',
+          inline: false
+        },
+        {
+          name: '🔧 Troubleshooting',
+          value: [
+            '• Try searching for "artist song title"',
+            '• Use the exact song name from the platform',
+            '• Check if the song is available in your region',
+            '• Try a different platform (SoundCloud/YouTube)'
+          ].join('\n'),
           inline: false
         }
       )
@@ -184,6 +204,7 @@ export async function handleQueueModal(modal, rootInteraction) {
   try {
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
     
+    console.log(`🎵 Playing track: ${track.info.title} (${track.info.length}ms)`);
     await player.playTrack({ track: track.encoded });
 
     // Success message
@@ -218,32 +239,34 @@ export async function handleQueueModal(modal, rootInteraction) {
     });
 
   } catch (error) {
-    console.error('Playback failed:', error);
+    console.error('❌ Playback failed:', error);
     return modal.editReply({
       embeds: [UtaUI.errorEmbed(`Failed to start playback: ${error.message}`)]
     });
   }
 }
 
-// Helper Functions
-async function searchWithRetry(node, query, maxRetries = 2) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await node.rest.resolve(query);
-      
-      if (result && result.tracks?.length > 0) {
-        return result;
-      }
-      
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
-      }
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      await new Promise(resolve => setTimeout(resolve, 500 * attempt));
-    }
-  }
-  return null;
+// ✅ FIXED: Enhanced search function with proper timeout and error handling
+async function searchWithTimeout(node, query, timeout = 45000) {
+  return new Promise((resolve, reject) => {
+    // Set a timeout
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Search timed out after ${timeout/1000} seconds`));
+    }, timeout);
+
+    // Perform the search
+    node.rest.resolve(query)
+      .then(result => {
+        clearTimeout(timeoutId);
+        console.log(`🔍 Search completed for: ${query.substring(0, 50)}...`);
+        resolve(result);
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        console.error(`🔍 Search failed for: ${query.substring(0, 50)}...`, error.message);
+        reject(error);
+      });
+  });
 }
 
 function formatDuration(ms) {
