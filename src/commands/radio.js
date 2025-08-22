@@ -127,6 +127,19 @@ class StreamManager {
           this.setupEventHandlers(player, channel, guildId);
           console.log(`Successfully started stream: ${url}`);
           return { success: true, url };
+        } else if (result.loadType === 'track') {
+          // Handle live radio streams that don't populate tracks array
+          console.log('Detected live stream, attempting direct playback');
+          try {
+            await player.playTrack({ track: url });
+            player.currentRadioChannel = channel;
+            this.reconnectAttempts.set(guildId, 0);
+            this.setupEventHandlers(player, channel, guildId);
+            console.log(`Successfully started live stream: ${url}`);
+            return { success: true, url };
+          } catch (directPlayError) {
+            console.log(`Direct play failed: ${directPlayError.message}`);
+          }
         }
       } catch (error) {
         lastError = error;
