@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { createClient } from './core/client.js';
 import { log } from './utils/logger.js';
 import { cfg } from './config/index.js';
-import { REST, Routes } from 'discord.js';
+import { REST, Routes, Events } from 'discord.js';  // ✅ ADDED: Import Events
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -173,8 +173,8 @@ async function startBot() {
 
     console.log('🔍 Phase 5: Event Registration');
     
-    // ✅ FIXED: Use clientReady instead of ready to avoid deprecation warning
-    client.once('clientReady', () => {
+    // ✅ FIXED: Use Events.ClientReady enum instead of string to avoid deprecation warning
+    client.once(Events.ClientReady, () => {
       console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
       console.log(`👥 Total users: ${client.users.cache.size}`);
@@ -188,8 +188,8 @@ async function startBot() {
       console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
     });
 
-    // Interaction handler
-    client.on('interactionCreate', async (i) => {
+    // ✅ FIXED: Use Events.InteractionCreate enum for interaction handler
+    client.on(Events.InteractionCreate, async (i) => {
       if (!i.isChatInputCommand()) return;
       
       console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
