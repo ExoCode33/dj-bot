@@ -3,227 +3,195 @@ import { UtaUI } from './ui.js';
 import { toDisplay } from '../music/state.js';
 import { cfg } from '../../config/index.js';
 
-// Smart node selection that prefers public nodes for YouTube
-function selectBestNode(client) {
-  const nodeMap = client.shoukaku.nodes;
-  
-  // Get all connected nodes
-  const connectedNodes = Array.from(nodeMap.values()).filter(node => node.connected);
-  
-  if (connectedNodes.length === 0) {
-    return null;
-  }
-  
-  // Prefer public nodes for better YouTube access
-  const publicNodes = connectedNodes.filter(node => node.name.includes('public'));
-  const privateNodes = connectedNodes.filter(node => !node.name.includes('public'));
-  
-  // Use public node if available, otherwise use private
-  const preferredNodes = publicNodes.length > 0 ? publicNodes : privateNodes;
-  
-  // From preferred nodes, pick the one with lowest load
-  return preferredNodes.sort((a, b) => {
-    const aLoad = a.stats?.cpu?.systemLoad || 0;
-    const bLoad = b.stats?.cpu?.systemLoad || 0;
-    return aLoad - bLoad;
-  })[0];
-}
-
 export async function handleQueueModal(modal, rootInteraction) {
   console.log('🎵 Modal handler called!');
-  console.log('Modal customId:', modal.customId);
-  console.log('Expected customId:', UI.Modals.QueueModal);
   
   if (modal.customId !== UI.Modals.QueueModal) {
-    console.log('❌ Modal customId does not match, returning');
     return;
   }
 
-  console.log('✅ Modal customId matches, processing...');
   const query = modal.fields.getTextInputValue(UI.Inputs.Query).trim();
   console.log('🔍 User query:', query);
   
-  // Enhanced input validation
   if (!query) {
-    console.log('❌ Empty query provided');
     return modal.reply({
       embeds: [UtaUI.errorEmbed("Please enter a song name, YouTube URL, or SoundCloud link!")],
       ephemeral: true
     });
   }
 
-  console.log('🔄 Attempting to defer reply...');
-  // Check if we can defer the reply
   try {
-    if (!modal.deferred && !modal.replied) {
-      await modal.deferReply({ ephemeral: true });
-      console.log('✅ Successfully deferred reply');
-    } else {
-      console.log('⚠️ Modal already deferred or replied');
-    }
+    await modal.deferReply({ ephemeral: true });
   } catch (error) {
-    // If deferReply fails, the interaction might be expired
     console.error('❌ Failed to defer modal reply:', error.message);
     return;
   }
 
-  console.log('🎵 Getting best Lavalink node...');
-  console.log('Available nodes:', modal.client.shoukaku.nodes.size);
+  // Get the Railway node
+  const nodeMap = modal.client.shoukaku.nodes;
+  let node = nodeMap.get('railway-node') || nodeMap.values().next().value;
   
-  // Use smart node selection
-  const node = selectBestNode(modal.client);
-  
-  if (!node) {
-    console.log('❌ No Lavalink nodes available');
+  if (!node || node.state !== 2) {
     return modal.editReply({
-      embeds: [UtaUI.errorEmbed("No Lavalink nodes available. Please try again later!")]
+      embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
     });
   }
-  
-  console.log(`🎵 Using node: ${node.name} (${node.connected ? 'connected' : 'disconnected'})`);
-  console.log('Node state:', node.state);
 
-  console.log('🎮 Getting player...');
+  // Get or create player
   let player = modal.client.shoukaku.players.get(modal.guildId);
-  console.log('Player exists:', !!player);
   
   if (!player) {
-    console.log('🎤 No existing player, creating new one...');
     const member = await modal.guild.members.fetch(modal.user.id);
     const vc = member?.voice?.channel;
-    console.log('User voice channel:', vc?.name || 'none');
     
     if (!vc) {
-      console.log('❌ User not in voice channel');
       return modal.editReply({
-        embeds: [UtaUI.errorEmbed("Please join a voice channel first so Uta knows where to perform!")]
+        embeds: [UtaUI.errorEmbed("Please join a voice channel first!")]
       });
     }
     
     try {
-      console.log('🔗 Creating new player for channel:', vc.name);
       player = await modal.client.shoukaku.joinVoiceChannel({ 
         guildId: modal.guildId, 
         channelId: vc.id, 
         shardId: modal.guild.shardId 
       });
       await player.setGlobalVolume(cfg.uta.defaultVolume);
-      console.log('✅ Player created successfully');
     } catch (error) {
-      console.error('❌ Failed to create player:', error);
       return modal.editReply({
-        embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check permissions!")]
+        embeds: [UtaUI.errorEmbed("Couldn't join voice channel!")]
       });
     }
   }
 
-  console.log('🔍 Starting search process...');
+  // Determine if it's a YouTube URL
+  const isYouTubeUrl = query.includes('youtube.com') || query.includes('youtu.be');
+  
+  // Show appropriate searching message
+  await modal.editReply({
+    embeds: [new (await import('discord.js')).EmbedBuilder()
+      .setColor('#FFA502')
+      .setTitle('🔍 Uta is searching for your song...')
+      .setDescription(
+        isYouTubeUrl 
+          ? `🔴 **YouTube Link Detected**\n⚠️ *YouTube links may not work due to anti-bot measures*\n🎵 Looking for: **${query}**` 
+          : `🎵 Looking for: **${query}**\n🔍 *Trying multiple sources...*`
+      )
+      .setFooter({ text: 'This may take a moment...' })
+    ]
+  });
 
-  try {
-    // Show searching message with node info
+  // Smart search strategy - prioritize non-YouTube sources
+  let track = null;
+  let successfulStrategy = null;
+  
+  const searchStrategies = isYouTubeUrl 
+    ? [
+        // For YouTube URLs, try direct first, then give helpful error
+        { name: 'Direct YouTube URL', query: query },
+        { name: 'YouTube Search Fallback', query: `ytsearch:${query.split('v=')[1]?.split('&')[0] || query}` }
+      ]
+    : [
+        // For search terms, prioritize SoundCloud and other sources
+        { name: 'SoundCloud Search', query: `scsearch:${query}` },
+        { name: 'Direct Search', query: query },
+        { name: 'SoundCloud + Official', query: `scsearch:${query} official` },
+        { name: 'YouTube Search', query: `ytsearch:${query}` },
+        { name: 'YouTube + Official', query: `ytsearch:${query} official` },
+        { name: 'YouTube + Audio', query: `ytsearch:${query} audio` }
+      ];
+
+  for (const strategy of searchStrategies) {
     try {
-      await modal.editReply({
+      console.log(`🔍 Trying ${strategy.name}: ${strategy.query}`);
+      const res = await node.rest.resolve(strategy.query);
+      
+      if (res?.tracks?.length > 0) {
+        track = res.tracks[0];
+        successfulStrategy = strategy.name;
+        console.log(`✅ Success with ${strategy.name}: ${track.info?.title}`);
+        break;
+      }
+    } catch (error) {
+      console.log(`❌ ${strategy.name} failed: ${error.message}`);
+    }
+  }
+
+  // Handle no results with context-aware messages
+  if (!track) {
+    if (isYouTubeUrl) {
+      // Special message for YouTube URLs
+      return modal.editReply({
         embeds: [new (await import('discord.js')).EmbedBuilder()
-          .setColor('#FFA502')
-          .setTitle('🔍 Uta is searching for your song...')
-          .setDescription(`🎵 Looking for: **${query}**\n🌐 Using node: **${node.name}**\n⏳ *"Let me find that perfect track!"*`)
-          .setFooter({ text: 'Trying multiple search strategies... 📚' })
+          .setColor('#FF4757')
+          .setTitle('🔴 YouTube Link Blocked!')
+          .setDescription(`😔 *"YouTube has blocked access to this video"*\n\n**🎯 Try These Alternatives Instead:**`)
+          .addFields(
+            {
+              name: '🟠 SoundCloud (Recommended)',
+              value: '• Search for the same song on SoundCloud\n• Copy SoundCloud URL: `https://soundcloud.com/...`\n• SoundCloud rarely blocks music bots!',
+              inline: false
+            },
+            {
+              name: '🔍 Search by Name',
+              value: '• Try searching: `Artist - Song Name`\n• Example: `Michael Jackson - Smooth Criminal`\n• Let Uta find it from available sources',
+              inline: false
+            },
+            {
+              name: '🎵 Other Sources',
+              value: '• Bandcamp: `https://bandcamp.com/...`\n• Direct MP3 links\n• Twitch clips',
+              inline: false
+            }
+          )
+          .setFooter({ text: 'YouTube blocking is common - try SoundCloud! 🎶' })
         ]
       });
-    } catch (editError) {
-      console.error('Failed to edit modal reply:', editError.message);
-      return; // Exit if we can't communicate with the user
-    }
-
-    // Try multiple search strategies with smart ordering
-    let track = null;
-    let successfulStrategy = null;
-    
-    const searchStrategies = [
-      { name: 'Direct URL', query: query },
-      { name: 'YouTube Search', query: `ytsearch:${query}` },
-      { name: 'SoundCloud Search', query: `scsearch:${query}` },
-      { name: 'YouTube + Official', query: `ytsearch:${query} official` },
-      { name: 'YouTube + Audio', query: `ytsearch:${query} audio` },
-      { name: 'SoundCloud + Official', query: `scsearch:${query} official` }
-    ];
-
-    for (const strategy of searchStrategies) {
-      try {
-        console.log(`🔍 [${node.name}] Trying ${strategy.name}: ${strategy.query}`);
-        const res = await node.rest.resolve(strategy.query);
-        console.log(`Search result for "${strategy.name}":`, res?.tracks?.length || 0, 'tracks found');
-        
-        if (res?.tracks?.length > 0) {
-          track = res.tracks[0];
-          successfulStrategy = strategy.name;
-          console.log(`✅ [${node.name}] Success with ${strategy.name}: ${track.info?.title}`);
-          break;
-        } else {
-          console.log(`❌ [${node.name}] ${strategy.name} returned no results`);
-        }
-      } catch (error) {
-        console.log(`❌ [${node.name}] ${strategy.name} failed: ${error.message}`);
-        continue; // Try next strategy
-      }
-    }
-
-    // If no track found, provide helpful error with node info
-    if (!track) {
-      console.log('❌ No tracks found with any search strategy on any node');
+    } else {
+      // General no results message
       return modal.editReply({
         embeds: [new (await import('discord.js')).EmbedBuilder()
           .setColor('#FF4757')
           .setTitle('🎭 No results found!')
-          .setDescription(`😔 Couldn't find "${query}" on any platform\n🌐 Searched using: **${node.name}**`)
+          .setDescription(`😔 Couldn't find "${query}" on any available platform`)
           .addFields(
             {
-              name: '🎯 Try These Instead:',
-              value: '**Direct URLs (Most Reliable):**\n' +
-                     '🔴 `https://youtube.com/watch?v=...`\n' +
-                     '🟠 `https://soundcloud.com/...`\n' +
-                     '🔵 `https://bandcamp.com/...`',
+              name: '🎯 Try These Tips:',
+              value: '• Use simpler search terms\n• Try just the song name\n• Check spelling\n• Add artist name: `Artist - Song`',
               inline: false
             },
             {
-              name: '🔍 Search Tips:',
-              value: '• Use artist + song name\n' +
-                     '• Try simpler terms\n' +
-                     '• Check spelling\n' +
-                     '• SoundCloud often works better',
+              name: '🔗 Direct Links Work Best:',
+              value: '• SoundCloud: `https://soundcloud.com/...`\n• Bandcamp: `https://bandcamp.com/...`\n• Direct audio files',
               inline: false
             },
             {
-              name: '🌐 Node Status:',
-              value: `Current: **${node.name}**\n` +
-                     `Connected nodes: **${Array.from(modal.client.shoukaku.nodes.values()).filter(n => n.connected).length}**`,
+              name: '📱 Pro Tip:',
+              value: 'Find the song on SoundCloud and paste the URL!',
               inline: false
             }
           )
-          .setFooter({ text: 'Direct links work best! 🎵' })
+          .setFooter({ text: 'SoundCloud has the best compatibility! 🎵' })
       ]
       });
     }
+  }
 
-    console.log('Found track:', track.info?.title);
+  // Play the track
+  try {
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
-    console.log('Player was empty:', wasEmpty);
-    
-    // Play the track
-    console.log('🎵 Starting playback...');
     await player.playTrack({ track: track.encoded });
 
-    // Success with detailed info
+    // Success message with source info
     await modal.editReply({
       embeds: [new (await import('discord.js')).EmbedBuilder()
         .setColor('#00FF94')
         .setTitle(wasEmpty ? '🎤 Now Playing!' : '🎵 Added to Queue!')
-        .setDescription(`✨ **${track.info.title}** ✨\n🎯 Found via: **${successfulStrategy}**\n🌐 Node: **${node.name}**`)
+        .setDescription(`✨ **${track.info.title}** ✨\n🎯 Found via: **${successfulStrategy}**`)
         .setFooter({ text: wasEmpty ? 'Enjoy the music! 🎭' : 'Added to Uta\'s setlist! 🎵' })
       ]
     });
 
-    // Update the main panel with error handling
+    // Update main panel
     try {
       const hasTrack = !!(player?.track || player?.playing || (player?.queue && player.queue.length > 0));
       await rootInteraction.editReply({ 
@@ -231,14 +199,13 @@ export async function handleQueueModal(modal, rootInteraction) {
         components: [UtaUI.buttons(player.paused, hasTrack)] 
       });
     } catch (panelError) {
-      console.error('Failed to update main panel:', panelError.message);
-      // Don't return error to user since the song was successfully added
+      console.error('Panel update failed:', panelError.message);
     }
 
   } catch (error) {
-    console.error('Error in queue modal:', error);
+    console.error('Playback failed:', error);
     return modal.editReply({
-      embeds: [UtaUI.errorEmbed("Something went wrong while processing your request. Please try again!")]
+      embeds: [UtaUI.errorEmbed("Failed to play the track. Try again!")]
     });
   }
 }
