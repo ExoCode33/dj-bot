@@ -89,6 +89,30 @@ const RADIO_STATIONS = {
     url: 'http://149.56.147.197:8105/stream',
     genre: 'Lo-Fi'
   },
+  'anison_radio': { 
+    name: 'Anison.FM', 
+    description: '24/7 anime songs and J-pop',
+    url: 'http://pool.anison.fm:9000/anime.mp3',
+    genre: 'Anime'
+  },
+  'jpop_radio': { 
+    name: 'J-Pop PowerPlay', 
+    description: 'Japanese pop and anime music',
+    url: 'http://kathy.torontocast.com:1025/stream',
+    genre: 'Anime'
+  },
+  'anime_nexus': { 
+    name: 'Anime Nexus Radio', 
+    description: 'Anime openings, endings and OSTs',
+    url: 'http://radio.animenexus.mx:8000/animenexus.mp3',
+    genre: 'Anime'
+  },
+  'jpop_project': { 
+    name: 'J-Pop Project Radio', 
+    description: 'Japanese music and anime themes',
+    url: 'http://kathy.torontocast.com:1025/',
+    genre: 'Anime'
+  },
   'radio_paradise': { 
     name: 'Radio Paradise Main', 
     description: 'Eclectic music discovery',
