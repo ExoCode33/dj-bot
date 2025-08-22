@@ -46,14 +46,16 @@ export async function handleQueueModal(modal, rootInteraction) {
     }
     
     try {
+      console.log('Creating new player for channel:', vc.name);
       player = await node.joinChannel({ 
         guildId: modal.guildId, 
         channelId: vc.id, 
-        shardId: modal.guild.shardId, 
-        deaf: true 
+        shardId: modal.guild.shardId 
       });
-      player.setVolume(cfg.uta.defaultVolume);
+      await player.setGlobalVolume(cfg.uta.defaultVolume);
+      console.log('Player created successfully');
     } catch (error) {
+      console.error('Failed to create player:', error);
       return modal.editReply({
         embeds: [UtaUI.errorEmbed("Uta couldn't join the voice channel. Please check permissions!")]
       });
@@ -77,23 +79,29 @@ export async function handleQueueModal(modal, rootInteraction) {
     }
 
     const res = await node.rest.resolve(query);
+    console.log('Search result:', res?.tracks?.length || 0, 'tracks found');
+    
     const track = res?.tracks?.[0];
     
     if (!track) {
+      console.log('No tracks found for query:', query);
       return modal.editReply({
         embeds: [UtaUI.errorEmbed(`Uta couldn't find "${query}". Try a different search term or check the URL format!`)]
       });
     }
 
+    console.log('Found track:', track.info?.title);
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
+    console.log('Player was empty:', wasEmpty);
     
-    // Add to queue
-    if (!player.queue) player.queue = [];
-    player.queue.push(track);
-    
-    // Start playing if nothing was playing
+    // Add to queue - Shoukaku handles queue automatically
     if (wasEmpty) {
-      await player.play();
+      console.log('Starting playback...');
+      await player.playTrack({ track: track.encoded });
+    } else {
+      console.log('Adding to queue...');
+      // For non-empty queue, we need to handle this differently
+      await player.playTrack({ track: track.encoded });
     }
 
     // Success response
