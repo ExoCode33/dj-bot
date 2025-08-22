@@ -64,13 +64,15 @@ export async function handleQueueModal(modal, rootInteraction) {
     });
   }
   
-  if (!node.connected) {
-    console.log('❌ Lavalink node found but not connected');
+  console.log('🔍 About to check node state. State:', node.state, 'Expected: 2');
+  // Check if node is connected (state 2 = CONNECTED in Shoukaku)
+  if (node.state !== 2) {
+    console.log('❌ Lavalink node found but not connected, state:', node.state);
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
     });
   }
-  console.log('✅ Lavalink node is available and connected');
+  console.log('✅ Lavalink node is available and connected - proceeding!');
 
   console.log('🎮 Getting player...');
   let player = modal.client.shoukaku.players.get(modal.guildId);
