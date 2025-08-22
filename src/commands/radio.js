@@ -18,6 +18,7 @@ const DIFM_CHANNELS = {
 class DiFMManager {
   constructor() {
     this.apiKey = cfg.difm?.apiKey || process.env.DIFM_API_KEY;
+    console.log('DI.FM Manager initialized with API key:', this.apiKey ? 'YES' : 'NO');
   }
 
   async getChannelStreamUrl(channelKey) {
@@ -26,74 +27,92 @@ class DiFMManager {
       return `http://pub7.di.fm/di_${channelKey}`;
     }
 
-    try {
-      console.log(`Fetching premium stream URL for: ${channelKey}`);
-      
-      // Try the listen API endpoint
-      const response = await fetch(`https://www.di.fm/tracks?channel=${channelKey}`, {
-        headers: {
-          'User-Agent': 'UTA-DJ-BOT/1.0.0',
-          'Accept': 'application/json'
-        }
-      });
+    // Use multiple stream URL formats for better compatibility
+    const streamUrls = [
+      // Premium high quality
+      `https://listen.di.fm/premium_high/${channelKey}?listen_key=${this.apiKey}`,
+      // Premium medium quality (more reliable)
+      `https://listen.di.fm/premium_medium/${channelKey}?listen_key=${this.apiKey}`,
+      // Alternative premium format
+      `http://prem2.di.fm:80/${channelKey}?listen_key=${this.apiKey}`,
+      // Free fallback
+      `http://pub7.di.fm/di_${channelKey}`
+    ];
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('DI.FM API response received');
-        
-        // Extract stream URL if available
-        if (data?.streams?.premium_high) {
-          return data.streams.premium_high;
-        }
-      }
-    } catch (error) {
-      console.warn('DI.FM API failed:', error.message);
-    }
-
-    // Fallback to known premium URL format
-    console.log('Using premium URL format fallback');
-    return `https://listen.di.fm/premium_high/${channelKey}?listen_key=${this.apiKey}`;
+    return streamUrls;
   }
 
   async connectToStream(player, channel, guildId) {
     console.log(`Connecting to DI.FM channel: ${channel}`);
     
     try {
-      const streamUrl = await this.getChannelStreamUrl(channel);
-      console.log(`Stream URL: ${streamUrl}`);
+      const streamUrls = await this.getChannelStreamUrl(channel);
+      const urls = Array.isArray(streamUrls) ? streamUrls : [streamUrls];
       
-      const result = await player.node.rest.resolve(streamUrl);
-      console.log(`Lavalink resolve result:`, {
-        loadType: result?.loadType,
-        trackCount: result?.tracks?.length || 0,
-        exception: result?.exception?.message || 'none'
-      });
-      
-      if (result.tracks && result.tracks.length > 0) {
-        await player.playTrack({ track: result.tracks[0].encoded });
-        player.currentRadioChannel = channel;
-        console.log(`Successfully started DI.FM stream: ${channel}`);
-        return { success: true, url: streamUrl };
-      } else if (result.loadType === 'track') {
-        // Handle direct stream
-        await player.playTrack({ 
-          track: Buffer.from(JSON.stringify({
-            identifier: streamUrl,
-            isSeekable: false,
-            author: "DI.FM",
-            length: 0,
-            isStream: true,
-            title: `DI.FM ${DIFM_CHANNELS[channel]?.name || channel}`,
-            uri: streamUrl
-          })).toString('base64')
-        });
+      // Try each URL until one works
+      for (let i = 0; i < urls.length; i++) {
+        const streamUrl = urls[i];
+        console.log(`Trying stream URL ${i + 1}/${urls.length}: ${streamUrl}`);
         
-        player.currentRadioChannel = channel;
-        console.log(`Successfully started DI.FM direct stream: ${channel}`);
-        return { success: true, url: streamUrl };
+        try {
+          const result = await player.node.rest.resolve(streamUrl);
+          console.log(`Lavalink resolve result for ${streamUrl}:`, {
+            loadType: result?.loadType,
+            trackCount: result?.tracks?.length || 0,
+            exception: result?.exception?.message || 'none'
+          });
+          
+          if (result.loadType === 'track' && result.data) {
+            // Single track (HTTP stream)
+            await player.playTrack({ 
+              track: result.data.encoded,
+              options: { noReplace: false }
+            });
+            player.currentRadioChannel = channel;
+            console.log(`✅ Successfully started DI.FM stream: ${channel} via ${streamUrl}`);
+            return { success: true, url: streamUrl };
+            
+          } else if (result.tracks && result.tracks.length > 0) {
+            // Track list
+            await player.playTrack({ 
+              track: result.tracks[0].encoded,
+              options: { noReplace: false }
+            });
+            player.currentRadioChannel = channel;
+            console.log(`✅ Successfully started DI.FM stream: ${channel} via ${streamUrl}`);
+            return { success: true, url: streamUrl };
+            
+          } else if (result.loadType !== 'error') {
+            // Try to create a custom track for HTTP streams
+            const customTrack = {
+              identifier: streamUrl,
+              isSeekable: false,
+              author: "DI.FM",
+              length: 0,
+              isStream: true,
+              title: `DI.FM ${DIFM_CHANNELS[channel]?.name || channel}`,
+              uri: streamUrl,
+              sourceName: 'http'
+            };
+            
+            const encoded = Buffer.from(JSON.stringify(customTrack)).toString('base64');
+            await player.playTrack({ 
+              track: encoded,
+              options: { noReplace: false }
+            });
+            
+            player.currentRadioChannel = channel;
+            console.log(`✅ Successfully started DI.FM custom stream: ${channel}`);
+            return { success: true, url: streamUrl };
+          }
+          
+        } catch (urlError) {
+          console.log(`❌ Failed to load ${streamUrl}:`, urlError.message);
+          continue; // Try next URL
+        }
       }
       
-      throw new Error('No playable tracks found');
+      throw new Error('All stream URLs failed to load');
       
     } catch (error) {
       console.error(`Failed to connect to DI.FM channel ${channel}:`, error.message);
@@ -122,7 +141,7 @@ export const execute = async (interaction) => {
   if (!isAuthorized(interaction.member, cfg.uta.authorizedRoleId)) {
     return interaction.reply({
       embeds: [createErrorEmbed("Only authorized DJs can control the radio!")],
-      ephemeral: true
+      flags: 64 // EPHEMERAL flag
     });
   }
 
@@ -130,7 +149,7 @@ export const execute = async (interaction) => {
   if (!voiceChannel) {
     return interaction.reply({
       embeds: [createErrorEmbed("You need to be in a voice channel!")],
-      ephemeral: true
+      flags: 64 // EPHEMERAL flag
     });
   }
 
@@ -178,7 +197,7 @@ export const execute = async (interaction) => {
       console.error('DI.FM interaction error:', error);
       await componentInteraction.reply({
         embeds: [createErrorEmbed("An error occurred!")],
-        ephemeral: true
+        flags: 64 // EPHEMERAL flag
       });
     }
   });
@@ -188,7 +207,7 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
   const selectedChannel = selectInteraction.values[0];
   const channelInfo = DIFM_CHANNELS[selectedChannel];
   
-  await selectInteraction.deferReply({ ephemeral: true });
+  await selectInteraction.deferReply({ flags: 64 }); // EPHEMERAL flag
 
   let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
   const voiceChannel = originalInteraction.member.voice.channel;
@@ -209,10 +228,10 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
   }
 
   try {
-    await difmManager.connectToStream(player, selectedChannel, originalInteraction.guildId);
+    const result = await difmManager.connectToStream(player, selectedChannel, originalInteraction.guildId);
     
     await selectInteraction.editReply({
-      embeds: [createSuccessEmbed(channelInfo, voiceChannel.name)]
+      embeds: [createSuccessEmbed(channelInfo, voiceChannel.name, result.url)]
     });
 
   } catch (error) {
@@ -223,7 +242,7 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
 }
 
 async function handleStopRadio(buttonInteraction, originalInteraction) {
-  await buttonInteraction.deferReply({ ephemeral: true });
+  await buttonInteraction.deferReply({ flags: 64 }); // EPHEMERAL flag
 
   const player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
   
@@ -238,7 +257,12 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
   }
 
   await buttonInteraction.editReply({
-    embeds: [createSuccessEmbed({ name: 'DI.FM Stopped', description: 'Radio disconnected' }, 'Voice Channel')]
+    embeds: [new EmbedBuilder()
+      .setColor('#00FF00')
+      .setTitle('📻 DI.FM Stopped')
+      .setDescription('Radio disconnected successfully')
+      .setTimestamp()
+    ]
   });
 }
 
@@ -267,16 +291,25 @@ function createRadioEmbed(category) {
     .setTimestamp();
 }
 
-function createSuccessEmbed(channelInfo, voiceChannelName) {
+function createSuccessEmbed(channelInfo, voiceChannelName, streamUrl) {
+  const isPremium = streamUrl.includes('listen_key');
+  
   return new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle('📻 DI.FM Playing')
     .setDescription(`**${channelInfo.name}** in **${voiceChannelName}**`)
-    .addFields({
-      name: '🎵 Channel Info',
-      value: channelInfo.description,
-      inline: false
-    })
+    .addFields(
+      {
+        name: '🎵 Channel Info',
+        value: channelInfo.description,
+        inline: false
+      },
+      {
+        name: isPremium ? '💎 Premium Stream' : '🆓 Free Stream',
+        value: isPremium ? 'High quality premium audio' : 'Standard quality',
+        inline: true
+      }
+    )
     .setTimestamp();
 }
 
