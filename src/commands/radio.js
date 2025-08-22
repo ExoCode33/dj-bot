@@ -98,13 +98,16 @@ class StreamManager {
     // Check for premium API key
     const apiKey = process.env.DIFM_API_KEY;
     if (apiKey) {
+      console.log('Using premium DI.FM stream');
       return [`http://prem2.di.fm/${channel}?${apiKey}`];
     }
     
+    console.log('Using free DI.FM streams');
     return servers.map(server => `${server}/${channel}`);
   }
 
   async connectToStream(player, channel, guildId) {
+    console.log(`Attempting to connect to channel: ${channel}`);
     const streamUrls = this.getStreamUrls(channel);
     let lastError;
     
@@ -114,12 +117,17 @@ class StreamManager {
         console.log(`Trying stream URL: ${url}`);
         
         const result = await player.node.rest.resolve(url);
+        console.log(`Resolve result:`, {
+          loadType: result?.loadType,
+          trackCount: result?.tracks?.length || 0
+        });
         
         if (result.tracks && result.tracks.length > 0) {
           await player.playTrack({ track: result.tracks[0].encoded });
           player.currentRadioChannel = channel;
           this.reconnectAttempts.set(guildId, 0);
           this.setupEventHandlers(player, channel, guildId);
+          console.log(`Successfully started stream: ${url}`);
           return { success: true, url };
         }
       } catch (error) {
@@ -132,11 +140,14 @@ class StreamManager {
   }
 
   setupEventHandlers(player, channel, guildId) {
+    console.log('Setting up event handlers for stream reconnection');
+    
     // Remove existing listeners to prevent duplicates
     player.removeAllListeners('trackEnd');
     player.removeAllListeners('trackException');
     
     player.on('trackEnd', async (event) => {
+      console.log(`Track ended: ${event.reason}`);
       if (event.reason === 'finished' || event.reason === 'loadFailed') {
         await this.handleReconnection(player, channel, guildId);
       }
@@ -150,6 +161,7 @@ class StreamManager {
 
   async handleReconnection(player, channel, guildId) {
     const attempts = this.reconnectAttempts.get(guildId) || 0;
+    console.log(`Handling reconnection attempt ${attempts + 1}/${this.maxReconnectAttempts}`);
     
     if (attempts < this.maxReconnectAttempts) {
       this.reconnectAttempts.set(guildId, attempts + 1);
@@ -225,8 +237,20 @@ export const data = new SlashCommandBuilder()
   );
 
 export const execute = async (interaction) => {
+  console.log('====== RADIO COMMAND DEBUG ======');
+  console.log('Radio command executed by:', interaction.user.tag);
+  console.log('Guild ID:', interaction.guildId);
+  console.log('Channel ID:', interaction.channelId);
+  console.log('User in voice channel:', !!interaction.member?.voice?.channel);
+  console.log('Voice channel name:', interaction.member?.voice?.channel?.name);
+  console.log('Voice channel ID:', interaction.member?.voice?.channel?.id);
+  console.log('Member roles:', interaction.member?.roles?.cache?.map(r => r.name) || []);
+  console.log('Authorized role ID:', cfg.uta.authorizedRoleId);
+  console.log('Is authorized:', isAuthorized(interaction.member, cfg.uta.authorizedRoleId));
+
   // Authorization check
   if (!isAuthorized(interaction.member, cfg.uta.authorizedRoleId)) {
+    console.log('Authorization failed - user not authorized');
     return interaction.reply({
       embeds: [createErrorEmbed("Only authorized DJs can control the radio!")],
       ephemeral: true
@@ -236,14 +260,20 @@ export const execute = async (interaction) => {
   // Voice channel check
   const voiceChannel = interaction.member?.voice?.channel;
   if (!voiceChannel) {
+    console.log('Voice channel check failed - user not in voice channel');
     return interaction.reply({
       embeds: [createErrorEmbed("You need to be in a voice channel to use the radio!")],
       ephemeral: true
     });
   }
 
+  console.log('All checks passed, building interface...');
+
   const searchQuery = interaction.options.getString('search');
   const category = interaction.options.getString('category');
+  
+  console.log('Search query:', searchQuery);
+  console.log('Category:', category);
   
   let channelOptions;
   let title;
@@ -259,7 +289,11 @@ export const execute = async (interaction) => {
     title = 'Popular Channels';
   }
 
+  console.log('Channel options count:', channelOptions.length);
+  console.log('First few options:', channelOptions.slice(0, 3));
+
   if (channelOptions.length === 0) {
+    console.log('No channels found for criteria');
     return interaction.reply({
       embeds: [createErrorEmbed(`No channels found ${searchQuery ? `for "${searchQuery}"` : 'in that category'}.`)],
       ephemeral: true
@@ -285,8 +319,13 @@ export const execute = async (interaction) => {
   // Get current playing info
   const player = interaction.client.shoukaku.players.get(interaction.guildId);
   const currentChannel = player?.currentRadioChannel || null;
+  
+  console.log('Current player exists:', !!player);
+  console.log('Current channel:', currentChannel);
 
   const embed = createRadioEmbed(title, currentChannel);
+
+  console.log('Sending interaction reply...');
 
   const message = await interaction.reply({
     embeds: [embed],
@@ -294,20 +333,30 @@ export const execute = async (interaction) => {
     ephemeral: false
   });
 
+  console.log('Interaction reply sent, setting up collector...');
+
   // Create collector
   const collector = message.createMessageComponentCollector({
     time: 300000 // 5 minutes
   });
 
   collector.on('collect', async (componentInteraction) => {
+    console.log('====== COMPONENT INTERACTION ======');
+    console.log('Component interaction type:', componentInteraction.componentType);
+    console.log('Custom ID:', componentInteraction.customId);
+    console.log('User:', componentInteraction.user.tag);
+    
     try {
       if (componentInteraction.customId === 'radio_channel_select') {
+        console.log('Selected values:', componentInteraction.values);
         await handleChannelSelection(componentInteraction, interaction);
       } else if (componentInteraction.customId === 'radio_stop') {
+        console.log('Stop button pressed');
         await handleStopRadio(componentInteraction, interaction);
       }
     } catch (error) {
       console.error('Radio interaction error:', error);
+      console.error('Error stack:', error.stack);
       await componentInteraction.reply({
         embeds: [createErrorEmbed("An error occurred!")],
         ephemeral: true
@@ -316,6 +365,7 @@ export const execute = async (interaction) => {
   });
 
   collector.on('end', async () => {
+    console.log('Collector ended, disabling components');
     try {
       const disabledComponents = [
         new ActionRowBuilder().addComponents(
@@ -327,37 +377,62 @@ export const execute = async (interaction) => {
       ];
       await message.edit({ components: disabledComponents });
     } catch (error) {
-      // Ignore errors when editing expired messages
+      console.log('Error disabling components (expected if message deleted):', error.message);
     }
   });
+
+  console.log('====== RADIO COMMAND COMPLETE ======');
 };
 
 async function handleChannelSelection(selectInteraction, originalInteraction) {
+  console.log('====== HANDLING CHANNEL SELECTION ======');
   const selectedChannel = selectInteraction.values[0];
   const channelInfo = DIFM_CHANNELS[selectedChannel];
+  
+  console.log('Selected channel:', selectedChannel);
+  console.log('Channel info:', channelInfo);
 
   await selectInteraction.deferReply({ ephemeral: true });
 
   let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
   const voiceChannel = originalInteraction.member.voice.channel;
   
+  console.log('Existing player:', !!player);
+  console.log('Voice channel for join:', voiceChannel?.name);
+  
   if (!player) {
     try {
+      console.log('Creating new player and joining voice channel...');
+      console.log('Join parameters:', {
+        guildId: originalInteraction.guildId,
+        channelId: voiceChannel.id,
+        shardId: originalInteraction.guild.shardId
+      });
+      
       player = await originalInteraction.client.shoukaku.joinVoiceChannel({
         guildId: originalInteraction.guildId,
         channelId: voiceChannel.id,
         shardId: originalInteraction.guild.shardId
       });
+      
       await player.setGlobalVolume(cfg.uta.defaultVolume);
+      console.log('Successfully joined voice channel and set volume');
     } catch (error) {
+      console.error('Failed to join voice channel:', error);
+      console.error('Error details:', error.stack);
       return selectInteraction.editReply({
         embeds: [createErrorEmbed("Couldn't join the voice channel!")]
       });
     }
+  } else {
+    console.log('Using existing player');
   }
 
   try {
+    console.log('Attempting to connect to stream...');
     await streamManager.connectToStream(player, selectedChannel, originalInteraction.guildId);
+    
+    console.log('Stream connected successfully');
     
     await selectInteraction.editReply({
       embeds: [createSuccessEmbed(channelInfo, voiceChannel.name)]
@@ -369,21 +444,32 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
 
   } catch (error) {
     console.error('Failed to play radio stream:', error);
+    console.error('Stream error details:', error.stack);
     await selectInteraction.editReply({
       embeds: [createErrorEmbed(`Failed to play ${channelInfo.name}. All servers may be unavailable.`)]
     });
   }
+  
+  console.log('====== CHANNEL SELECTION COMPLETE ======');
 }
 
 async function handleStopRadio(buttonInteraction, originalInteraction) {
+  console.log('====== HANDLING STOP RADIO ======');
   await buttonInteraction.deferReply({ ephemeral: true });
 
   const player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
   
+  console.log('Player exists for stop:', !!player);
+  
   if (player) {
-    await player.stopTrack();
-    await player.disconnect();
-    originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
+    try {
+      await player.stopTrack();
+      await player.disconnect();
+      originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
+      console.log('Successfully stopped and disconnected player');
+    } catch (error) {
+      console.error('Error stopping player:', error);
+    }
   }
 
   await buttonInteraction.editReply({
@@ -393,6 +479,8 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
   await originalInteraction.editReply({
     embeds: [createRadioEmbed('DI.FM Radio', null)]
   });
+  
+  console.log('====== STOP RADIO COMPLETE ======');
 }
 
 function createRadioEmbed(title, currentChannel = null) {
