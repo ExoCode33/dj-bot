@@ -27,11 +27,15 @@ export async function handleButton(btn, rootInteraction) {
 
   // Only check Lavalink connection for play/pause and skip operations
   if (id === UI.Buttons.PlayPause || id === UI.Buttons.Skip) {
-    // Get the first available node
-    const node = btn.client.shoukaku.nodes.values().next().value;
+    // Get the node by name first
+    const nodeMap = btn.client.shoukaku.nodes;
+    let node = nodeMap.get('railway-node');
+    if (!node) {
+      node = nodeMap.values().next().value;
+    }
     
-    // Check if Lavalink is available
-    if (!node || !node.connected) {
+    // Check if Lavalink is available (state 2 = CONNECTED)
+    if (!node || node.state !== 2) {
       return btn.reply({ 
         embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")],
         ephemeral: true 
@@ -42,7 +46,8 @@ export async function handleButton(btn, rootInteraction) {
   let player = btn.client.shoukaku.players.get(btn.guildId);
   
   if (id === UI.Buttons.PlayPause || id === UI.Buttons.Skip) {
-    const node = btn.client.shoukaku.nodes.values().next().value;
+    const nodeMap = btn.client.shoukaku.nodes;
+    const node = nodeMap.get('railway-node') || nodeMap.values().next().value;
     
     if (!player) {
       try {
