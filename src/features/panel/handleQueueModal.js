@@ -29,8 +29,12 @@ export async function handleQueueModal(modal, rootInteraction) {
   console.log('🔄 Attempting to defer reply...');
   // Check if we can defer the reply
   try {
-    await modal.deferReply({ ephemeral: true });
-    console.log('✅ Successfully deferred reply');
+    if (!modal.deferred && !modal.replied) {
+      await modal.deferReply({ ephemeral: true });
+      console.log('✅ Successfully deferred reply');
+    } else {
+      console.log('⚠️ Modal already deferred or replied');
+    }
   } catch (error) {
     // If deferReply fails, the interaction might be expired
     console.error('❌ Failed to defer modal reply:', error.message);
@@ -64,9 +68,9 @@ export async function handleQueueModal(modal, rootInteraction) {
     });
   }
   
-  console.log('🔍 About to check node state. State:', node.state, 'Expected: 2');
-  // Check if node is connected (state 2 = CONNECTED in Shoukaku)
-  if (node.state !== 2) {
+  console.log('🔍 About to check node state. State:', node.state, 'Expected: 2 (connected) or 3 (reconnecting)');
+  // Check if node is connected (state 2 = CONNECTED, state 3 = RECONNECTING in Shoukaku)
+  if (node.state !== 2 && node.state !== 3) {
     console.log('❌ Lavalink node found but not connected, state:', node.state);
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("Uta's sound system is temporarily offline. Please try again in a moment!")]
