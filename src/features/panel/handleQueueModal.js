@@ -1,5 +1,5 @@
 // src/features/panel/handleQueueModal.js
-// Fixed version with debug logging and removed problematic state check
+// Fixed version with proper node readiness checks and connection stability
 
 import { UI } from '../../constants/ui.js';
 import { UtaUI } from './ui.js';
@@ -30,23 +30,48 @@ export async function handleQueueModal(modal, rootInteraction) {
     return;
   }
 
-  // Get the Railway node with debug logging
+  // Get the Railway node with extensive debug logging
   const nodeMap = modal.client.shoukaku.nodes;
   let node = nodeMap.get(cfg.lavalink.name) || nodeMap.values().next().value;
   
   console.log('🔧 Debug info:');
   console.log('  - Node map size:', nodeMap.size);
-  console.log('  - Node name:', node?.name || 'undefined');
-  console.log('  - Node state:', node?.state || 'undefined');
+  console.log('  - Available nodes:', Array.from(nodeMap.keys()));
+  console.log('  - Node states:', Array.from(nodeMap.values()).map(n => ({ name: n.name, state: n.state })));
+  console.log('  - Selected node name:', node?.name || 'undefined');
+  console.log('  - Selected node state:', node?.state || 'undefined');
   console.log('  - Node connected:', !!node);
   
-  // Simplified node check - only verify node exists
+  // Check if node exists
   if (!node) {
     console.error('❌ No node found');
     return modal.editReply({
       embeds: [UtaUI.errorEmbed("No Lavalink node available!")]
     });
   }
+
+  // Wait for node to be ready with timeout
+  console.log('⏳ Checking node readiness...');
+  let retries = 0;
+  const maxRetries = 5;
+  
+  while (node.state !== 2 && retries < maxRetries) {
+    console.log(`⏳ Node not ready (state: ${node.state}), waiting... (attempt ${retries + 1}/${maxRetries})`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Refresh node reference
+    node = nodeMap.get(cfg.lavalink.name) || nodeMap.values().next().value;
+    retries++;
+  }
+  
+  if (node.state !== 2) {
+    console.error('❌ Node never became ready. Final state:', node.state);
+    return modal.editReply({
+      embeds: [UtaUI.errorEmbed("Lavalink is connecting. Please try again in a moment.")]
+    });
+  }
+  
+  console.log('✅ Node is ready for operations');
 
   // Get or create player
   let player = modal.client.shoukaku.players.get(modal.guildId);
@@ -62,16 +87,38 @@ export async function handleQueueModal(modal, rootInteraction) {
     }
     
     try {
+      console.log('🔊 Attempting to join voice channel:', vc.name);
+      console.log('🔊 Voice channel ID:', vc.id);
+      console.log('🔊 Guild shard ID:', modal.guild.shardId);
+      
+      // Verify node is still available before voice operation
+      const currentNodes = Array.from(nodeMap.values()).filter(n => n.state === 2);
+      console.log('🔊 Ready nodes available:', currentNodes.length);
+      
+      if (currentNodes.length === 0) {
+        throw new Error('No ready nodes available for voice connection');
+      }
+      
       player = await modal.client.shoukaku.joinVoiceChannel({ 
         guildId: modal.guildId, 
         channelId: vc.id, 
         shardId: modal.guild.shardId 
       });
+      
+      console.log('✅ Successfully joined voice channel');
       await player.setGlobalVolume(cfg.uta.defaultVolume);
+      console.log('🔊 Volume set to:', cfg.uta.defaultVolume);
+      
     } catch (error) {
       console.error('❌ Failed to join voice channel:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        availableNodes: Array.from(nodeMap.values()).map(n => ({ name: n.name, state: n.state }))
+      });
+      
       return modal.editReply({
-        embeds: [UtaUI.errorEmbed("Couldn't join voice channel!")]
+        embeds: [UtaUI.errorEmbed("Couldn't join voice channel! The bot may be experiencing connection issues.")]
       });
     }
   }
@@ -133,8 +180,17 @@ export async function handleQueueModal(modal, rootInteraction) {
     try {
       console.log(`🔍 [${strategy.priority.toUpperCase()}] Trying ${strategy.name}: ${strategy.query.substring(0, 100)}`);
       
+      // Verify node is still ready before search
+      if (node.state !== 2) {
+        console.log('⚠️ Node became unavailable during search, refreshing...');
+        node = nodeMap.get(cfg.lavalink.name) || nodeMap.values().next().value;
+        if (!node || node.state !== 2) {
+          throw new Error('Node became unavailable during search operation');
+        }
+      }
+      
       // Enhanced search with detailed logging
-      const res = await searchWithTimeout(node, strategy.query, 45000);
+      const res = await searchWithTimeout(node, strategy.query, 30000);
       
       console.log(`📊 Search result for ${strategy.name}:`, {
         loadType: res?.loadType,
@@ -192,7 +248,7 @@ export async function handleQueueModal(modal, rootInteraction) {
         {
           name: '📊 Search Attempts',
           value: attempts.slice(0, 4).map(a => 
-            `${a.success ? '✅' : '❌'} ${a.strategy} ${a.loadType ? `(${a.loadType})` : ''}`
+            `${a.success ? '✅' : '❌'} ${a.strategy} ${a.loadType ? `(${a.loadType})` : ''} ${a.exception ? `- ${a.exception.substring(0, 50)}` : ''}`
           ).join('\n') || 'No attempts logged',
           inline: false
         },
@@ -201,7 +257,8 @@ export async function handleQueueModal(modal, rootInteraction) {
           value: [
             `Node connected: ${!!node}`,
             `Node state: ${node?.state || 'unknown'}`,
-            `Attempts made: ${attempts.length}`
+            `Attempts made: ${attempts.length}`,
+            `Player exists: ${!!player}`
           ].join('\n'),
           inline: false
         }
@@ -216,7 +273,11 @@ export async function handleQueueModal(modal, rootInteraction) {
     const wasEmpty = !player.track && !player.playing && (!player?.queue || player.queue.length === 0);
     
     console.log(`🎵 Playing track: ${track.info.title} (${track.info.length}ms)`);
+    console.log(`🎵 Track URI: ${track.info.uri}`);
+    console.log(`🎵 Track encoded length: ${track.encoded?.length || 0}`);
+    
     await player.playTrack({ track: track.encoded });
+    console.log('✅ Track playback started successfully');
 
     // Success message
     const sourceColor = successfulStrategy.includes('SoundCloud') ? '#FF6B35' : 
@@ -251,6 +312,13 @@ export async function handleQueueModal(modal, rootInteraction) {
 
   } catch (error) {
     console.error('❌ Playback failed:', error);
+    console.error('Playback error details:', {
+      message: error.message,
+      stack: error.stack,
+      playerState: player ? 'exists' : 'null',
+      trackEncoded: track?.encoded ? 'exists' : 'null'
+    });
+    
     return modal.editReply({
       embeds: [UtaUI.errorEmbed(`Failed to start playback: ${error.message}`)]
     });
@@ -258,7 +326,7 @@ export async function handleQueueModal(modal, rootInteraction) {
 }
 
 // Enhanced search function with proper timeout and error handling
-async function searchWithTimeout(node, query, timeout = 45000) {
+async function searchWithTimeout(node, query, timeout = 30000) {
   return new Promise((resolve, reject) => {
     // Set a timeout
     const timeoutId = setTimeout(() => {
