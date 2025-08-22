@@ -7,10 +7,10 @@ export const cfg = {
     guildId: process.env.GUILD_ID || ''
   },
   lavalink: {
-    name: process.env.LAVALINK_NAME || 'railway',
+    name: process.env.LAVALINK_NAME || 'railway-node',
     url: process.env.LAVALINK_URL || 'localhost:2333',
-    auth: process.env.LAVALINK_AUTH || 'UtaUtaDj',
-    secure: readEnvBool('LAVALINK_SECURE', true)
+    auth: process.env.LAVALINK_AUTH || 'youshallnotpass',
+    secure: readEnvBool('LAVALINK_SECURE', false)
   },
   uta: {
     authorizedRoleId: process.env.AUTHORIZED_ROLE_ID || '',
