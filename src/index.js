@@ -188,7 +188,7 @@ async function startBot() {
 
     console.log('🔍 Phase 5: Event Registration');
     
-    // Ready event
+    // Ready event - FIXED: Use ClientReady instead of deprecated Ready
     client.once(Events.ClientReady, () => {
       console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
@@ -224,7 +224,7 @@ async function startBot() {
             if (i.deferred || i.replied) {
               await i.editReply('Something went wrong while executing this command.');
             } else {
-              await i.reply({ content: 'Something went wrong while executing this command.', ephemeral: true });
+              await i.reply({ content: 'Something went wrong while executing this command.', flags: 64 });
             }
           } catch (replyError) {
             console.error('❌ Failed to send error reply:', replyError.message);
