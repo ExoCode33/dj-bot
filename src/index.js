@@ -30,7 +30,11 @@ function createHealthServer() {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        service: 'uta-dj-bot'
+        service: 'uta-dj-bot',
+        lavalink: {
+          connected: global.lavalinkConnected || false,
+          nodes: global.lavalinkNodes || 0
+        }
       }));
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -93,21 +97,38 @@ async function startBot() {
     const client = createClient();
     console.log('✅ Discord client created successfully');
 
-    // Lavalink event handlers
+    // Enhanced Lavalink event handlers
     client.shoukaku.on('ready', (name) => {
       log.ready(`🎵 Lavalink node "${name}" is ready!`);
+      global.lavalinkConnected = true;
+      global.lavalinkNodes = client.shoukaku.nodes.size;
     });
 
     client.shoukaku.on('error', (name, error) => {
       log.error(`🎵 Lavalink node "${name}" error:`, error.message);
+      global.lavalinkConnected = false;
+      
+      // Specific error handling for common issues
+      if (error.code === 'ECONNREFUSED') {
+        log.error(`🚫 Connection refused to ${name} - Lavalink service may be down`);
+      } else if (error.code === 'ENOTFOUND') {
+        log.error(`🌐 DNS lookup failed for ${name} - check LAVALINK_URL`);
+      }
     });
 
     client.shoukaku.on('disconnect', (name, reason) => {
       log.warn(`🎵 Lavalink node "${name}" disconnected:`, reason);
+      global.lavalinkConnected = false;
+      
+      if (reason === 1006) {
+        log.info(`🔄 Node "${name}" disconnected abnormally - this is normal on Railway`);
+        log.info(`🕐 Automatic reconnection will begin shortly...`);
+      }
     });
 
     client.shoukaku.on('reconnecting', (name, delay) => {
-      log.info(`🎵 Lavalink node "${name}" reconnecting in ${delay}ms`);
+      log.info(`🔄 Lavalink node "${name}" reconnecting in ${delay}ms`);
+      global.lavalinkConnected = false;
     });
 
     console.log('🔍 Phase 3: Command Loading');
@@ -188,107 +209,10 @@ async function startBot() {
 
     console.log('🔍 Phase 5: Event Registration');
     
-    // Ready event - FIXED: Use ClientReady instead of deprecated Ready
+    // FIXED: Use ClientReady instead of deprecated Ready
     client.once(Events.ClientReady, () => {
       console.log(`🎉 [READY] Successfully logged in as ${client.user.tag}`);
       console.log(`🏢 Connected to ${client.guilds.cache.size} guild(s)`);
       console.log(`👥 Total users: ${client.users.cache.size}`);
       
       // List connected guilds
-      client.guilds.cache.forEach(guild => {
-        console.log(`  📍 Guild: ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
-      });
-      
-      console.log('🚀 UTA DJ BOT IS FULLY OPERATIONAL!');
-    });
-
-    // Interaction handler with button support
-    client.on(Events.InteractionCreate, async (i) => {
-      if (i.isChatInputCommand()) {
-        console.log(`🎯 Command received: /${i.commandName} from ${i.user.tag} in ${i.guild?.name || 'DM'}`);
-        
-        const cmd = client.commands.get(i.commandName);
-        if (!cmd) {
-          console.error(`❌ Unknown command: ${i.commandName}`);
-          return;
-        }
-        
-        try {
-          await cmd.execute(i);
-          console.log(`✅ Command /${i.commandName} executed successfully`);
-        } catch (error) {
-          console.error(`❌ Command /${i.commandName} execution failed:`, error.message);
-          console.error(error.stack);
-          
-          try {
-            if (i.deferred || i.replied) {
-              await i.editReply('Something went wrong while executing this command.');
-            } else {
-              await i.reply({ content: 'Something went wrong while executing this command.', flags: 64 });
-            }
-          } catch (replyError) {
-            console.error('❌ Failed to send error reply:', replyError.message);
-          }
-        }
-      } else if (i.isButton() || i.isStringSelectMenu()) {
-        // Handle radio button interactions
-        console.log(`🎛️ Component interaction: ${i.customId} from ${i.user.tag}`);
-        // This will be handled by the radio command's collector
-      }
-    });
-
-    console.log('🔍 Phase 6: Discord Login');
-    console.log('🔑 Attempting to log in to Discord...');
-    
-    await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Login request sent successfully');
-
-  } catch (error) {
-    console.error('💥 FATAL ERROR during bot startup:', error.message);
-    console.error('📋 Full error details:', error);
-    
-    if (error.code === 'TokenInvalid') {
-      console.error('🔑 Invalid bot token - check your DISCORD_TOKEN environment variable');
-    } else if (error.code === 'DisallowedIntents') {
-      console.error('🔒 Missing intents - check your bot configuration in Discord Developer Portal');
-    } else if (error.code === 'ENOTFOUND') {
-      console.error('🌐 Network error - check your internet connection');
-    }
-    
-    process.exit(1);
-  }
-}
-
-// Enhanced error handling
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 [UNHANDLED REJECTION]');
-  console.error('📍 Promise:', promise);
-  console.error('📋 Reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('💥 [UNCAUGHT EXCEPTION]:', error.message);
-  console.error('📋 Stack trace:', error.stack);
-  console.error('💀 Process will exit due to uncaught exception');
-  process.exit(1);
-});
-
-process.on('SIGTERM', () => {
-  console.log('📡 Received SIGTERM signal');
-  console.log('🛑 Gracefully shutting down...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('📡 Received SIGINT signal (Ctrl+C)');
-  console.log('🛑 Gracefully shutting down...');
-  process.exit(0);
-});
-
-// Start the bot
-console.log('🎬 Starting bot initialization...');
-startBot().catch((error) => {
-  console.error('💥 Failed to start bot:', error.message);
-  console.error('📋 Error details:', error);
-  process.exit(1);
-});
