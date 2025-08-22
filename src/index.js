@@ -6,6 +6,7 @@ import { REST, Routes } from 'discord.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import http from 'node:http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,36 @@ console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
 console.log('🔧 Node Version:', process.version);
 console.log('📍 Working Directory:', process.cwd());
 console.log('📂 Script Directory:', __dirname);
+
+// Simple health check server for Railway
+function createHealthServer() {
+  const port = process.env.PORT || 3000;
+  
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        service: 'uta-dj-bot'
+      }));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not Found' }));
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`🏥 Health check server running on port ${port}`);
+  });
+
+  server.on('error', (error) => {
+    console.error('❌ Health server error:', error.message);
+  });
+
+  return server;
+}
 
 async function startBot() {
   try {
@@ -52,6 +83,12 @@ async function startBot() {
     console.log(`  - Lavalink Secure: ${cfg.lavalink.secure}`);
     console.log(`  - Default Volume: ${cfg.uta.defaultVolume}`);
     console.log(`  - Authorized Role: ${cfg.uta.authorizedRoleId || 'Not set'}`);
+
+    // Start health check server (for Railway monitoring)
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏥 Starting health check server...');
+      createHealthServer();
+    }
 
     console.log('🔍 Phase 2: Discord Client Creation');
     const client = createClient();
