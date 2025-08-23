@@ -425,8 +425,11 @@ setTimeout(async () => {
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
-                // SUCCESS: No message shown - just silent success
-                // Only failure messages will be displayed below
+                // SUCCESS: Quick dismiss message to stop "thinking"
+                await componentInteraction.editReply({
+                  content: '✅ Connected!',
+                  ephemeral: true
+                });
                 
               } catch (error) {
                 console.error(`❌ Stream failed:`, error);
