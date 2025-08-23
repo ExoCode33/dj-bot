@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from 'node:http';
 
 // PRIORITY: Start health server immediately
-console.log('🚀 STARTING UTA DJ BOT - ONE PIECE RADIO');
+console.log('🚀 STARTING UTA DJ BOT - EDM & LOFI COLLECTION');
 console.log('📅 Time:', new Date().toISOString());
 console.log('🎯 PORT:', process.env.PORT || 3000);
 
@@ -39,161 +39,91 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// VERIFIED WORKING RADIO STATIONS - All tested with Lavalink
+// ✅ CURATED HIGH-QUALITY RADIO STATIONS - Only the best working streams
 const RADIO_STATIONS = {
-  // ✅ LO-FI & AMBIENT - SomaFM (guaranteed to work)
+  // 🎧 LO-FI COLLECTIONS
+  'lofi_girl': { 
+    name: 'Lofi Girl - Study Beats', 
+    description: 'The original 24/7 lofi hip hop beats to relax/study to',
+    url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
+    fallback: 'https://ice.somafm.com/groovesalad',
+    genre: 'Lo-Fi',
+    quality: 'Premium'
+  },
   'groove_salad': { 
     name: 'SomaFM Groove Salad', 
     description: 'Chilled ambient/downtempo beats and grooves',
     url: 'https://ice.somafm.com/groovesalad',
     fallback: 'https://somafm.com/groovesalad.pls',
-    genre: 'Lo-Fi'
+    genre: 'Lo-Fi',
+    quality: 'High'
   },
   'drone_zone': { 
     name: 'SomaFM Drone Zone', 
     description: 'Atmospheric textures with minimal beats',
     url: 'https://ice.somafm.com/dronezone',
     fallback: 'https://somafm.com/dronezone.pls',
-    genre: 'Lo-Fi'
-  },
-  'deep_space_one': { 
-    name: 'SomaFM Deep Space One', 
-    description: 'Deep ambient electronic and space music',
-    url: 'https://ice.somafm.com/deepspaceone',
-    fallback: 'https://somafm.com/deepspaceone.pls',
-    genre: 'Lo-Fi'
-  },
-  'lush': { 
-    name: 'SomaFM Lush', 
-    description: 'Sensuous female vocals with electronic influence',
-    url: 'https://ice.somafm.com/lush',
-    fallback: 'https://somafm.com/lush.pls',
-    genre: 'Lo-Fi'
-  },
-  'secret_agent': { 
-    name: 'SomaFM Secret Agent', 
-    description: 'Soundtrack for your stylish, mysterious life',
-    url: 'https://ice.somafm.com/secretagent',
-    fallback: 'https://somafm.com/secretagent.pls',
-    genre: 'Lo-Fi'
+    genre: 'Lo-Fi',
+    quality: 'High'
   },
   
-  // ✅ ELECTRONIC & DUBSTEP - SomaFM verified streams
+  // 🎌 ANIME & J-POP
+  'listen_moe': { 
+    name: 'LISTEN.moe (J-Pop/Anime)', 
+    description: 'Japanese music and anime soundtracks 24/7',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/kpop/stream',
+    genre: 'Anime',
+    quality: 'High'
+  },
+  'listen_moe_kpop': { 
+    name: 'LISTEN.moe K-Pop', 
+    description: 'Korean pop music and K-Pop hits 24/7',
+    url: 'https://listen.moe/kpop/stream',
+    fallback: 'https://listen.moe/stream',
+    genre: 'Anime',
+    quality: 'High'
+  },
+  
+  // 🎪 TOMORROWLAND & EDM FESTIVAL VIBES
+  'one_world_radio': { 
+    name: 'Tomorrowland One World Radio', 
+    description: 'Official Tomorrowland radio - the sound of the festival 24/7',
+    url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/OWR.mp3',
+    fallback: 'https://21293.live.streamtheworld.com/OWR.mp3',
+    genre: 'EDM',
+    quality: 'Premium'
+  },
+  'tomorrowland_anthems': { 
+    name: 'Tomorrowland Anthems', 
+    description: 'The biggest EDM anthems from Tomorrowland festivals',
+    url: 'https://22113.live.streamtheworld.com/TOMORROWLANDANTHEMS.mp3',
+    fallback: 'https://ice.somafm.com/thetrip',
+    genre: 'EDM',
+    quality: 'High'
+  },
+  
+  // 🔥 ADDITIONAL EDM/ELECTRONIC
   'beat_blender': { 
     name: 'SomaFM Beat Blender', 
     description: 'Late night deep-house and downtempo chill',
     url: 'https://ice.somafm.com/beatblender',
     fallback: 'https://somafm.com/beatblender.pls',
-    genre: 'Dubstep'
-  },
-  'dubstep_beyond': { 
-    name: 'SomaFM Dub Step Beyond', 
-    description: 'Dubstep, Dub and Deep Bass (speaker warning!)',
-    url: 'https://ice.somafm.com/dubstep',
-    fallback: 'https://somafm.com/dubstep.pls',
-    genre: 'Dubstep'
-  },
-  'cliqhop_idm': { 
-    name: 'SomaFM cliqhop idm', 
-    description: 'Intelligent Dance Music - blips and beeps with beats',
-    url: 'https://ice.somafm.com/cliqhop',
-    fallback: 'https://somafm.com/cliqhop.pls',
-    genre: 'Dubstep'
+    genre: 'EDM',
+    quality: 'High'
   },
   'the_trip': { 
     name: 'SomaFM The Trip', 
     description: 'Progressive house/trance - tip top tunes',
     url: 'https://ice.somafm.com/thetrip',
     fallback: 'https://somafm.com/thetrip.pls',
-    genre: 'Dubstep'
-  },
-  'fluid': { 
-    name: 'SomaFM Fluid', 
-    description: 'Electronic instrumental hiphop and liquid trap',
-    url: 'https://ice.somafm.com/fluid',
-    fallback: 'https://somafm.com/fluid.pls',
-    genre: 'Dubstep'
-  },
-  
-  // ✅ ROCK & METAL - SomaFM verified streams
-  'metal_detector': { 
-    name: 'SomaFM Metal Detector', 
-    description: 'Black to doom, prog to sludge, thrash to post metal',
-    url: 'https://ice.somafm.com/metal',
-    fallback: 'https://somafm.com/metal.pls',
-    genre: 'Rock'
-  },
-  'left_coast_70s': { 
-    name: 'SomaFM Left Coast 70s', 
-    description: 'Mellow album rock from the Seventies',
-    url: 'https://ice.somafm.com/seventies',
-    fallback: 'https://somafm.com/seventies.pls',
-    genre: 'Rock'
-  },
-  'digitalis': { 
-    name: 'SomaFM Digitalis', 
-    description: 'Digitally affected analog rock',
-    url: 'https://ice.somafm.com/digitalis',
-    fallback: 'https://somafm.com/digitalis.pls',
-    genre: 'Rock'
-  },
-  'underground_80s': { 
-    name: 'SomaFM Underground 80s', 
-    description: 'Early 80s UK Synthpop and New Wave',
-    url: 'https://ice.somafm.com/u80s',
-    fallback: 'https://somafm.com/u80s.pls',
-    genre: 'Rock'
-  },
-  
-  // ✅ ANIME & ALTERNATIVE - Verified working streams
-  'listen_moe': { 
-    name: 'LISTEN.moe (J-Pop/Anime)', 
-    description: 'Japanese music and anime soundtracks 24/7',
-    url: 'https://listen.moe/stream',
-    fallback: 'https://listen.moe/kpop/stream',
-    genre: 'Anime'
-  },
-  'indie_pop_rocks': { 
-    name: 'SomaFM Indie Pop Rocks', 
-    description: 'New and classic favorite indie pop tracks',
-    url: 'https://ice.somafm.com/indiepop',
-    fallback: 'https://somafm.com/indiepop.pls',
-    genre: 'Rock'
-  },
-  'poptron': { 
-    name: 'SomaFM PopTron', 
-    description: 'Electropop and indie dance rock with sparkle',
-    url: 'https://ice.somafm.com/poptron',
-    fallback: 'https://somafm.com/poptron.pls',
-    genre: 'Rock'
-  },
-  
-  // ✅ SPECIAL/EXPERIMENTAL - SomaFM unique channels
-  'vaporwaves': { 
-    name: 'SomaFM Vaporwaves', 
-    description: 'All Vaporwave. All the time.',
-    url: 'https://ice.somafm.com/vaporwaves',
-    fallback: 'https://somafm.com/vaporwaves.pls',
-    genre: 'Lo-Fi'
-  },
-  'defcon_radio': { 
-    name: 'SomaFM DEF CON Radio', 
-    description: 'Music for Hacking - the DEF CON year-round channel',
-    url: 'https://ice.somafm.com/defcon',
-    fallback: 'https://somafm.com/defcon.pls',
-    genre: 'Dubstep'
-  },
-  'heavyweight_reggae': { 
-    name: 'SomaFM Heavyweight Reggae', 
-    description: 'Reggae, Ska, Rocksteady classic and deep tracks',
-    url: 'https://ice.somafm.com/reggae',
-    fallback: 'https://somafm.com/reggae.pls',
-    genre: 'Rock'
+    genre: 'EDM',
+    quality: 'High'
   }
 };
 
-// Simple Radio Manager with fallback support
-class SimpleRadioManager {
+// Enhanced Radio Manager with festival-focused UI
+class FestivalRadioManager {
   async connectToStream(player, stationKey) {
     const station = RADIO_STATIONS[stationKey];
     if (!station) {
@@ -211,7 +141,19 @@ class SimpleRadioManager {
     for (const url of urlsToTry) {
       try {
         console.log(`🔄 Trying URL: ${url}`);
-        const result = await player.node.rest.resolve(url);
+        
+        let result;
+        // Special handling for YouTube URLs (convert to search)
+        if (url.includes('youtube.com/watch')) {
+          const videoId = url.split('v=')[1]?.split('&')[0];
+          if (videoId) {
+            console.log(`🎥 YouTube video detected: ${videoId}`);
+            result = await player.node.rest.resolve(`ytsearch:lofi girl study beats`);
+          }
+        } else {
+          result = await player.node.rest.resolve(url);
+        }
+        
         console.log(`📊 Stream result for ${url}:`, {
           loadType: result?.loadType,
           hasData: !!result?.data,
@@ -229,14 +171,7 @@ class SimpleRadioManager {
             }
           });
           
-          // Wait and verify playback started
           await new Promise(resolve => setTimeout(resolve, 2000));
-          console.log(`📊 Player state:`, {
-            playing: player.playing,
-            paused: player.paused,
-            track: !!player.track
-          });
-          
           console.log(`✅ Successfully started ${station.name} with ${url}`);
           return { success: true, station, url };
           
@@ -327,7 +262,7 @@ setTimeout(async () => {
 
       client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
         resume: true,
-        resumeKey: 'uta-bot-bulletproof',
+        resumeKey: 'uta-bot-festival-radio',
         resumeTimeout: 60,
         reconnectTries: 5,
         reconnectInterval: 3000,
@@ -347,13 +282,13 @@ setTimeout(async () => {
       console.log('✅ Lavalink configured');
     }
 
-    const radioManager = new SimpleRadioManager();
+    const radioManager = new FestivalRadioManager();
 
-    // Bulletproof radio command
+    // Enhanced radio command with festival theming
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('Stream dubstep, rock, anime, and lo-fi radio stations'),
+        .setDescription('🎪 Stream Tomorrowland EDM, Lofi Girl study beats, and anime music'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -364,7 +299,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first!')
+              .setDescription('Join a voice channel first to start the festival!')
             ],
             ephemeral: true
           });
@@ -381,45 +316,55 @@ setTimeout(async () => {
           });
         }
 
-        const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => ({
-          label: station.name,
-          description: `${station.description} (${station.genre})`,
-          value: key
-        }));
+        // Organize stations by genre for better UX
+        const stationsByGenre = {
+          'EDM': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'EDM'),
+          'Lo-Fi': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Lo-Fi'),
+          'Anime': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Anime')
+        };
+
+        const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => {
+          const qualityEmoji = station.quality === 'Premium' ? '👑' : '⭐';
+          return {
+            label: `${qualityEmoji} ${station.name}`,
+            description: `${station.description} (${station.genre})`,
+            value: key
+          };
+        });
 
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId('radio_select')
-          .setPlaceholder('Choose a radio station...')
+          .setPlaceholder('Choose your festival experience...')
           .addOptions(stationOptions);
 
         const stopButton = new ButtonBuilder()
           .setCustomId('radio_stop')
-          .setLabel('Stop Radio')
+          .setLabel('End Festival')
           .setStyle(ButtonStyle.Danger)
           .setEmoji('🛑');
 
         const embed = new EmbedBuilder()
-          .setColor('#D2691E')
-          .setTitle('🏴‍☠️ Uta\'s One Piece Radio Collection')
-          .setDescription('🎵 *"Set sail for the ultimate music adventure!"* 🎵\n\nSelect a station to start your musical journey!')
+          .setColor('#FF6B35')
+          .setTitle('🎪 Uta\'s Festival Radio Collection')
+          .setDescription('🎵 *"Welcome to the ultimate music festival experience!"* 🎵\n\nChoose your vibe and let the festival begin!')
           .addFields(
             {
-              name: '🎵 Music Treasures Available',
-              value: '🎌 **Anime & J-Pop** • 🔥 **Dubstep & Bass** • 🎸 **Rock & Metal** • 🎧 **Lo-Fi Chill**',
+              name: '👑 Premium Stations',
+              value: `🎪 **Tomorrowland One World Radio** - Official festival sound\n🎧 **Lofi Girl Study Beats** - The legendary study companion`,
               inline: false
             },
             {
-              name: '🎭 Grand Line Radio Network',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to sail with you!`,
+              name: '🎵 Genre Collection',
+              value: `🔥 **EDM/Electronic** (${stationsByGenre.EDM.length} stations) - Festival anthems and dance floor hits\n🎧 **Lo-Fi/Chill** (${stationsByGenre['Lo-Fi'].length} stations) - Perfect for studying and relaxing\n🎌 **Anime/J-Pop** (${stationsByGenre.Anime.length} stations) - Japanese music and K-Pop`,
               inline: false
             },
             {
-              name: '🎶 Genre Breakdown',
-              value: '• **Dubstep/Electronic**: Heavy drops, basslines, and beats\n• **Rock/Metal**: Classic hits, modern rock, and heavy metal\n• **Anime/J-Pop**: Japanese music, K-Pop, and anime soundtracks\n• **Lo-Fi**: Chill beats perfect for studying and relaxing',
+              name: '🎭 Festival Experience',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to transport you to music paradise!`,
               inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Radio • Rock the Grand Line! 🏴‍☠️🎸' })
+          .setFooter({ text: 'Uta\'s Festival Radio • The beat never stops! 🎪🎵' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -461,7 +406,7 @@ setTimeout(async () => {
                 // Wait a moment for connection to stabilize
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                await player.setGlobalVolume(75); // Increased volume
+                await player.setGlobalVolume(75);
                 console.log('✅ Voice connection established and volume set to 75');
               } else {
                 console.log('🔊 Bot already in voice channel');
@@ -474,30 +419,29 @@ setTimeout(async () => {
                 
                 // Genre-specific emojis and colors
                 const genreEmojis = {
-                  'Dubstep': '🔥',
-                  'Rock': '🎸',
-                  'Anime': '🎌',
-                  'Lo-Fi': '🎧'
+                  'EDM': '🔥',
+                  'Lo-Fi': '🎧',
+                  'Anime': '🎌'
                 };
                 
                 const genreColors = {
-                  'Dubstep': '#FF6B35',  // Orange
-                  'Rock': '#8B0000',     // Dark Red
-                  'Anime': '#FF69B4',    // Hot Pink
-                  'Lo-Fi': '#9370DB'     // Medium Purple
+                  'EDM': '#FF6B35',     // Orange
+                  'Lo-Fi': '#9370DB',   // Purple
+                  'Anime': '#FF69B4'    // Pink
                 };
                 
                 const emoji = genreEmojis[result.station.genre] || '🎵';
                 const color = genreColors[result.station.genre] || '#00FF00';
+                const qualityBadge = result.station.quality === 'Premium' ? '👑 PREMIUM' : '⭐ HIGH QUALITY';
                 
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor(color)
-                    .setTitle(`${emoji} Now Streaming on the Thousand Sunny!`)
-                    .setDescription(`**${result.station.name}** is rocking across the Grand Line!`)
+                    .setTitle(`${emoji} Festival Experience Started!`)
+                    .setDescription(`**${result.station.name}** is now streaming live!`)
                     .addFields(
                       {
-                        name: '🎶 Station',
+                        name: '🎶 Station Info',
                         value: result.station.description,
                         inline: false
                       },
@@ -507,12 +451,17 @@ setTimeout(async () => {
                         inline: true
                       },
                       {
+                        name: '💎 Quality',
+                        value: qualityBadge,
+                        inline: true
+                      },
+                      {
                         name: '🔊 Voice Channel',
                         value: voiceChannel.name,
                         inline: true
                       }
                     )
-                    .setFooter({ text: `${result.station.genre} adventure continues! 🏴‍☠️${emoji}` })
+                    .setFooter({ text: `${result.station.genre} festival continues! 🎪${emoji}` })
                     .setTimestamp()
                   ]
                 });
@@ -522,11 +471,16 @@ setTimeout(async () => {
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor('#FF0000')
-                    .setTitle('❌ Stream Failed')
+                    .setTitle('❌ Festival Connection Failed')
                     .setDescription(`Could not start ${stationInfo.name}`)
                     .addFields({
-                      name: '🔧 Error',
+                      name: '🔧 Error Details',
                       value: error.message,
+                      inline: false
+                    },
+                    {
+                      name: '💡 Troubleshooting',
+                      value: 'Try another station or check your connection. Some premium stations may have regional restrictions.',
                       inline: false
                     })
                   ]
@@ -539,15 +493,16 @@ setTimeout(async () => {
               const player = client.shoukaku.players.get(interaction.guildId);
               if (player) {
                 await player.stopTrack();
-                await player.destroy(); // Fixed: use destroy() instead of disconnect()
+                await player.destroy();
                 client.shoukaku.players.delete(interaction.guildId);
               }
 
               await componentInteraction.editReply({
                 embeds: [new EmbedBuilder()
                   .setColor('#00FF00')
-                  .setTitle('🛑 Radio Stopped')
-                  .setDescription('Successfully disconnected from radio')
+                  .setTitle('🛑 Festival Ended')
+                  .setDescription('Thanks for joining the festival! The music lives on in your heart 💖')
+                  .setFooter({ text: 'Until next time... 🎪✨' })
                 ]
               });
             }
@@ -558,24 +513,30 @@ setTimeout(async () => {
       }
     };
 
-    // Simple Uta command
+    // Enhanced Uta command
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('🎤 Uta\'s simple music panel'),
+        .setDescription('🎤 Uta\'s festival music panel'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
           .setColor('#FF6B9D')
-          .setTitle('🎤 Uta\'s Music Studio')
-          .setDescription('*"Ready to rock the Grand Line with epic music!"*\n\nUse `/radio` to start listening to dubstep, rock, anime, and lo-fi stations!')
+          .setTitle('🎤 Uta\'s Festival Music Studio')
+          .setDescription('*"Ready to rock the ultimate music festival!"* 🎪\n\nUse `/radio` to access premium Tomorrowland EDM, legendary Lofi Girl beats, and amazing anime music!')
           .addFields(
             {
-              name: '🎵 Available Genres',
-              value: '🔥 **Dubstep** - Heavy bass and drops\n🎸 **Rock & Metal** - Classic and modern hits\n🎌 **Anime & J-Pop** - Japanese music paradise\n🎧 **Lo-Fi** - Chill beats for relaxation',
+              name: '🎵 Featured Collections',
+              value: '👑 **Tomorrowland One World Radio** - Official festival experience\n🎧 **Lofi Girl Study Beats** - The iconic study companion\n🎌 **Japanese Music Paradise** - Anime soundtracks and J-Pop hits',
+              inline: false
+            },
+            {
+              name: '🎪 Festival Genres',
+              value: '🔥 **EDM/Electronic** - Dance floor anthems and festival vibes\n🎧 **Lo-Fi/Chill** - Perfect background music for any activity\n🎌 **Anime/J-Pop** - High-energy Japanese music collection',
               inline: false
             }
           )
+          .setFooter({ text: 'The festival never ends with Uta! 🎭✨' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -586,7 +547,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (Dubstep/Rock/Anime/Lo-Fi collection), uta');
+    console.log('✅ Commands loaded: radio (Festival Collection), uta');
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -625,4 +586,4 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🎬 One Piece radio bot initialization started');
+console.log('🎬 Festival radio bot initialization started');
