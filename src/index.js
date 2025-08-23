@@ -439,16 +439,41 @@ setTimeout(async () => {
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
+      console.log(`📨 Interaction received: ${interaction.type}`);
+      
       if (!interaction.isChatInputCommand()) return;
       
+      console.log(`🎯 Slash command: /${interaction.commandName}`);
+      
       const command = client.commands.get(interaction.commandName);
-      if (!command) return;
+      if (!command) {
+        console.error(`❌ Command not found: ${interaction.commandName}`);
+        return;
+      }
 
       try {
+        console.log(`⚡ Executing command: /${interaction.commandName}`);
         await command.execute(interaction);
-        console.log(`✅ Command /${interaction.commandName} executed`);
+        console.log(`✅ Command /${interaction.commandName} executed successfully`);
       } catch (error) {
-        console.error(`❌ Command error:`, error.message);
+        console.error(`❌ Command error for /${interaction.commandName}:`, error.message);
+        console.error(`❌ Full error:`, error);
+        
+        // Try to respond if we haven't already
+        try {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+              content: `❌ Command failed: ${error.message}`,
+              ephemeral: true
+            });
+          } else if (interaction.deferred) {
+            await interaction.editReply({
+              content: `❌ Command failed: ${error.message}`
+            });
+          }
+        } catch (replyError) {
+          console.error(`❌ Failed to send error reply:`, replyError.message);
+        }
       }
     });
 
