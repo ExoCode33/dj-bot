@@ -2,7 +2,7 @@ import 'dotenv/config';
 import http from 'node:http';
 
 // PRIORITY: Start health server immediately
-console.log('🚀 STARTING UTA DJ BOT - EDM & LOFI COLLECTION');
+console.log('🚀 STARTING UTA DJ BOT - ONE PIECE RADIO');
 console.log('📅 Time:', new Date().toISOString());
 console.log('🎯 PORT:', process.env.PORT || 3000);
 
@@ -39,79 +39,144 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// ✅ CURATED HIGH-QUALITY RADIO STATIONS - Bass drops, festival vibes & chill beats
+// Import radio stations from separate config
 const RADIO_STATIONS = {
   // 🎧 LO-FI COLLECTIONS (Study & Chill)
   'lofi_girl': { 
-    name: 'Lofi Girl - Study Beats', 
+    name: 'Lofi Girl Radio', 
     description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
     url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
-    fallback: 'https://ice.somafm.com/groovesalad',
+    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
     genre: 'Lo-Fi',
-    quality: 'Premium'
-  },
-  'groove_salad': { 
-    name: 'SomaFM Groove Salad', 
-    description: 'Chilled ambient/downtempo beats and grooves',
-    url: 'https://ice.somafm.com/groovesalad',
-    fallback: 'https://somafm.com/groovesalad.pls',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'drone_zone': { 
-    name: 'SomaFM Drone Zone', 
-    description: 'Atmospheric textures with minimal beats',
-    url: 'https://ice.somafm.com/dronezone',
-    fallback: 'https://somafm.com/dronezone.pls',
-    genre: 'Lo-Fi',
-    quality: 'High'
+    quality: 'Premium',
+    hasLyrics: false,
+    artists: ['Various Lo-Fi Artists']
   },
   
-  // 🎪 TOMORROWLAND & FESTIVAL EDM (Trendy drops & bass)
+  // 🎌 ANIME & J-POP (Real artists with lyrics)
+  'listen_moe_jpop': { 
+    name: 'LISTEN.moe J-Pop Radio', 
+    description: 'Japanese music and anime soundtracks with real artists',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/fallback.mp3',
+    genre: 'Anime',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['Various J-Pop Artists', 'Anime OST Artists']
+  },
+  'listen_moe_kpop': { 
+    name: 'LISTEN.moe K-Pop Radio', 
+    description: 'Korean pop music with trendy K-Pop hits and lyrics',
+    url: 'https://listen.moe/kpop/stream',
+    fallback: 'https://listen.moe/stream',
+    genre: 'Anime',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['BTS', 'BLACKPINK', 'NewJeans', 'aespa', 'Various K-Pop Artists']
+  },
+  
+  // 🎪 TOMORROWLAND & FESTIVAL EDM (Real artists with trendy songs)
   'one_world_radio': { 
     name: 'Tomorrowland One World Radio', 
-    description: 'Official Tomorrowland radio - festival anthems with massive drops',
+    description: 'Official Tomorrowland radio with real DJ sets and festival anthems',
     url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/OWR.mp3',
     fallback: 'https://21293.live.streamtheworld.com/OWR.mp3',
-    genre: 'Bass Drop EDM',
-    quality: 'Premium'
+    genre: 'Festival EDM',
+    quality: 'Premium',
+    hasLyrics: true,
+    artists: ['Martin Garrix', 'David Guetta', 'Calvin Harris', 'Tiësto', 'Armin van Buuren']
   },
-  'dubstep_beyond': { 
-    name: 'SomaFM Dub Step Beyond', 
-    description: 'Dubstep, heavy bass and earth-shaking drops (speaker warning!)',
-    url: 'https://ice.somafm.com/dubstep',
-    fallback: 'https://somafm.com/dubstep.pls',
-    genre: 'Bass Drop EDM',
-    quality: 'High'
+  
+  // 🔥 BASS DROP & DUBSTEP (Trendy artists with lyrics)
+  'bass_drive_radio': {
+    name: 'Bass Drive - Drum & Bass Radio',
+    description: 'Real drum & bass with trendy artists and vocal tracks',
+    url: 'http://bassdrive.com/v2/streams/BassDrive.pls',
+    fallback: 'http://chi.bassdrive.com:80/',
+    genre: 'Bass Drop',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['Netsky', 'Rudimental', 'Chase & Status', 'Sub Focus', 'Pendulum']
   },
-  'beat_blender': { 
-    name: 'SomaFM Beat Blender', 
-    description: 'Deep-house basslines and late night festival vibes',
-    url: 'https://ice.somafm.com/beatblender',
-    fallback: 'https://somafm.com/beatblender.pls',
-    genre: 'Bass Drop EDM',
-    quality: 'High'
+  
+  // 🎵 MAINSTREAM EDM (Chart hits with lyrics)
+  'radio_fg': {
+    name: 'Radio FG - Electronic Music',
+    description: 'French electronic radio with mainstream EDM hits and vocals',
+    url: 'http://radiofg.impek.com/fg.mp3',
+    fallback: 'http://radiofg.impek.com/fg128.mp3',
+    genre: 'Mainstream EDM',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['Swedish House Mafia', 'The Chainsmokers', 'Marshmello', 'Skrillex', 'Diplo']
   },
-  'the_trip': { 
-    name: 'SomaFM The Trip', 
-    description: 'Progressive house/trance with epic buildups and drops',
-    url: 'https://ice.somafm.com/thetrip',
-    fallback: 'https://somafm.com/thetrip.pls',
-    genre: 'Bass Drop EDM',
-    quality: 'High'
+  
+  // 🌊 FUTURE BASS & TRAP (Trendy with vocals)
+  'trap_nation': {
+    name: 'Trap Nation Style Radio',
+    description: 'Future bass and trap with trendy artists and vocal drops',
+    url: 'https://streams.ilovemusic.de/iloveradio14.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio104.mp3',
+    genre: 'Trap/Future Bass',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['RL Grime', 'Flume', 'What So Not', 'San Holo', 'ODESZA']
   },
-  'fluid': { 
-    name: 'SomaFM Fluid', 
-    description: 'Electronic instrumental hip-hop with heavy liquid trap drops',
-    url: 'https://ice.somafm.com/fluid',
-    fallback: 'https://somafm.com/fluid.pls',
-    genre: 'Bass Drop EDM',
-    quality: 'High'
+  
+  // 🎤 HARDSTYLE (With vocals and drops)
+  'q_dance_radio': {
+    name: 'Q-Dance Hard Dance Radio',
+    description: 'Hardstyle and hard dance with epic vocals and massive drops',
+    url: 'https://streams.ilovemusic.de/iloveradio8.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio108.mp3',
+    genre: 'Hardstyle',
+    quality: 'High',
+    hasLyrics: true,
+    artists: ['Headhunterz', 'Wildstylez', 'Da Tweekaz', 'Brennan Heart', 'Coone']
   }
 };
 
-// Enhanced Radio Manager with festival-focused UI
-class FestivalRadioManager {
+// Genre categories for UI organization
+const GENRE_CATEGORIES = {
+  'Lo-Fi': {
+    emoji: '🎧',
+    color: '#9370DB',
+    description: 'Perfect for studying and relaxing'
+  },
+  'Anime': {
+    emoji: '🎌', 
+    color: '#FF69B4',
+    description: 'Japanese & Korean music with real artists'
+  },
+  'Festival EDM': {
+    emoji: '🎪',
+    color: '#FF6B35', 
+    description: 'Official festival radio with top DJs'
+  },
+  'Bass Drop': {
+    emoji: '🔥',
+    color: '#FF1744',
+    description: 'Heavy bass drops and drum & bass'
+  },
+  'Mainstream EDM': {
+    emoji: '💎',
+    color: '#00BCD4',
+    description: 'Chart-topping EDM hits with vocals'
+  },
+  'Trap/Future Bass': {
+    emoji: '🌊',
+    color: '#4CAF50',
+    description: 'Trendy trap and future bass'
+  },
+  'Hardstyle': {
+    emoji: '⚡',
+    color: '#FFC107',
+    description: 'Hard dance with epic vocals'
+  }
+};
+
+// Simple Radio Manager for One Piece themed bot
+class OneRadioManager {
   async connectToStream(player, stationKey) {
     const station = RADIO_STATIONS[stationKey];
     if (!station) {
@@ -250,7 +315,7 @@ setTimeout(async () => {
 
       client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
         resume: true,
-        resumeKey: 'uta-bot-festival-radio',
+        resumeKey: 'uta-bot-one-piece',
         resumeTimeout: 60,
         reconnectTries: 5,
         reconnectInterval: 3000,
@@ -270,13 +335,13 @@ setTimeout(async () => {
       console.log('✅ Lavalink configured');
     }
 
-    const radioManager = new FestivalRadioManager();
+    const radioManager = new OneRadioManager();
 
-    // Enhanced radio command with festival theming
+    // One Piece themed radio command
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🎪 Stream Tomorrowland EDM, Lofi Girl study beats, and anime music'),
+        .setDescription('🏴‍☠️ Stream the Grand Line\'s finest music collection'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -287,7 +352,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first to start the festival!')
+              .setDescription('Join a voice channel first to set sail on the musical Grand Line!')
             ],
             ephemeral: true
           });
@@ -298,61 +363,58 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Music Service Offline')
-              .setDescription('Lavalink is not ready yet.')
+              .setDescription('The Thousand Sunny\'s sound system is down. Try again in a moment!')
             ],
             ephemeral: true
           });
         }
 
-        // Organize stations by genre for better UX
-        const stationsByGenre = {
-          'Bass Drop EDM': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Bass Drop EDM'),
-          'Lo-Fi': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Lo-Fi')
-        };
-
         const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => {
           const qualityEmoji = station.quality === 'Premium' ? '👑' : '⭐';
-          const genreEmoji = station.genre === 'Bass Drop EDM' ? '🔥' : '🎧';
+          const genreData = GENRE_CATEGORIES[station.genre];
+          const genreEmoji = genreData ? genreData.emoji : '🎵';
+          const lyricsEmoji = station.hasLyrics ? '🎤' : '';
+          
           return {
-            label: `${qualityEmoji} ${genreEmoji} ${station.name}`,
-            description: `${station.description}`,
+            label: `${qualityEmoji} ${genreEmoji} ${station.name} ${lyricsEmoji}`,
+            description: station.description,
             value: key
           };
         });
 
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId('radio_select')
-          .setPlaceholder('Choose your festival experience...')
+          .setPlaceholder('Choose your Grand Line adventure...')
           .addOptions(stationOptions);
 
         const stopButton = new ButtonBuilder()
           .setCustomId('radio_stop')
-          .setLabel('End Festival')
+          .setLabel('Drop Anchor')
           .setStyle(ButtonStyle.Danger)
-          .setEmoji('🛑');
+          .setEmoji('⚓');
 
         const embed = new EmbedBuilder()
-          .setColor('#FF1744')
-          .setTitle('🔥 Uta\'s Bass Drop Festival Collection')
-          .setDescription('🎵 *"Ready for the ultimate bass experience and chill vibes?"* 🎵\n\nChoose your energy level and let the festival begin!')
+          .setColor('#D2691E')
+          .setTitle('🏴‍☠️ Uta\'s One Piece Radio Collection')
+          .setDescription('🎵 *"Set sail for the ultimate musical adventure on the Grand Line!"* 🎵\n\nChoose your musical treasure and begin the journey!')
           .addFields(
             {
-              name: '👑 Premium Stations',
-              value: `🎪 **Tomorrowland One World Radio** - Official festival sound with massive drops\n🎧 **Lofi Girl Study Beats** - The legendary chill study companion`,
+              name: '🏴‍☠️ Musical Treasures Available',
+              value: '🎧 **Lo-Fi Chill** • 🎌 **Anime & K-Pop** • 🎪 **Festival EDM** • 🔥 **Bass Drops** • 💎 **Chart Hits** • 🌊 **Trap/Future Bass** • ⚡ **Hardstyle**',
               inline: false
             },
             {
-              name: '🎵 Genre Collection',
-              value: `🔥 **Bass Drop EDM** (${stationsByGenre['Bass Drop EDM'].length} stations) - Festival bangers, dubstep drops, and trendy anthems\n🎧 **Lo-Fi/Chill** (${stationsByGenre['Lo-Fi'].length} stations) - Perfect for studying, relaxing, and focus`,
+              name: '🎭 Grand Line Radio Network',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to sail with real artists and trendy songs!`,
               inline: false
             },
             {
-              name: '🎭 Bass Drop Experience',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to shake your speakers and soothe your soul!`,
+              name: '🎵 Music Features',
+              value: '• 🎤 **Stations with lyrics** for sing-alongs\n• 👑 **Premium quality** streams\n• 🎨 **Real artists** - no copyright-free music\n• 🔥 **Trendy hits** and festival bangers',
               inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Bass Festival Radio • From drops to chill! 🔥🎧' })
+          .setFooter({ text: 'Uta\'s Radio • Rock the Grand Line! 🏴‍☠️🎸' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -377,12 +439,12 @@ setTimeout(async () => {
               let player = client.shoukaku.players.get(interaction.guildId);
               
               if (!player) {
-                console.log(`🔊 Bot not in voice channel. Joining: ${voiceChannel.name}`);
+                console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
                 
                 // Check bot permissions first
                 const permissions = voiceChannel.permissionsFor(interaction.client.user);
                 if (!permissions.has(['Connect', 'Speak'])) {
-                  throw new Error('Bot missing Connect/Speak permissions in voice channel');
+                  throw new Error('Uta needs Connect/Speak permissions to perform!');
                 }
                 
                 player = await client.shoukaku.joinVoiceChannel({
@@ -395,39 +457,30 @@ setTimeout(async () => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 await player.setGlobalVolume(75);
-                console.log('✅ Voice connection established and volume set to 75');
+                console.log('✅ Uta connected and volume set to 75');
               } else {
-                console.log('🔊 Bot already in voice channel');
-                // Make sure volume is set
+                console.log('🔊 Uta already performing');
                 await player.setGlobalVolume(75);
               }
 
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
-                // Genre-specific emojis and colors
-                const genreEmojis = {
-                  'Bass Drop EDM': '🔥',
-                  'Lo-Fi': '🎧'
-                };
-                
-                const genreColors = {
-                  'Bass Drop EDM': '#FF1744',  // Red for intense bass
-                  'Lo-Fi': '#9370DB'           // Purple for chill
-                };
-                
-                const emoji = genreEmojis[result.station.genre] || '🎵';
-                const color = genreColors[result.station.genre] || '#00FF00';
+                // Genre-specific styling
+                const genreData = GENRE_CATEGORIES[result.station.genre];
+                const emoji = genreData ? genreData.emoji : '🎵';
+                const color = genreData ? genreData.color : '#D2691E';
                 const qualityBadge = result.station.quality === 'Premium' ? '👑 PREMIUM' : '⭐ HIGH QUALITY';
+                const lyricsInfo = result.station.hasLyrics ? '🎤 With Lyrics' : '🎵 Instrumental';
                 
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor(color)
-                    .setTitle(`${emoji} Festival Experience Started!`)
-                    .setDescription(`**${result.station.name}** is now streaming live!`)
+                    .setTitle(`${emoji} Now Sailing the Musical Grand Line!`)
+                    .setDescription(`**${result.station.name}** is now streaming on the Thousand Sunny!`)
                     .addFields(
                       {
-                        name: '🎶 Station Info',
+                        name: '🎶 Station Details',
                         value: result.station.description,
                         inline: false
                       },
@@ -442,12 +495,22 @@ setTimeout(async () => {
                         inline: true
                       },
                       {
-                        name: '🔊 Voice Channel',
-                        value: voiceChannel.name,
+                        name: '🎤 Content',
+                        value: lyricsInfo,
+                        inline: true
+                      },
+                      {
+                        name: '🔊 Broadcasting to',
+                        value: `📡 ${voiceChannel.name}`,
+                        inline: true
+                      },
+                      {
+                        name: '🎨 Featured Artists',
+                        value: result.station.artists ? result.station.artists.slice(0, 3).join(', ') : 'Various Artists',
                         inline: true
                       }
                     )
-                    .setFooter({ text: result.station.genre === 'Bass Drop EDM' ? `Bass drops incoming! 🔥${emoji}` : `Chill vibes activated! 🎧${emoji}` })
+                    .setFooter({ text: `${result.station.genre} adventure continues on the Grand Line! 🏴‍☠️${emoji}` })
                     .setTimestamp()
                   ]
                 });
@@ -457,18 +520,20 @@ setTimeout(async () => {
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor('#FF0000')
-                    .setTitle('❌ Festival Connection Failed')
-                    .setDescription(`Could not start ${stationInfo.name}`)
-                    .addFields({
-                      name: '🔧 Error Details',
-                      value: error.message,
-                      inline: false
-                    },
-                    {
-                      name: '💡 Troubleshooting',
-                      value: 'Try another station or check your connection. Some premium stations may have regional restrictions.',
-                      inline: false
-                    })
+                    .setTitle('❌ Navigation Failed!')
+                    .setDescription(`Couldn't reach ${stationInfo.name} on the Grand Line`)
+                    .addFields(
+                      {
+                        name: '🗺️ Error Details',
+                        value: error.message,
+                        inline: false
+                      },
+                      {
+                        name: '🧭 Suggested Actions',
+                        value: 'Try another station or check if the Grand Line routes are clear. Some treasure islands may have restrictions!',
+                        inline: false
+                      }
+                    )
                   ]
                 });
               }
@@ -486,9 +551,14 @@ setTimeout(async () => {
               await componentInteraction.editReply({
                 embeds: [new EmbedBuilder()
                   .setColor('#00FF00')
-                  .setTitle('🛑 Festival Ended')
-                  .setDescription('Thanks for joining the festival! The music lives on in your heart 💖')
-                  .setFooter({ text: 'Until next time... 🎪✨' })
+                  .setTitle('⚓ Anchor Dropped!')
+                  .setDescription('Uta has finished her performance and the Thousand Sunny has docked safely! 🚢')
+                  .addFields({
+                    name: '🏴‍☠️ Thanks for sailing!',
+                    value: 'The musical adventure continues whenever you\'re ready to set sail again!',
+                    inline: false
+                  })
+                  .setFooter({ text: 'Until the next adventure on the Grand Line! 🏴‍☠️✨' })
                 ]
               });
             }
@@ -499,30 +569,35 @@ setTimeout(async () => {
       }
     };
 
-    // Enhanced Uta command
+    // One Piece themed Uta command
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('🎤 Uta\'s festival music panel'),
+        .setDescription('🎤 Uta\'s One Piece music panel'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
-          .setColor('#FF1744')
-          .setTitle('🔥 Uta\'s Bass Drop Music Studio')
-          .setDescription('*"Ready for bass drops that shake the earth and beats that soothe the soul!"* 🎧\n\nUse `/radio` to access Tomorrowland festival bangers and legendary Lofi Girl chill beats!')
+          .setColor('#FF6B9D')
+          .setTitle('🎤 Uta\'s Music Studio - One Piece Radio')
+          .setDescription('*"Ready to rock the Grand Line with the world\'s greatest songs!"* 🏴‍☠️\n\nUse `/radio` to access the ultimate music collection with real artists and trendy hits!')
           .addFields(
             {
-              name: '🎵 Featured Collections',
-              value: '👑 **Tomorrowland One World Radio** - Official festival experience with massive drops\n🎧 **Lofi Girl Study Beats** - The iconic chill study companion\n🔥 **Bass Drop EDM** - Dubstep, hardstyle, and festival bangers',
+              name: '🏴‍☠️ Musical Treasures',
+              value: '👑 **Tomorrowland One World Radio** - Official festival experience with top DJs\n🎧 **Lofi Girl Radio** - The legendary study companion\n🎌 **LISTEN.moe** - Japanese and Korean music paradise',
               inline: false
             },
             {
-              name: '🎪 Bass Festival Genres',
-              value: '🔥 **Bass Drop EDM** - Earth-shaking drops, trendy festival anthems, dubstep madness\n🎧 **Lo-Fi/Chill** - Perfect background music for studying, working, and relaxing',
+              name: '🎵 Grand Line Genres',
+              value: '🔥 **Bass Drops & Dubstep** - Heavy drops with vocal tracks\n💎 **Mainstream EDM** - Chart-topping hits with real artists\n🌊 **Trap/Future Bass** - Trendy vocals and future sounds\n⚡ **Hardstyle** - Epic vocals with massive drops',
+              inline: false
+            },
+            {
+              name: '🎭 Uta\'s Promise',
+              value: '• 🎤 **Real artists with lyrics** - no copyright-free music\n• 🔥 **Trendy hits** from top charts\n• 👑 **Premium quality** streams\n• 🏴‍☠️ **One Piece adventure** theme',
               inline: false
             }
           )
-          .setFooter({ text: 'From bass drops to chill vibes - Uta has it all! 🔥🎧' })
+          .setFooter({ text: 'The Grand Line\'s #1 Songstress is ready to perform! 🏴‍☠️🎤' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -533,7 +608,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (Festival Collection), uta');
+    console.log('✅ Commands loaded: radio (One Piece themed with real artists), uta');
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -572,4 +647,4 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🎬 Festival radio bot initialization started');
+console.log('🎬 One Piece radio bot with real artists initialization started');
