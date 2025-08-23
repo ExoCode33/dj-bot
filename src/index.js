@@ -39,54 +39,12 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// BULLETPROOF RADIO STATIONS - All tested MP3 streams
+// BULLETPROOF RADIO STATIONS - Focused on Lo-Fi, Anime, Dubstep & Rock
 const RADIO_STATIONS = {
-  'soma_groovesalad': { 
-    name: 'SomaFM Groove Salad', 
-    description: 'Ambient downtempo space music',
-    url: 'http://ice1.somafm.com/groovesalad-256-mp3',
-    genre: 'Ambient'
-  },
-  'soma_beatblender': { 
-    name: 'SomaFM Beat Blender', 
-    description: 'Deep house, nu disco and electronica',
-    url: 'http://ice1.somafm.com/beatblender-128-mp3',
-    genre: 'Electronic'
-  },
-  'soma_deepspaceone': { 
-    name: 'SomaFM Deep Space One', 
-    description: 'Ambient space music and soundscapes',
-    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
-    genre: 'Ambient'
-  },
-  'soma_dronezone': { 
-    name: 'SomaFM Drone Zone', 
-    description: 'Atmospheric ambient drones',
-    url: 'http://ice1.somafm.com/dronezone-256-mp3',
-    genre: 'Drone'
-  },
   'lofi_girl': { 
     name: 'Lofi Girl Radio', 
     description: '24/7 chill lo-fi hip hop beats',
     url: 'http://stream.zeno.fm/f3wvbbqmdg8uv',
-    genre: 'Lo-Fi'
-  },
-  'chillhop_radio': { 
-    name: 'Chillhop Radio', 
-    description: 'Instrumental hip hop and jazz',
-    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/audio/',
-    genre: 'Lo-Fi'
-  },
-  'soma_lush': { 
-    name: 'SomaFM Lush', 
-    description: 'Sensual and chill electronic beats',
-    url: 'http://ice1.somafm.com/lush-128-mp3',
-    genre: 'Lo-Fi'
-  },
-  'soma_secretagent': { 
-    name: 'SomaFM Secret Agent', 
-    description: 'Downtempo spy jazz and lounge',
-    url: 'http://ice1.somafm.com/secretagent-128-mp3',
     genre: 'Lo-Fi'
   },
   'listen_moe': { 
@@ -95,35 +53,107 @@ const RADIO_STATIONS = {
     url: 'https://listen.moe/kpop/stream',
     genre: 'Anime'
   },
-  'radio_swiss_jazz': { 
-    name: 'Radio Swiss Jazz', 
-    description: 'Jazz and chill instrumental music',
-    url: 'http://stream.srg-ssr.ch/m/rsj/mp3_128',
+  'dubstep_fm': { 
+    name: 'Dubstep FM', 
+    description: 'Heavy bass drops and electronic madness',
+    url: 'http://radio.dubstep.fm:8000/dubstep256.mp3',
+    genre: 'Dubstep'
+  },
+  'bass_radio': { 
+    name: 'BassDrive Radio', 
+    description: 'Drum & Bass and dubstep 24/7',
+    url: 'http://bassdrive.com:8000/stream',
+    genre: 'Dubstep'
+  },
+  'hardstyle_radio': { 
+    name: 'HardstyleRadio.nl', 
+    description: 'Hardstyle and hard dance music',
+    url: 'http://stream.hardstyleradio.nl:8000/stream',
+    genre: 'Dubstep'
+  },
+  'rock_antenne': { 
+    name: 'Rock Antenne', 
+    description: 'Classic and modern rock hits',
+    url: 'http://mp3channels.webradio.rockantenne.de/rockantenne',
+    genre: 'Rock'
+  },
+  'planet_rock': { 
+    name: 'Planet Rock', 
+    description: 'The greatest rock and guitar music',
+    url: 'http://tx.sharp-stream.com/icecast.php?i=planetrock.mp3',
+    genre: 'Rock'
+  },
+  'absolute_rock': { 
+    name: 'Absolute Radio Rock', 
+    description: 'Non-stop rock music 24/7',
+    url: 'http://icy-e-bab-04-cr.sharp-stream.com/absoluteradiorock.mp3',
+    genre: 'Rock'
+  },
+  'classic_rock_florida': { 
+    name: 'Classic Rock Florida', 
+    description: 'The best classic rock hits',
+    url: 'http://198.58.98.83:8258/stream',
+    genre: 'Rock'
+  },
+  'metal_radio': { 
+    name: 'Metal Radio', 
+    description: 'Heavy metal and hard rock',
+    url: 'http://149.56.147.197:8071/stream',
+    genre: 'Rock'
+  },
+  'rockradio_com': { 
+    name: 'RockRadio.com Classic Rock', 
+    description: 'Classic rock legends and hits',
+    url: 'http://sc-classicrock.1.fm:8200/',
+    genre: 'Rock'
+  },
+  'dnbradio': { 
+    name: 'DnB Radio', 
+    description: 'Drum & Bass and electronic beats',
+    url: 'http://www.dnbradio.com:8000/dnbradio_main.mp3',
+    genre: 'Dubstep'
+  },
+  'bassport_fm': { 
+    name: 'Bassport FM', 
+    description: 'UK garage, drum & bass, and dubstep',
+    url: 'http://bassport.org:8000/stream',
+    genre: 'Dubstep'
+  },
+  'radio_caprice_rock': { 
+    name: 'Radio Caprice Rock', 
+    description: 'Alternative and indie rock station',
+    url: 'http://79.111.14.76:8000/rock',
+    genre: 'Rock'
+  },
+  'anime_radio': { 
+    name: 'AnimeRadio.su', 
+    description: 'Anime music and J-Pop 24/7',
+    url: 'http://animeradio.su:8000/stream',
     genre: 'Anime'
   },
-  'radio_paradise': { 
-    name: 'Radio Paradise Main', 
-    description: 'Eclectic music discovery',
-    url: 'http://stream-dc1.radioparadise.com/rp_192m.mp3',
-    genre: 'Eclectic'
+  'jpop_project_radio': { 
+    name: 'J-Pop Project Radio', 
+    description: 'Japanese pop and anime music',
+    url: 'http://streamingv2.shoutcast.com/jpop-project-radio',
+    genre: 'Anime'
   },
-  'kexp_main': { 
-    name: 'KEXP 90.3 FM', 
-    description: 'Where the music matters',
-    url: 'http://live-mp3-128.kexp.org/kexp128.mp3',
-    genre: 'Alternative'
+  'chillstep_radio': { 
+    name: 'Chillstep Radio', 
+    description: 'Melodic dubstep and chillstep vibes',
+    url: 'http://hyades.shoutca.st:8043/stream',
+    genre: 'Dubstep'
   },
-  'wfmu': { 
-    name: 'WFMU Freeform Radio', 
-    description: 'Independent freeform radio',
-    url: 'http://stream0.wfmu.org/freeform-128k',
-    genre: 'Freeform'
+  'lofi_hip_hop_radio': { 
+    name: 'LoFi Hip Hop Radio', 
+    description: 'Chill beats to study and relax',
+    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/audio/',
+    genre: 'Lo-Fi'
   },
-  'nts_1': { 
-    name: 'NTS Radio 1', 
-    description: 'Global music radio from London',
-    url: 'http://stream-relay-geo.ntslive.net/stream',
-    genre: 'Global'
+  'chill_lofi_radio': { 
+    name: 'Chill LoFi Radio', 
+    description: 'Relaxing lo-fi beats and jazz',
+    url: 'http://radio.streemlion.com:2199/tunein/chilllofi.pls',
+    genre: 'Lo-Fi'
   }
 };
 
@@ -301,7 +331,7 @@ setTimeout(async () => {
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('Stream bulletproof radio stations that actually work'),
+        .setDescription('Stream dubstep, rock, anime, and lo-fi radio stations'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -353,16 +383,21 @@ setTimeout(async () => {
           .addFields(
             {
               name: '🎵 Music Treasures Available',
-              value: '🎌 Anime • 🎵 Lo-Fi • 🌌 Ambient • 🎧 Electronic\n🎸 Rock • 🎷 Jazz • 🎼 Classical • 📻 Pop • 🎤 Hip-Hop',
+              value: '🎌 **Anime & J-Pop** • 🔥 **Dubstep & Bass** • 🎸 **Rock & Metal** • 🎧 **Lo-Fi Chill**',
               inline: false
             },
             {
               name: '🎭 Grand Line Radio Network',
               value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to sail with you!`,
               inline: false
+            },
+            {
+              name: '🎶 Genre Breakdown',
+              value: '• **Dubstep/Electronic**: Heavy drops, basslines, and beats\n• **Rock/Metal**: Classic hits, modern rock, and heavy metal\n• **Anime/J-Pop**: Japanese music, K-Pop, and anime soundtracks\n• **Lo-Fi**: Chill beats perfect for studying and relaxing',
+              inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Radio • Set sail for musical adventure! 🏴‍☠️' })
+          .setFooter({ text: 'Uta\'s Radio • Rock the Grand Line! 🏴‍☠️🎸' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -415,11 +450,29 @@ setTimeout(async () => {
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
+                // Genre-specific emojis and colors
+                const genreEmojis = {
+                  'Dubstep': '🔥',
+                  'Rock': '🎸',
+                  'Anime': '🎌',
+                  'Lo-Fi': '🎧'
+                };
+                
+                const genreColors = {
+                  'Dubstep': '#FF6B35',  // Orange
+                  'Rock': '#8B0000',     // Dark Red
+                  'Anime': '#FF69B4',    // Hot Pink
+                  'Lo-Fi': '#9370DB'     // Medium Purple
+                };
+                
+                const emoji = genreEmojis[result.station.genre] || '🎵';
+                const color = genreColors[result.station.genre] || '#00FF00';
+                
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
-                    .setColor('#00FF00')
-                    .setTitle('🎵 Now Playing on the Thousand Sunny!')
-                    .setDescription(`**${result.station.name}** is streaming across the Grand Line!`)
+                    .setColor(color)
+                    .setTitle(`${emoji} Now Streaming on the Thousand Sunny!`)
+                    .setDescription(`**${result.station.name}** is rocking across the Grand Line!`)
                     .addFields(
                       {
                         name: '🎶 Station',
@@ -428,7 +481,7 @@ setTimeout(async () => {
                       },
                       {
                         name: '🎵 Genre',
-                        value: result.station.genre,
+                        value: `${emoji} ${result.station.genre}`,
                         inline: true
                       },
                       {
@@ -437,7 +490,7 @@ setTimeout(async () => {
                         inline: true
                       }
                     )
-                    .setFooter({ text: 'Adventure continues with great music! 🏴‍☠️' })
+                    .setFooter({ text: `${result.station.genre} adventure continues! 🏴‍☠️${emoji}` })
                     .setTimestamp()
                   ]
                 });
@@ -493,7 +546,14 @@ setTimeout(async () => {
         const embed = new EmbedBuilder()
           .setColor('#FF6B9D')
           .setTitle('🎤 Uta\'s Music Studio')
-          .setDescription('*"Ready to stream the best radio stations!"*\n\nUse `/radio` to start listening!')
+          .setDescription('*"Ready to rock the Grand Line with epic music!"*\n\nUse `/radio` to start listening to dubstep, rock, anime, and lo-fi stations!')
+          .addFields(
+            {
+              name: '🎵 Available Genres',
+              value: '🔥 **Dubstep** - Heavy bass and drops\n🎸 **Rock & Metal** - Classic and modern hits\n🎌 **Anime & J-Pop** - Japanese music paradise\n🎧 **Lo-Fi** - Chill beats for relaxation',
+              inline: false
+            }
+          )
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -504,7 +564,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (One Piece collection), uta');
+    console.log('✅ Commands loaded: radio (Dubstep/Rock/Anime/Lo-Fi collection), uta');
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
