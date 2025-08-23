@@ -425,11 +425,20 @@ setTimeout(async () => {
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
-                // SUCCESS: Quick dismiss message to stop "thinking"
+                // SUCCESS: Show brief success message then auto-dismiss
                 await componentInteraction.editReply({
                   content: '✅ Connected!',
                   ephemeral: true
                 });
+                
+                // Auto-dismiss after 2 seconds
+                setTimeout(async () => {
+                  try {
+                    await componentInteraction.deleteReply();
+                  } catch (err) {
+                    // Ignore errors if already dismissed
+                  }
+                }, 2000);
                 
               } catch (error) {
                 console.error(`❌ Stream failed:`, error);
