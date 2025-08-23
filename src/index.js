@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import http from 'node:http';
+import { RADIO_STATIONS } from './config/stations.js';
 
 // PRIORITY: Start health server immediately
-console.log('🚀 STARTING UTA DJ BOT - ONE PIECE RADIO');
+console.log('🚀 STARTING UTA DJ BOT - HARD BASS EDITION');
 console.log('📅 Time:', new Date().toISOString());
 console.log('🎯 PORT:', process.env.PORT || 3000);
 
@@ -38,169 +39,6 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
-
-// VERIFIED WORKING RADIO STATIONS - Updated with popular music channels
-const RADIO_STATIONS = {
-  // ✅ LO-FI & CHILL - Keep as requested
-  'lofi_girl': { 
-    name: 'Lofi Girl - Study Beats', 
-    description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
-    url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    fallback: 'http://streaming.radionomy.com/LoFi-Hip-Hop',
-    genre: 'Lo-Fi',
-    quality: 'Premium'
-  },
-  'poolsuite_fm': { 
-    name: 'Poolsuite FM', 
-    description: 'Summer vibes and yacht rock for chill sessions',
-    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  
-  // ✅ ANIME & J-POP - Keep as requested
-  'listen_moe_jpop': { 
-    name: 'LISTEN.moe J-Pop Radio', 
-    description: 'Japanese music and anime soundtracks with real artists',
-    url: 'https://listen.moe/stream',
-    fallback: 'https://listen.moe/fallback',
-    genre: 'Anime',
-    quality: 'High'
-  },
-  'listen_moe_kpop': { 
-    name: 'LISTEN.moe K-Pop Radio', 
-    description: 'Korean pop music with trendy K-Pop hits',
-    url: 'https://listen.moe/kpop/stream',
-    fallback: 'https://listen.moe/stream',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
-  
-  // ✅ POPULAR MUSIC - Like "Die with a Smile" by Lady Gaga
-  'hits1_siriusxm': {
-    name: 'SiriusXM Hits 1',
-    description: 'Today\'s biggest pop hits including Lady Gaga, Taylor Swift, Dua Lipa',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/HITS1HITS.mp3',
-    fallback: 'https://playerservices.streamtheworld.com/api/livestream-redirect/HITS1HITS_SC',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  'z100_nyc': {
-    name: 'Z100 New York',
-    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
-    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  'kiis_fm_la': {
-    name: 'KIIS FM Los Angeles',
-    description: 'LA\'s hit music station with top 40 and current hits',
-    url: 'https://n37a-e2.revma.ihrhls.com/zc185',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KIISFMAAC.aac',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  
-  // ✅ DANCE/EDM - Popular electronic and dance music
-  'radio_record_dance': {
-    name: 'Radio Record Dance Hits',
-    description: 'Popular dance and electronic music with vocal tracks',
-    url: 'http://air.radiorecord.ru:805/dancehits_320',
-    fallback: 'http://air.radiorecord.ru:805/dancehits_128',
-    genre: 'Dance/EDM',
-    quality: 'High'
-  },
-  'radio_record_future': {
-    name: 'Radio Record Future House',
-    description: 'Future house and progressive with popular artists',
-    url: 'http://air.radiorecord.ru:805/fut_320',
-    fallback: 'http://air.radiorecord.ru:805/fut_128',
-    genre: 'Dance/EDM',
-    quality: 'High'
-  },
-  'dance_uk': {
-    name: 'Dance UK Radio',
-    description: 'UK\'s hottest dance tracks and club anthems',
-    url: 'https://listen.danceradiouk.com/live',
-    fallback: 'https://edge-bauerall-01-gos2.sharp-stream.com/danceradiouk.mp3',
-    genre: 'Dance/EDM',
-    quality: 'High'
-  },
-  
-  // ✅ HIP-HOP & R&B - Popular urban music
-  'power_106_la': {
-    name: 'Power 106 Los Angeles',
-    description: 'LA\'s #1 for hip-hop and R&B hits',
-    url: 'https://n10a-e2.revma.ihrhls.com/zc197',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRAAC.aac',
-    genre: 'Hip-Hop/R&B',
-    quality: 'High'
-  },
-  'hot97_nyc': {
-    name: 'Hot 97 New York',
-    description: 'NYC\'s original hip-hop and R&B station',
-    url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/WQHTFM_SC',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/WQHTFMAAC.aac',
-    genre: 'Hip-Hop/R&B',
-    quality: 'High'
-  },
-  
-  // ✅ ROCK & ALTERNATIVE - Popular rock hits
-  'kroq_la': {
-    name: 'KROQ Los Angeles',
-    description: 'LA\'s world-famous rock station with alternative hits',
-    url: 'https://n37a-e2.revma.ihrhls.com/zc181',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KROQFMAAC.aac',
-    genre: 'Rock/Alternative',
-    quality: 'High'
-  },
-  'alt_nation_siriusxm': {
-    name: 'SiriusXM Alt Nation',
-    description: 'Alternative rock and indie hits',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/ALTNATIONHITS.mp3',
-    fallback: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ALTNATIONHITS_SC',
-    genre: 'Rock/Alternative',
-    quality: 'High'
-  },
-  
-  // ✅ INTERNATIONAL HITS - Global popular music
-  'nrj_france': {
-    name: 'NRJ France',
-    description: 'French radio with international pop and dance hits',
-    url: 'http://cdn.nrjaudio.fm/adwz1/fr/30001/mp3_128.mp3',
-    fallback: 'https://scdn.nrjaudio.fm/adwz1/fr/30001/aac_64.aac',
-    genre: 'International Pop',
-    quality: 'High'
-  },
-  'kiss_fm_uk': {
-    name: 'Kiss FM UK',
-    description: 'UK\'s biggest dance and pop hits',
-    url: 'https://kissfmuk.kissfmuk.com/stream',
-    fallback: 'http://icecast.thisisdax.com/KissFMUK',
-    genre: 'Dance/Pop',
-    quality: 'High'
-  },
-  
-  // ✅ CLASSIC HITS - Popular songs from past decades
-  'absolute_80s': {
-    name: 'Absolute 80s',
-    description: '80s classics and synthwave hits',
-    url: 'https://ais-edge09-live365-dal02.cdnstream.com/a14550',
-    fallback: 'http://icecast.thisisdax.com/Absolute80sHQ',
-    genre: 'Classic Hits',
-    quality: 'High'
-  },
-  'absolute_90s': {
-    name: 'Absolute 90s',
-    description: '90s pop, rock, and dance classics',
-    url: 'https://ais-edge09-live365-dal02.cdnstream.com/a14540',
-    fallback: 'http://icecast.thisisdax.com/Absolute90sHQ',
-    genre: 'Classic Hits',
-    quality: 'High'
-  }
-};
 
 // Simple Radio Manager with fallback support
 class SimpleRadioManager {
@@ -353,11 +191,11 @@ setTimeout(async () => {
 
     const radioManager = new SimpleRadioManager();
 
-    // Updated radio command with new stations
+    // Updated radio command with HARD BASS focus
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🎵 Stream popular music hits and genres'),
+        .setDescription('🔊 Stream HARD BASS DROP music and electronic beats'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -368,7 +206,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first to start the music!')
+              .setDescription('Join a voice channel first to experience the BASS DROP! 🔊')
             ],
             ephemeral: true
           });
@@ -379,7 +217,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Music Service Offline')
-              .setDescription('The music system is down. Try again in a moment!')
+              .setDescription('The BASS system is down. Try again in a moment! ⚡')
             ],
             ephemeral: true
           });
@@ -393,37 +231,37 @@ setTimeout(async () => {
 
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId('radio_select')
-          .setPlaceholder('Choose your music adventure...')
+          .setPlaceholder('Choose your BASS ADVENTURE...')
           .addOptions(stationOptions);
 
         const stopButton = new ButtonBuilder()
           .setCustomId('radio_stop')
-          .setLabel('Stop Music')
+          .setLabel('STOP BASS')
           .setStyle(ButtonStyle.Danger)
-          .setEmoji('🛑');
+          .setEmoji('🔊');
 
         const embed = new EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🎵 Uta\'s Popular Music Collection')
-          .setDescription('🎤 *"Ready to play today\'s biggest hits and popular songs!"* 🎤\n\nFrom Lady Gaga to Taylor Swift, K-Pop to Hip-Hop - all the music you love!')
+          .setColor('#FF0040')
+          .setTitle('🔊 UTA\'S HARD BASS DROP COLLECTION')
+          .setDescription('💀 *"Ready to DESTROY your speakers with the HARDEST drops!"* 💀\n\nFrom BRUTAL dubstep to CRUSHING hardstyle - feel the BASS!')
           .addFields(
             {
-              name: '🎵 Available Genres',
-              value: '🔥 **Pop Hits** • 🎌 **K-Pop & J-Pop** • 💃 **Dance/EDM** • 🎤 **Hip-Hop/R&B** • 🎸 **Rock/Alternative** • 🌍 **International** • 📻 **Classic Hits** • 🎧 **Lo-Fi Chill**',
+              name: '💀 HARD BASS GENRES',
+              value: '🔥 **DUBSTEP** • ⚡ **HARDSTYLE** • 💣 **D&B** • 🌀 **TRAP** • 🔊 **TECHNO** • 💀 **HARDCORE** • 🎌 **ANIME** • 🎧 **LO-FI**',
               inline: false
             },
             {
-              name: '🎭 Featured Stations',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** with real artists, vocals, and chart-topping hits!`,
+              name: '🎭 BASS DROP ARSENAL',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** loaded with BRUTAL drops and CRUSHING bass!`,
               inline: false
             },
             {
-              name: '🎵 What You\'ll Hear',
-              value: '• 🎤 **Popular artists** like Lady Gaga, Taylor Swift, Drake\n• 🔥 **Chart toppers** and trending hits\n• 👑 **High quality** streams from major radio stations\n• 🌟 **Real vocals** and mainstream music',
+              name: '🔊 WARNING: HEAVY BASS',
+              value: '• 💀 **HARD DROPS** that will shake your soul\n• ⚡ **HIGH ENERGY** electronic mayhem\n• 🔊 **BRUTAL BASS** that hits HARD\n• 💣 **CRUSHING BEATS** for true bass heads',
               inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Radio • Playing the hits you love! 🎵✨' })
+          .setFooter({ text: 'Uta\'s BASS ARSENAL • PREPARE FOR IMPACT! 💀🔊' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -453,7 +291,7 @@ setTimeout(async () => {
                 // Check bot permissions first
                 const permissions = voiceChannel.permissionsFor(interaction.client.user);
                 if (!permissions.has(['Connect', 'Speak'])) {
-                  throw new Error('Uta needs Connect/Speak permissions to perform!');
+                  throw new Error('Uta needs Connect/Speak permissions for the BASS DROP!');
                 }
                 
                 player = await client.shoukaku.joinVoiceChannel({
@@ -465,38 +303,38 @@ setTimeout(async () => {
                 // Wait a moment for connection to stabilize
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                await player.setGlobalVolume(75);
-                console.log('✅ Uta connected and volume set to 75');
+                await player.setGlobalVolume(85); // Higher volume for BASS
+                console.log('✅ Uta connected and BASS volume set to 85');
               } else {
-                console.log('🔊 Uta already performing');
-                await player.setGlobalVolume(75);
+                console.log('🔊 Uta already DROPPING BASS');
+                await player.setGlobalVolume(85); // Ensure high volume for bass
               }
 
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
-                // SUCCESS: Show brief success message then auto-dismiss
+                // SUCCESS: Show BASS success message then auto-dismiss
                 await componentInteraction.editReply({
-                  content: '✅ Connected!',
+                  content: `🔊 BASS DROP INITIATED! Playing ${stationInfo.name}`,
                   ephemeral: true
                 });
                 
-                // Auto-dismiss after 2 seconds
+                // Auto-dismiss after 3 seconds
                 setTimeout(async () => {
                   try {
                     await componentInteraction.deleteReply();
                   } catch (err) {
                     // Ignore errors if already dismissed
                   }
-                }, 2000);
+                }, 3000);
                 
               } catch (error) {
-                console.error(`❌ Stream failed:`, error);
+                console.error(`❌ BASS DROP FAILED:`, error);
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor('#FF0000')
-                    .setTitle('❌ Connection Failed!')
-                    .setDescription(`Couldn't connect to ${stationInfo.name}`)
+                    .setTitle('💀 BASS DROP FAILED!')
+                    .setDescription(`Couldn't connect to ${stationInfo.name} - BASS system malfunction!`)
                     .addFields(
                       {
                         name: '🔧 Error Details',
@@ -504,8 +342,8 @@ setTimeout(async () => {
                         inline: false
                       },
                       {
-                        name: '💡 Suggested Actions',
-                        value: 'Try another station - some radio streams may have temporary issues or geographic restrictions.',
+                        name: '💡 Try Another BASS Station',
+                        value: 'Some radio streams may have temporary issues. Try another station for your BASS FIX!',
                         inline: false
                       }
                     )
@@ -526,14 +364,14 @@ setTimeout(async () => {
               await componentInteraction.editReply({
                 embeds: [new EmbedBuilder()
                   .setColor('#00FF00')
-                  .setTitle('🛑 Music Stopped!')
-                  .setDescription('Uta has finished her performance and the music has stopped! 🎤')
+                  .setTitle('🔊 BASS SYSTEM SHUTDOWN!')
+                  .setDescription('Uta has stopped the BASS DROP and the speakers are safe... for now! 💀')
                   .addFields({
-                    name: '🎵 Thanks for listening!',
-                    value: 'The musical journey continues whenever you\'re ready to start again!',
+                    name: '🎵 BASS SESSION COMPLETE',
+                    value: 'The HARD BASS adventure is paused. Ready to DROP more BASS whenever you are!',
                     inline: false
                   })
-                  .setFooter({ text: 'Until the next song! 🎵✨' })
+                  .setFooter({ text: 'Until the next BASS DROP! 💀🔊' })
                 ]
               });
             }
@@ -544,35 +382,35 @@ setTimeout(async () => {
       }
     };
 
-    // Updated Uta command
+    // Updated Uta command with BASS focus
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('🎤 Uta\'s popular music panel'),
+        .setDescription('💀 Uta\'s HARD BASS music panel'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🎤 Uta\'s Music Studio - Popular Hits')
-          .setDescription('*"Ready to play all your favorite songs and trending hits!"* 🎵\n\nUse `/radio` to access the ultimate music collection with popular artists and chart-toppers!')
+          .setColor('#FF0040')
+          .setTitle('💀 UTA\'S BASS STUDIO - HARD DROPS ONLY')
+          .setDescription('*"Ready to ANNIHILATE your ears with the HARDEST bass drops!"* 🔊\n\nUse `/radio` to access the ULTIMATE BASS collection with BRUTAL drops!')
           .addFields(
             {
-              name: '🎵 Popular Music Collection',
-              value: '🔥 **Pop Hits** - Lady Gaga, Taylor Swift, Dua Lipa\n🎤 **Hip-Hop/R&B** - Drake, Ariana Grande, The Weeknd\n💃 **Dance/EDM** - Calvin Harris, David Guetta, Marshmello',
+              name: '💀 HARD BASS ARSENAL',
+              value: '🔥 **DUBSTEP** - BRUTAL drops that crush souls\n⚡ **HARDSTYLE** - Epic vocals with CRUSHING drops\n💣 **D&B/NEUROFUNK** - HIGH-ENERGY with BRUTAL bass',
               inline: false
             },
             {
-              name: '🌍 Global Genres Available',
-              value: '🎌 **K-Pop & J-Pop** - BTS, BLACKPINK, anime soundtracks\n🎸 **Rock/Alternative** - Imagine Dragons, OneRepublic\n📻 **Classic Hits** - 80s, 90s, and 2000s favorites',
+              name: '🌍 GLOBAL BASS DOMINATION',
+              value: '🇷🇺 **Radio Record** - Russian BASS powerhouse\n💀 **HARDCORE/GABBER** - BRUTAL European bass\n🎌 **J-POP/K-POP** - For recovery between BASS sessions',
               inline: false
             },
             {
-              name: '🎭 Uta\'s Promise',
-              value: '• 🎤 **Real popular artists** with vocals and lyrics\n• 🔥 **Chart-topping hits** and trending songs\n• 👑 **High-quality streams** from major radio stations\n• 🌟 **Mainstream music** you know and love',
+              name: '💀 UTA\'S BASS PROMISE',
+              value: '• 🔊 **MAXIMUM BASS** that will shake your house\n• ⚡ **CRUSHING DROPS** and BRUTAL beats\n• 💀 **HIGH VOLUME** optimized for BASS HEADS\n• 🎭 **SPEAKER DESTRUCTION** is guaranteed',
               inline: false
             }
           )
-          .setFooter({ text: 'The world\'s #1 songstress ready to play your favorites! 🎤✨' })
+          .setFooter({ text: 'BASS QUEEN ready to DESTROY! 💀🔊' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -583,7 +421,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (Popular Music with working URLs), uta');
+    console.log(`✅ Commands loaded: radio (HARD BASS with ${Object.keys(RADIO_STATIONS).length} stations), uta`);
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -622,4 +460,4 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🎬 Popular music radio bot initialization started');
+console.log('🔊 HARD BASS radio bot initialization started');
