@@ -455,20 +455,14 @@ setTimeout(async () => {
                 }
 
                 const permissions = currentVoiceChannel.permissionsFor(botMember);
-                let permissionSummary = 'Error getting permissions';
-                try {
-                  const hasConnect = permissions?.has('Connect') || false;
-                  const hasSpeak = permissions?.has('Speak') || false;
-                  const hasView = permissions?.has('ViewChannel') || false;
-                  const hasVAD = permissions?.has('UseVAD') || false;
-                  const permCount = permissions?.toArray()?.length || 0;
-                  
-                  permissionSummary = `Connect:${hasConnect}, Speak:${hasSpeak}, View:${hasView}, VAD:${hasVAD}, Total:${permCount}`;
-                } catch (permError) {
-                  console.error('❌ Error checking permissions:', permError.message);
-                }
+                console.log(`🔐 Bot permissions check:`, {
+                  connect: permissions?.has('Connect'),
+                  speak: permissions?.has('Speak'),
+                  viewChannel: permissions?.has('ViewChannel'),
+                  useVAD: permissions?.has('UseVAD'),
+                  allPermissions: permissions?.toArray() || []
+                });
 
-                console.log(`🔐 Bot permissions: ${permissionSummary}`);
                 console.log('✅ Permission checks completed, proceeding with connection...');
 
                 if (!permissions || !permissions.has('Connect') || !permissions.has('Speak')) {
