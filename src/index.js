@@ -297,7 +297,7 @@ setTimeout(async () => {
 
     const radioManager = new SimpleRadioManager();
 
-    // ENHANCED radio command with auto-reconnection
+    // Bulletproof radio command
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
@@ -383,193 +383,79 @@ setTimeout(async () => {
               
               await componentInteraction.deferReply({ ephemeral: true });
 
-              // ENHANCED: Get current user's voice channel (they might have moved)
-              const currentMember = await componentInteraction.guild.members.fetch(componentInteraction.user.id);
-              const currentVoiceChannel = currentMember?.voice?.channel;
-              
-              if (!currentVoiceChannel) {
-                return componentInteraction.editReply({
-                  embeds: [new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('❌ Voice Channel Required')
-                    .setDescription('You need to be in a voice channel to switch stations!')
-                  ]
-                });
-              }
-
-              console.log(`🔍 Checking player status for guild: ${interaction.guildId}`);
-              
-              // ENHANCED: Check if player exists and is properly connected
+              // Get or create player with better error handling
               let player = client.shoukaku.players.get(interaction.guildId);
-              let needsReconnection = false;
-
-              if (player) {
-                // Check if player is still connected to voice
-                console.log(`🔊 Existing player found. Connection state:`, {
-                  connected: player.connected,
-                  channelId: player.channelId,
-                  currentChannelId: currentVoiceChannel.id,
-                  playing: player.playing,
-                  paused: player.paused
-                });
-
-                // Check if player is connected to the wrong channel or disconnected
-                if (!player.connected || player.channelId !== currentVoiceChannel.id) {
-                  console.log('🔄 Player needs reconnection - disconnected or wrong channel');
-                  needsReconnection = true;
-                  
-                  try {
-                    // Clean up the old player
-                    await player.destroy();
-                    client.shoukaku.players.delete(interaction.guildId);
-                    player = null;
-                    console.log('🧹 Cleaned up old player');
-                  } catch (cleanupError) {
-                    console.log('⚠️ Error cleaning up old player:', cleanupError.message);
-                    // Continue anyway
-                  }
-                }
-              } else {
-                console.log('🔄 No existing player found, will create new one');
-                needsReconnection = true;
-              }
-
-              // ENHANCED: Create or reconnect player if needed
-              if (needsReconnection || !player) {
-                console.log(`🔊 ${needsReconnection ? 'Reconnecting' : 'Connecting'} to voice channel: ${currentVoiceChannel.name}`);
+              
+              if (!player) {
+                console.log(`🔊 Bot not in voice channel. Joining: ${voiceChannel.name}`);
                 
-                // Check bot permissions
-                const permissions = currentVoiceChannel.permissionsFor(interaction.client.user);
-                if (!permissions || !permissions.has(['Connect', 'Speak'])) {
-                  return componentInteraction.editReply({
-                    embeds: [new EmbedBuilder()
-                      .setColor('#FF0000')
-                      .setTitle('❌ Missing Permissions')
-                      .setDescription('Bot missing Connect/Speak permissions in your voice channel!')
-                    ]
-                  });
+                // Check bot permissions first
+                const permissions = voiceChannel.permissionsFor(interaction.client.user);
+                if (!permissions.has(['Connect', 'Speak'])) {
+                  throw new Error('Bot missing Connect/Speak permissions in voice channel');
                 }
-
-                try {
-                  // Create new player
-                  player = await client.shoukaku.joinVoiceChannel({
-                    guildId: interaction.guildId,
-                    channelId: currentVoiceChannel.id,
-                    shardId: interaction.guild.shardId
-                  });
-                  
-                  // Wait for connection to stabilize
-                  await new Promise(resolve => setTimeout(resolve, 1500));
-                  
-                  // Verify connection
-                  if (!player.connected) {
-                    throw new Error('Player failed to connect after creation');
-                  }
-                  
-                  await player.setGlobalVolume(75);
-                  console.log('✅ Voice connection established and volume set to 75');
-                  
-                  // Show reconnection message
-                  if (needsReconnection) {
-                    await componentInteraction.followUp({
-                      embeds: [new EmbedBuilder()
-                        .setColor('#00FF94')
-                        .setTitle('🔄 Reconnected!')
-                        .setDescription(`Successfully reconnected to **${currentVoiceChannel.name}**`)
-                      ],
-                      ephemeral: true
-                    });
-                  }
-                  
-                } catch (connectionError) {
-                  console.error('❌ Failed to create/reconnect player:', connectionError);
-                  return componentInteraction.editReply({
-                    embeds: [new EmbedBuilder()
-                      .setColor('#FF0000')
-                      .setTitle('❌ Connection Failed')
-                      .setDescription(`Could not connect to voice channel: ${connectionError.message}`)
-                    ]
-                  });
-                }
+                
+                player = await client.shoukaku.joinVoiceChannel({
+                  guildId: interaction.guildId,
+                  channelId: voiceChannel.id,
+                  shardId: interaction.guild.shardId
+                });
+                
+                // Wait a moment for connection to stabilize
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                await player.setGlobalVolume(75); // Increased volume
+                console.log('✅ Voice connection established and volume set to 75');
+              } else {
+                console.log('🔊 Bot already in voice channel');
+                // Make sure volume is set
+                await player.setGlobalVolume(75);
               }
 
-              // ENHANCED: Verify player is ready before streaming
-              if (!player || !player.connected) {
-                return componentInteraction.editReply({
+              try {
+                const result = await radioManager.connectToStream(player, selectedStation);
+                
+                await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('❌ Connection Error')
-                    .setDescription('Player is not properly connected. Please try again.')
+                    .setColor('#00FF00')
+                    .setTitle('🎵 Now Playing on the Thousand Sunny!')
+                    .setDescription(`**${result.station.name}** is streaming across the Grand Line!`)
+                    .addFields(
+                      {
+                        name: '🎶 Station',
+                        value: result.station.description,
+                        inline: false
+                      },
+                      {
+                        name: '🎵 Genre',
+                        value: result.station.genre,
+                        inline: true
+                      },
+                      {
+                        name: '🔊 Voice Channel',
+                        value: voiceChannel.name,
+                        inline: true
+                      }
+                    )
+                    .setFooter({ text: 'Adventure continues with great music! 🏴‍☠️' })
+                    .setTimestamp()
                   ]
                 });
-              }
 
-              // ENHANCED: Start the stream with retry logic
-              let streamAttempts = 0;
-              const maxStreamAttempts = 3;
-              let streamSuccess = false;
-
-              while (!streamSuccess && streamAttempts < maxStreamAttempts) {
-                streamAttempts++;
-                console.log(`🎵 Stream attempt ${streamAttempts}/${maxStreamAttempts} for ${stationInfo.name}`);
-
-                try {
-                  const result = await radioManager.connectToStream(player, selectedStation);
-                  streamSuccess = true;
-                  
-                  await componentInteraction.editReply({
-                    embeds: [new EmbedBuilder()
-                      .setColor('#00FF00')
-                      .setTitle('🎵 Now Playing on the Thousand Sunny!')
-                      .setDescription(`**${result.station.name}** is streaming across the Grand Line!`)
-                      .addFields(
-                        {
-                          name: '🎶 Station',
-                          value: result.station.description,
-                          inline: false
-                        },
-                        {
-                          name: '🎵 Genre',
-                          value: result.station.genre,
-                          inline: true
-                        },
-                        {
-                          name: '🔊 Voice Channel',
-                          value: currentVoiceChannel.name,
-                          inline: true
-                        },
-                        {
-                          name: '🔄 Connection',
-                          value: needsReconnection ? '✅ Reconnected' : '✅ Connected',
-                          inline: true
-                        }
-                      )
-                      .setFooter({ text: 'Adventure continues with great music! 🏴‍☠️' })
-                      .setTimestamp()
-                    ]
-                  });
-
-                } catch (streamError) {
-                  console.error(`❌ Stream attempt ${streamAttempts} failed:`, streamError.message);
-                  
-                  if (streamAttempts >= maxStreamAttempts) {
-                    await componentInteraction.editReply({
-                      embeds: [new EmbedBuilder()
-                        .setColor('#FF0000')
-                        .setTitle('❌ Stream Failed')
-                        .setDescription(`Could not start ${stationInfo.name} after ${maxStreamAttempts} attempts`)
-                        .addFields({
-                          name: '🔧 Last Error',
-                          value: streamError.message,
-                          inline: false
-                        })
-                      ]
-                    });
-                  } else {
-                    // Wait before retry
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                  }
-                }
+              } catch (error) {
+                console.error(`❌ Stream failed:`, error);
+                await componentInteraction.editReply({
+                  embeds: [new EmbedBuilder()
+                    .setColor('#FF0000')
+                    .setTitle('❌ Stream Failed')
+                    .setDescription(`Could not start ${stationInfo.name}`)
+                    .addFields({
+                      name: '🔧 Error',
+                      value: error.message,
+                      inline: false
+                    })
+                  ]
+                });
               }
 
             } else if (componentInteraction.customId === 'radio_stop') {
@@ -577,16 +463,9 @@ setTimeout(async () => {
 
               const player = client.shoukaku.players.get(interaction.guildId);
               if (player) {
-                try {
-                  await player.stopTrack();
-                  await player.disconnect();
-                  client.shoukaku.players.delete(interaction.guildId);
-                  console.log('✅ Successfully stopped and disconnected player');
-                } catch (error) {
-                  console.error('❌ Error stopping player:', error.message);
-                  // Force cleanup
-                  client.shoukaku.players.delete(interaction.guildId);
-                }
+                await player.stopTrack();
+                await player.disconnect();
+                client.shoukaku.players.delete(interaction.guildId);
               }
 
               await componentInteraction.editReply({
@@ -599,22 +478,7 @@ setTimeout(async () => {
             }
           } catch (error) {
             console.error('❌ Radio interaction error:', error);
-            
-            if (!componentInteraction.replied && !componentInteraction.deferred) {
-              await componentInteraction.reply({
-                embeds: [new EmbedBuilder()
-                  .setColor('#FF0000')
-                  .setTitle('❌ Unexpected Error')
-                  .setDescription('Something went wrong. Please try again.')
-                ],
-                ephemeral: true
-              }).catch(() => {});
-            }
           }
-        });
-
-        collector.on('end', () => {
-          console.log('📻 Radio collector ended');
         });
       }
     };
@@ -655,38 +519,6 @@ setTimeout(async () => {
     client.once(Events.ClientReady, () => {
       console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
       global.discordReady = true;
-    });
-
-    // ENHANCED: Voice state change handler for automatic cleanup
-    client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-      // Check if this is the bot being moved/disconnected
-      if (newState.id === client.user.id) {
-        const player = client.shoukaku.players.get(newState.guild.id);
-        
-        if (player) {
-          // Bot was disconnected from voice
-          if (oldState.channelId && !newState.channelId) {
-            console.log(`🔌 Bot disconnected from voice channel in guild ${newState.guild.id}`);
-            
-            // Clean up the player
-            try {
-              await player.destroy();
-              client.shoukaku.players.delete(newState.guild.id);
-              console.log('🧹 Cleaned up player after disconnect');
-            } catch (error) {
-              console.error('❌ Error cleaning up player:', error.message);
-            }
-          }
-          // Bot was moved to a different channel
-          else if (oldState.channelId !== newState.channelId && newState.channelId) {
-            console.log(`🔄 Bot moved from ${oldState.channel?.name} to ${newState.channel?.name}`);
-            
-            // Update player channel (Shoukaku handles this automatically)
-            // Just log the change
-            console.log('✅ Player automatically updated for new channel');
-          }
-        }
-      }
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
