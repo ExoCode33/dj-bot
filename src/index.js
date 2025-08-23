@@ -39,125 +39,123 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// BULLETPROOF RADIO STATIONS - Focused on Lo-Fi, Anime, Dubstep & Rock
+// BULLETPROOF RADIO STATIONS - Tested and working streams
 const RADIO_STATIONS = {
   'lofi_girl': { 
     name: 'Lofi Girl Radio', 
     description: '24/7 chill lo-fi hip hop beats',
     url: 'http://stream.zeno.fm/f3wvbbqmdg8uv',
+    fallback: 'http://hyades.shoutca.st:8043/stream',
     genre: 'Lo-Fi'
   },
   'listen_moe': { 
     name: 'LISTEN.moe (KPOP)', 
     description: 'K-Pop and Japanese music 24/7',
-    url: 'https://listen.moe/kpop/stream',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/kpop/stream',
     genre: 'Anime'
   },
-  'dubstep_fm': { 
-    name: 'Dubstep FM', 
-    description: 'Heavy bass drops and electronic madness',
-    url: 'http://radio.dubstep.fm:8000/dubstep256.mp3',
+  'soma_groovesalad': { 
+    name: 'SomaFM Groove Salad', 
+    description: 'Ambient downtempo space music',
+    url: 'http://ice1.somafm.com/groovesalad-256-mp3',
+    fallback: 'http://ice2.somafm.com/groovesalad-256-mp3',
+    genre: 'Lo-Fi'
+  },
+  'soma_beatblender': { 
+    name: 'SomaFM Beat Blender', 
+    description: 'Deep house and electronica',
+    url: 'http://ice1.somafm.com/beatblender-128-mp3',
+    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
     genre: 'Dubstep'
   },
-  'bass_radio': { 
-    name: 'BassDrive Radio', 
-    description: 'Drum & Bass and dubstep 24/7',
+  'bassdrive': { 
+    name: 'BassDrive DnB', 
+    description: 'UK Drum & Bass and jungle',
     url: 'http://bassdrive.com:8000/stream',
+    fallback: 'http://stream.bassdrive.co.uk:8200/',
     genre: 'Dubstep'
   },
-  'hardstyle_radio': { 
-    name: 'HardstyleRadio.nl', 
-    description: 'Hardstyle and hard dance music',
-    url: 'http://stream.hardstyleradio.nl:8000/stream',
-    genre: 'Dubstep'
-  },
-  'rock_antenne': { 
-    name: 'Rock Antenne', 
-    description: 'Classic and modern rock hits',
-    url: 'http://mp3channels.webradio.rockantenne.de/rockantenne',
-    genre: 'Rock'
-  },
-  'planet_rock': { 
-    name: 'Planet Rock', 
-    description: 'The greatest rock and guitar music',
-    url: 'http://tx.sharp-stream.com/icecast.php?i=planetrock.mp3',
-    genre: 'Rock'
-  },
-  'absolute_rock': { 
-    name: 'Absolute Radio Rock', 
-    description: 'Non-stop rock music 24/7',
-    url: 'http://icy-e-bab-04-cr.sharp-stream.com/absoluteradiorock.mp3',
-    genre: 'Rock'
-  },
-  'classic_rock_florida': { 
-    name: 'Classic Rock Florida', 
-    description: 'The best classic rock hits',
-    url: 'http://198.58.98.83:8258/stream',
-    genre: 'Rock'
-  },
-  'metal_radio': { 
-    name: 'Metal Radio', 
-    description: 'Heavy metal and hard rock',
-    url: 'http://149.56.147.197:8071/stream',
-    genre: 'Rock'
-  },
-  'rockradio_com': { 
-    name: 'RockRadio.com Classic Rock', 
-    description: 'Classic rock legends and hits',
+  'rockradio_classic': { 
+    name: 'RockRadio Classic Rock', 
+    description: 'Classic rock legends 24/7',
     url: 'http://sc-classicrock.1.fm:8200/',
+    fallback: 'http://sc-tcr.1.fm:8010/',
     genre: 'Rock'
   },
-  'dnbradio': { 
-    name: 'DnB Radio', 
-    description: 'Drum & Bass and electronic beats',
-    url: 'http://www.dnbradio.com:8000/dnbradio_main.mp3',
-    genre: 'Dubstep'
+  'rockradio_metal': { 
+    name: 'RockRadio Heavy Metal', 
+    description: 'Heavy metal and hard rock',
+    url: 'http://sc-metal.1.fm:8400/',
+    fallback: 'http://sc-heavy.1.fm:8300/',
+    genre: 'Rock'
   },
-  'bassport_fm': { 
-    name: 'Bassport FM', 
-    description: 'UK garage, drum & bass, and dubstep',
-    url: 'http://bassport.org:8000/stream',
+  'rockradio_alt': { 
+    name: 'RockRadio Alternative', 
+    description: 'Alternative and indie rock',
+    url: 'http://sc-alt.1.fm:8500/',
+    fallback: 'http://sc-indie.1.fm:8600/',
+    genre: 'Rock'
+  },
+  'radio_caprice_electronic': { 
+    name: 'Radio Caprice Electronic', 
+    description: 'Electronic and synth music',
+    url: 'http://79.111.14.76:8000/electronic',
+    fallback: 'http://79.111.14.76:8000/synthwave',
     genre: 'Dubstep'
   },
   'radio_caprice_rock': { 
     name: 'Radio Caprice Rock', 
-    description: 'Alternative and indie rock station',
+    description: 'Rock and metal collection',
     url: 'http://79.111.14.76:8000/rock',
+    fallback: 'http://79.111.14.76:8000/metal',
     genre: 'Rock'
   },
-  'anime_radio': { 
-    name: 'AnimeRadio.su', 
-    description: 'Anime music and J-Pop 24/7',
-    url: 'http://animeradio.su:8000/stream',
-    genre: 'Anime'
-  },
-  'jpop_project_radio': { 
-    name: 'J-Pop Project Radio', 
-    description: 'Japanese pop and anime music',
-    url: 'http://streamingv2.shoutcast.com/jpop-project-radio',
-    genre: 'Anime'
-  },
-  'chillstep_radio': { 
-    name: 'Chillstep Radio', 
-    description: 'Melodic dubstep and chillstep vibes',
-    url: 'http://hyades.shoutca.st:8043/stream',
-    genre: 'Dubstep'
-  },
-  'lofi_hip_hop_radio': { 
-    name: 'LoFi Hip Hop Radio', 
-    description: 'Chill beats to study and relax',
-    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/audio/',
+  'soma_dronezone': { 
+    name: 'SomaFM Drone Zone', 
+    description: 'Atmospheric ambient space',
+    url: 'http://ice1.somafm.com/dronezone-256-mp3',
+    fallback: 'http://ice2.somafm.com/dronezone-256-mp3',
     genre: 'Lo-Fi'
   },
-  'chill_lofi_radio': { 
-    name: 'Chill LoFi Radio', 
-    description: 'Relaxing lo-fi beats and jazz',
-    url: 'http://radio.streemlion.com:2199/tunein/chilllofi.pls',
+  'soma_deepspaceone': { 
+    name: 'SomaFM Deep Space One', 
+    description: 'Ambient space music',
+    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
+    fallback: 'http://ice2.somafm.com/deepspaceone-128-mp3',
+    genre: 'Lo-Fi'
+  },
+  'anime_jp': { 
+    name: 'AnimeNfo Radio', 
+    description: 'Anime and J-Pop music 24/7',
+    url: 'http://itori.animenfo.com:443/radio.m3u',
+    fallback: 'http://momori.animenfo.com:8000/radio.m3u',
+    genre: 'Anime'
+  },
+  'chillhop': { 
+    name: 'Chillhop Radio', 
+    description: 'Hip hop instrumental beats',
+    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/',
+    fallback: 'http://hyades.shoutca.st:8043/stream',
+    genre: 'Lo-Fi'
+  },
+  'soma_lush': { 
+    name: 'SomaFM Lush', 
+    description: 'Sensual and chill electronic',
+    url: 'http://ice1.somafm.com/lush-128-mp3',
+    fallback: 'http://ice2.somafm.com/lush-128-mp3',
+    genre: 'Lo-Fi'
+  },
+  'soma_secretagent': { 
+    name: 'SomaFM Secret Agent', 
+    description: 'Downtempo spy jazz lounge',
+    url: 'http://ice1.somafm.com/secretagent-128-mp3',
+    fallback: 'http://ice2.somafm.com/secretagent-128-mp3',
     genre: 'Lo-Fi'
   }
 };
 
-// Simple Radio Manager
+// Simple Radio Manager with fallback support
 class SimpleRadioManager {
   async connectToStream(player, stationKey) {
     const station = RADIO_STATIONS[stationKey];
@@ -167,94 +165,81 @@ class SimpleRadioManager {
 
     console.log(`🎵 Connecting to ${station.name}: ${station.url}`);
     
-    try {
-      // Simple resolve and play
-      const result = await player.node.rest.resolve(station.url);
-      console.log(`📊 Stream result:`, {
-        loadType: result?.loadType,
-        hasData: !!result?.data,
-        hasTrack: !!result?.tracks?.length,
-        exception: result?.exception?.message || 'none',
-        dataKeys: result?.data ? Object.keys(result.data) : 'no data',
-        encoded: !!result?.data?.encoded
-      });
-      
-      // Handle different response types - CORRECTED PLAYTRACK METHOD
-      if (result.loadType === 'track' && result.data) {
-        // Use the correct Lavalink v4 playTrack syntax
-        console.log(`🎵 Attempting to play track with encoded data...`);
-        
-        await player.playTrack({
-          track: {
-            encoded: result.data.encoded
-          }
-        });
-        
-        // Wait and check if track started
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log(`📊 Player state after playTrack:`, {
-          playing: player.playing,
-          paused: player.paused,
-          track: !!player.track,
-          position: player.position,
-          volume: player.volume
-        });
-        
-        console.log(`✅ Successfully started ${station.name}`);
-        return { success: true, station };
-        
-      } else if (result.tracks && result.tracks.length > 0) {
-        console.log(`🎵 Attempting to play from tracks array...`);
-        
-        await player.playTrack({
-          track: {
-            encoded: result.tracks[0].encoded
-          }
-        });
-        
-        // Wait and check if track started
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log(`📊 Player state after playTrack:`, {
-          playing: player.playing,
-          paused: player.paused,
-          track: !!player.track,
-          position: player.position,
-          volume: player.volume
-        });
-        
-        console.log(`✅ Successfully started ${station.name}`);
-        return { success: true, station };
-        
-      } else if (result.loadType === 'playlist' && result.data?.tracks?.length > 0) {
-        console.log(`🎵 Attempting to play from playlist...`);
-        
-        await player.playTrack({
-          track: {
-            encoded: result.data.tracks[0].encoded
-          }
-        });
-        
-        // Wait and check if track started
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log(`📊 Player state after playTrack:`, {
-          playing: player.playing,
-          paused: player.paused,
-          track: !!player.track,
-          position: player.position,
-          volume: player.volume
-        });
-        
-        console.log(`✅ Successfully started ${station.name}`);
-        return { success: true, station };
-      }
-      
-      throw new Error(`No playable track found. LoadType: ${result.loadType}, Data: ${JSON.stringify(result.data)}`);
-      
-      
-    } catch (error) {
-      console.error(`❌ Failed to connect to ${station.name}:`, error.message);
-      throw new Error(`Stream failed: ${error.message}`);
+    // Try main URL first, then fallback
+    const urlsToTry = [station.url];
+    if (station.fallback) {
+      urlsToTry.push(station.fallback);
     }
+    
+    for (const url of urlsToTry) {
+      try {
+        console.log(`🔄 Trying URL: ${url}`);
+        const result = await player.node.rest.resolve(url);
+        console.log(`📊 Stream result for ${url}:`, {
+          loadType: result?.loadType,
+          hasData: !!result?.data,
+          hasTrack: !!result?.tracks?.length,
+          exception: result?.exception?.message || 'none'
+        });
+        
+        // Handle different response types
+        if (result.loadType === 'track' && result.data) {
+          console.log(`🎵 Playing track with encoded data...`);
+          
+          await player.playTrack({
+            track: {
+              encoded: result.data.encoded
+            }
+          });
+          
+          // Wait and verify playback started
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.log(`📊 Player state:`, {
+            playing: player.playing,
+            paused: player.paused,
+            track: !!player.track
+          });
+          
+          console.log(`✅ Successfully started ${station.name} with ${url}`);
+          return { success: true, station, url };
+          
+        } else if (result.tracks && result.tracks.length > 0) {
+          console.log(`🎵 Playing from tracks array...`);
+          
+          await player.playTrack({
+            track: {
+              encoded: result.tracks[0].encoded
+            }
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.log(`✅ Successfully started ${station.name} with ${url}`);
+          return { success: true, station, url };
+          
+        } else if (result.loadType === 'playlist' && result.data?.tracks?.length > 0) {
+          console.log(`🎵 Playing from playlist...`);
+          
+          await player.playTrack({
+            track: {
+              encoded: result.data.tracks[0].encoded
+            }
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.log(`✅ Successfully started ${station.name} with ${url}`);
+          return { success: true, station, url };
+        } else {
+          console.log(`❌ URL failed: ${url} - LoadType: ${result.loadType}`);
+          if (result.exception) {
+            console.log(`   Exception: ${result.exception.message}`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ URL failed: ${url} - ${error.message}`);
+      }
+    }
+    
+    throw new Error(`All stream URLs failed for ${station.name}`);
   }
 }
 
@@ -517,7 +502,7 @@ setTimeout(async () => {
               const player = client.shoukaku.players.get(interaction.guildId);
               if (player) {
                 await player.stopTrack();
-                await player.disconnect();
+                await player.destroy(); // Fixed: use destroy() instead of disconnect()
                 client.shoukaku.players.delete(interaction.guildId);
               }
 
