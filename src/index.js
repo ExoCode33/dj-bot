@@ -463,10 +463,7 @@ setTimeout(async () => {
                   allPermissions: permissions?.toArray() || []
                 });
 
-                console.log('✅ Permission checks completed, proceeding with connection...');
-
                 if (!permissions || !permissions.has('Connect') || !permissions.has('Speak')) {
-                  console.error('❌ Missing required permissions');
                   return componentInteraction.editReply({
                     embeds: [new EmbedBuilder()
                       .setColor('#FF0000')
@@ -481,64 +478,38 @@ setTimeout(async () => {
                   });
                 }
 
-                console.log('✅ All required permissions confirmed');
-
                 // Check if there are too many connections already
-                let existingPlayers;
-                try {
-                  existingPlayers = client.shoukaku.players.size;
-                  console.log(`🔧 Current active players: ${existingPlayers}`);
-                } catch (playersError) {
-                  console.error('❌ Error checking existing players:', playersError.message);
-                  existingPlayers = 'unknown';
-                }
+                const existingPlayers = client.shoukaku.players.size;
+                console.log(`🔧 Current active players: ${existingPlayers}`);
 
                 try {
-                  console.log('🔄 Starting connection attempt process...');
-                  
                   // ENHANCED: Multiple connection strategies
                   console.log('🔄 Attempting voice connection with multiple strategies...');
-                  
-                  let shoukakuStatus;
-                  try {
-                    shoukakuStatus = {
-                      nodes: client.shoukaku.nodes.size,
-                      players: client.shoukaku.players.size,
-                      nodeNames: Array.from(client.shoukaku.nodes.keys())
-                    };
-                    console.log('🔧 Shoukaku status:', shoukakuStatus);
-                  } catch (statusError) {
-                    console.error('❌ Error getting Shoukaku status:', statusError.message);
-                    shoukakuStatus = { error: statusError.message };
-                  }
+                  console.log('🔧 Shoukaku status:', {
+                    nodes: client.shoukaku.nodes.size,
+                    players: client.shoukaku.players.size,
+                    nodeNames: Array.from(client.shoukaku.nodes.keys())
+                  });
                   
                   // Strategy 1: Direct connection
                   let connectionSuccess = false;
                   let player = null;
                   let lastError = null;
 
-                  console.log('🎯 Starting connection strategy loop...');
-
                   for (let strategy = 1; strategy <= 3; strategy++) {
-                    console.log(`🎯 Connection Strategy ${strategy}/3 - Starting...`);
+                    console.log(`🎯 Connection Strategy ${strategy}/3`);
                     
                     try {
-                      console.log(`🧹 Strategy ${strategy}: Checking for existing player...`);
-                      
                       // Clean up any existing player first
                       const existingPlayer = client.shoukaku.players.get(interaction.guildId);
                       if (existingPlayer) {
                         console.log('🧹 Cleaning up existing player before retry...');
                         try {
                           await existingPlayer.destroy();
-                          console.log('🧹 Existing player destroyed successfully');
                         } catch (destroyError) {
                           console.log('⚠️ Error destroying existing player:', destroyError.message);
                         }
                         client.shoukaku.players.delete(interaction.guildId);
-                        console.log('🧹 Player removed from players map');
-                      } else {
-                        console.log('🧹 No existing player found to clean up');
                       }
 
                       // Wait before attempting connection
@@ -548,8 +519,6 @@ setTimeout(async () => {
                         await new Promise(resolve => setTimeout(resolve, waitTime));
                       }
 
-                      console.log(`🔧 Strategy ${strategy}: Checking node health...`);
-                      
                       // Check node is still healthy
                       const node = client.shoukaku.nodes.get('railway-node');
                       console.log(`🔧 Node check for strategy ${strategy}:`, {
@@ -563,7 +532,7 @@ setTimeout(async () => {
                         throw new Error(`Lavalink node not ready (state: ${node?.state || 'null'})`);
                       }
 
-                      console.log(`🔗 Strategy ${strategy}: Node healthy, creating voice connection...`);
+                      console.log(`🔗 Strategy ${strategy}: Creating voice connection...`);
                       console.log(`🔗 Connection parameters:`, {
                         guildId: interaction.guildId,
                         channelId: currentVoiceChannel.id,
@@ -571,8 +540,6 @@ setTimeout(async () => {
                       });
                       
                       // Attempt connection with timeout
-                      console.log(`🔗 Strategy ${strategy}: Calling joinVoiceChannel...`);
-                      
                       const connectionPromise = client.shoukaku.joinVoiceChannel({
                         guildId: interaction.guildId,
                         channelId: currentVoiceChannel.id,
@@ -598,7 +565,7 @@ setTimeout(async () => {
                         throw new Error('Player creation returned null');
                       }
 
-                      console.log(`🔗 Strategy ${strategy}: Player created successfully, verifying connection...`);
+                      console.log(`🔗 Strategy ${strategy}: Player created, verifying connection...`);
 
                       // Give Discord time to establish connection
                       console.log(`⏳ Strategy ${strategy}: Waiting 2s for connection to stabilize...`);
@@ -688,11 +655,6 @@ setTimeout(async () => {
                   }
 
                 } catch (connectionError) {
-                  console.error('❌ Major connection error:', {
-                    message: connectionError.message,
-                    stack: connectionError.stack,
-                    name: connectionError.name
-                  });
                   console.error('❌ Failed to create/reconnect player:', connectionError);
                   return componentInteraction.editReply({
                     embeds: [new EmbedBuilder()
