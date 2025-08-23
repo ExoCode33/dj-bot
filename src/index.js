@@ -432,10 +432,50 @@ setTimeout(async () => {
                     client.shoukaku.players.delete(interaction.guildId);
                     player = null;
                   }
+                  
+                  // ENHANCED: Also try to disconnect any stale Discord voice connection
+                  try {
+                    console.log('🧹 Attempting to clean up any stale Discord voice connections...');
+                    const guild = interaction.guild;
+                    const voiceConnection = guild?.me?.voice?.connection;
+                    if (voiceConnection) {
+                      console.log('🧹 Found stale Discord voice connection, destroying...');
+                      voiceConnection.destroy();
+                    }
+                  } catch (discordCleanupError) {
+                    console.log('⚠️ Discord connection cleanup error (non-critical):', discordCleanupError.message);
+                  }
                 }
               } else {
                 console.log('🔄 No existing player found, will create new one');
                 needsReconnection = true;
+                
+                // ENHANCED: Check for orphaned Discord voice connections
+                try {
+                  console.log('🔍 Checking for orphaned Discord voice connections...');
+                  const guild = interaction.guild;
+                  const botVoiceState = guild?.me?.voice;
+                  
+                  if (botVoiceState?.channelId) {
+                    console.log(`🧹 Found orphaned voice connection in channel ${botVoiceState.channelId}, cleaning up...`);
+                    try {
+                      if (botVoiceState.connection) {
+                        botVoiceState.connection.destroy();
+                      }
+                      // Also try to disconnect from the channel
+                      await guild.me.voice.disconnect();
+                      console.log('🧹 Successfully cleaned up orphaned voice connection');
+                    } catch (orphanCleanupError) {
+                      console.log('⚠️ Orphan cleanup error (will try force disconnect):', orphanCleanupError.message);
+                    }
+                    
+                    // Wait a bit for Discord to process the disconnect
+                    console.log('⏳ Waiting 3 seconds for Discord to process cleanup...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                  }
+                } catch (orphanCheckError) {
+                  console.log('⚠️ Orphan check error (non-critical):', orphanCheckError.message);
+                }
               }
 
               // ENHANCED: Create or reconnect player if needed
