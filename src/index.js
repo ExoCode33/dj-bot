@@ -485,11 +485,6 @@ setTimeout(async () => {
                 try {
                   // ENHANCED: Multiple connection strategies
                   console.log('🔄 Attempting voice connection with multiple strategies...');
-                  console.log('🔧 Shoukaku status:', {
-                    nodes: client.shoukaku.nodes.size,
-                    players: client.shoukaku.players.size,
-                    nodeNames: Array.from(client.shoukaku.nodes.keys())
-                  });
                   
                   // Strategy 1: Direct connection
                   let connectionSuccess = false;
@@ -521,23 +516,11 @@ setTimeout(async () => {
 
                       // Check node is still healthy
                       const node = client.shoukaku.nodes.get('railway-node');
-                      console.log(`🔧 Node check for strategy ${strategy}:`, {
-                        exists: !!node,
-                        name: node?.name,
-                        state: node?.state,
-                        url: node?.url
-                      });
-                      
                       if (!node || node.state !== 2) {
                         throw new Error(`Lavalink node not ready (state: ${node?.state || 'null'})`);
                       }
 
                       console.log(`🔗 Strategy ${strategy}: Creating voice connection...`);
-                      console.log(`🔗 Connection parameters:`, {
-                        guildId: interaction.guildId,
-                        channelId: currentVoiceChannel.id,
-                        shardId: interaction.guild.shardId
-                      });
                       
                       // Attempt connection with timeout
                       const connectionPromise = client.shoukaku.joinVoiceChannel({
@@ -551,15 +534,7 @@ setTimeout(async () => {
                         setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000);
                       });
 
-                      console.log(`🔗 Strategy ${strategy}: Awaiting connection...`);
                       player = await Promise.race([connectionPromise, timeoutPromise]);
-                      
-                      console.log(`🔗 Strategy ${strategy}: Connection result:`, {
-                        playerExists: !!player,
-                        playerType: typeof player,
-                        guildId: player?.guildId,
-                        constructor: player?.constructor?.name
-                      });
                       
                       if (!player) {
                         throw new Error('Player creation returned null');
@@ -568,32 +543,24 @@ setTimeout(async () => {
                       console.log(`🔗 Strategy ${strategy}: Player created, verifying connection...`);
 
                       // Give Discord time to establish connection
-                      console.log(`⏳ Strategy ${strategy}: Waiting 2s for connection to stabilize...`);
                       await new Promise(resolve => setTimeout(resolve, 2000));
 
                       // Check if we can set volume (good indicator of working connection)
                       try {
-                        console.log(`🔊 Strategy ${strategy}: Testing volume setting...`);
                         await player.setGlobalVolume(75);
                         console.log(`✅ Strategy ${strategy}: Success! Connection established and volume set`);
                         connectionSuccess = true;
                         break;
                       } catch (volumeError) {
-                        console.error(`❌ Strategy ${strategy}: Volume test failed:`, volumeError.message);
                         throw new Error(`Volume test failed: ${volumeError.message}`);
                       }
 
                     } catch (strategyError) {
-                      console.error(`❌ Strategy ${strategy} failed:`, {
-                        message: strategyError.message,
-                        stack: strategyError.stack?.split('\n')[0],
-                        name: strategyError.name
-                      });
+                      console.error(`❌ Strategy ${strategy} failed:`, strategyError.message);
                       lastError = strategyError;
                       
                       // Clean up failed attempt
                       if (player) {
-                        console.log(`🧹 Strategy ${strategy}: Cleaning up failed player...`);
                         try {
                           await player.destroy();
                         } catch (cleanupError) {
@@ -605,17 +572,10 @@ setTimeout(async () => {
                       
                       // Don't continue if it's a permission error
                       if (strategyError.message.includes('permission') || strategyError.message.includes('unauthorized')) {
-                        console.log('❌ Permission error detected, stopping retry attempts');
                         break;
                       }
                     }
                   }
-
-                  console.log('🔚 Connection attempts completed:', {
-                    success: connectionSuccess,
-                    playerExists: !!player,
-                    lastErrorMessage: lastError?.message
-                  });
 
                   if (!connectionSuccess || !player) {
                     console.error('❌ All connection strategies failed');
@@ -627,7 +587,7 @@ setTimeout(async () => {
                         .addFields(
                           {
                             name: '🔧 Last Error',
-                            value: (lastError?.message || 'Unknown error').substring(0, 1000),
+                            value: lastError?.message || 'Unknown error',
                             inline: false
                           },
                           {
@@ -639,8 +599,6 @@ setTimeout(async () => {
                       ]
                     });
                   }
-
-                  console.log('✅ Voice connection successful, setting up player...');
 
                   // Show success message
                   if (needsReconnection) {
