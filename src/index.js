@@ -425,63 +425,9 @@ setTimeout(async () => {
               try {
                 const result = await radioManager.connectToStream(player, selectedStation);
                 
-                // Genre-specific emojis and colors
-                const genreEmojis = {
-                  'Bass Drop': '🔥',
-                  'Lo-Fi': '🎧',
-                  'Anime': '🎌',
-                  'Festival EDM': '🎪',
-                  'Mainstream EDM': '💎',
-                  'Trap': '🌊',
-                  'Hardstyle': '⚡'
-                };
+                // SUCCESS: No message shown - just silent success
+                // Only failure messages will be displayed below
                 
-                const genreColors = {
-                  'Bass Drop': '#FF1744',
-                  'Lo-Fi': '#9370DB',
-                  'Anime': '#FF69B4',
-                  'Festival EDM': '#FF6B35',
-                  'Mainstream EDM': '#00BCD4',
-                  'Trap': '#4CAF50',
-                  'Hardstyle': '#FFC107'
-                };
-                
-                const emoji = genreEmojis[result.station.genre] || '🎵';
-                const color = genreColors[result.station.genre] || '#D2691E';
-                const qualityBadge = result.station.quality === 'Premium' ? '👑 PREMIUM' : '⭐ HIGH QUALITY';
-                
-                await componentInteraction.editReply({
-                  embeds: [new EmbedBuilder()
-                    .setColor(color)
-                    .setTitle(`${emoji} Now Sailing the Musical Grand Line!`)
-                    .setDescription(`**${result.station.name}** is now streaming on the Thousand Sunny!`)
-                    .addFields(
-                      {
-                        name: '🎶 Station Details',
-                        value: result.station.description,
-                        inline: false
-                      },
-                      {
-                        name: '🎵 Genre',
-                        value: `${emoji} ${result.station.genre}`,
-                        inline: true
-                      },
-                      {
-                        name: '💎 Quality',
-                        value: qualityBadge,
-                        inline: true
-                      },
-                      {
-                        name: '🔊 Broadcasting to',
-                        value: `📡 ${voiceChannel.name}`,
-                        inline: true
-                      }
-                    )
-                    .setFooter({ text: `${result.station.genre} adventure continues on the Grand Line! 🏴‍☠️${emoji}` })
-                    .setTimestamp()
-                  ]
-                });
-
               } catch (error) {
                 console.error(`❌ Stream failed:`, error);
                 await componentInteraction.editReply({
