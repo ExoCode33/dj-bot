@@ -442,176 +442,204 @@ setTimeout(async () => {
               if (needsReconnection || !player) {
                 console.log(`🔊 ${needsReconnection ? 'Reconnecting' : 'Connecting'} to voice channel: ${currentVoiceChannel.name}`);
                 
-                // Enhanced permission check with detailed logging
-                const botMember = currentVoiceChannel.guild.members.me;
-                if (!botMember) {
-                  return componentInteraction.editReply({
-                    embeds: [new EmbedBuilder()
-                      .setColor('#FF0000')
-                      .setTitle('❌ Bot Member Error')
-                      .setDescription('Could not find bot member in guild. Please try again.')
-                    ]
-                  });
-                }
-
-                const permissions = currentVoiceChannel.permissionsFor(botMember);
-                console.log(`🔐 Bot permissions check:`, {
-                  connect: permissions?.has('Connect'),
-                  speak: permissions?.has('Speak'),
-                  viewChannel: permissions?.has('ViewChannel'),
-                  useVAD: permissions?.has('UseVAD'),
-                  allPermissions: permissions?.toArray() || []
-                });
-
-                if (!permissions || !permissions.has('Connect') || !permissions.has('Speak')) {
+                // Check bot permissions
+                const permissions = currentVoiceChannel.permissionsFor(interaction.client.user);
+                if (!permissions || !permissions.has(['Connect', 'Speak'])) {
                   return componentInteraction.editReply({
                     embeds: [new EmbedBuilder()
                       .setColor('#FF0000')
                       .setTitle('❌ Missing Permissions')
                       .setDescription('Bot missing Connect/Speak permissions in your voice channel!')
-                      .addFields({
-                        name: '🔧 Required Permissions',
-                        value: `Connect: ${permissions?.has('Connect') ? '✅' : '❌'}\nSpeak: ${permissions?.has('Speak') ? '✅' : '❌'}`,
-                        inline: false
-                      })
                     ]
                   });
                 }
 
-                // Check if there are too many connections already
-                const existingPlayers = client.shoukaku.players.size;
-                console.log(`🔧 Current active players: ${existingPlayers}`);
-
                 try {
-                  // ENHANCED: Multiple connection strategies
-                  console.log('🔄 Attempting voice connection with multiple strategies...');
+                  // Enhanced pre-connection checks
+                  console.log(`🔗 Pre-connection diagnostics...`);
                   
-                  // Strategy 1: Direct connection
-                  let connectionSuccess = false;
-                  let player = null;
-                  let lastError = null;
-
-                  for (let strategy = 1; strategy <= 3; strategy++) {
-                    console.log(`🎯 Connection Strategy ${strategy}/3`);
+                  // Check bot permissions in detail
+                  const botMember = currentVoiceChannel.guild.members.me;
+                  const permissions = currentVoiceChannel.permissionsFor(botMember);
+                  const permissionChecks = {
+                    connect: permissions?.has('Connect'),
+                    speak: permissions?.has('Speak'),
+                    viewChannel: permissions?.has('ViewChannel'),
+                    useVAD: permissions?.has('UseVAD')
+                  };
+                  
+                  console.log(`🔐 Bot permissions in voice channel:`, permissionChecks);
+                  
+                  if (!permissionChecks.connect || !permissionChecks.speak) {
+                    throw new Error(`Missing permissions: ${!permissionChecks.connect ? 'Connect ' : ''}${!permissionChecks.speak ? 'Speak' : ''}`);
+                  }
+                  
+                  // Check voice channel state
+                  console.log(`🔊 Voice channel details:`, {
+                    name: currentVoiceChannel.name,
+                    id: currentVoiceChannel.id,
+                    type: currentVoiceChannel.type,
+                    userLimit: currentVoiceChannel.userLimit,
+                    members: currentVoiceChannel.members.size,
+                    bitrate: currentVoiceChannel.bitrate
+                  });
+                  
+                  // Check node availability 
+                  const node = client.shoukaku.nodes.get('railway-node');
+                  console.log(`🔧 Lavalink node status:`, {
+                    exists: !!node,
+                    state: node?.state,
+                    stats: node?.stats ? {
+                      players: node.stats.players,
+                      playingPlayers: node.stats.playingPlayers
+                    } : 'no stats'
+                  });
+                  
+                  console.log(`🔗 Creating voice connection...`);
+                  console.log(`🔗 Connection details:`, {
+                    guildId: interaction.guildId,
+                    channelId: currentVoiceChannel.id,
+                    shardId: interaction.guild.shardId,
+                    nodeReady: node?.state === 2
+                  });
+                  
+                  // Try to join voice channel with error handling
+                  let player;
+                  try {
+                    player = await client.shoukaku.joinVoiceChannel({
+                      guildId: interaction.guildId,
+                      channelId: currentVoiceChannel.id,
+                      shardId: interaction.guild.shardId
+                    });
+                  } catch (joinError) {
+                    console.error('❌ Failed to join voice channel:', joinError);
+                    throw new Error(`Voice join failed: ${joinError.message}`);
+                  }
+                  
+                  console.log(`🔗 Player created, checking initial state...`);
+                  console.log(`🔗 Player object:`, {
+                    exists: !!player,
+                    guildId: player?.guildId,
+                    channelId: player?.channelId,
+                    voiceConnection: !!player?.voiceConnection,
+                    node: player?.node?.name,
+                    state: player?.state
+                  });
+                  
+                  // Wait a moment for Discord to process the connection
+                  console.log('⏳ Waiting for Discord voice connection to initialize...');
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  
+                  // Enhanced connection verification - check different connection indicators
+                  let connectionAttempts = 0;
+                  const maxConnectionAttempts = 20; // Increased attempts
+                  let isConnected = false;
+                  
+                  while (!isConnected && connectionAttempts < maxConnectionAttempts) {
+                    connectionAttempts++;
+                    console.log(`⏳ Connection attempt ${connectionAttempts}/${maxConnectionAttempts}...`);
                     
+                    // Refresh player reference
+                    player = client.shoukaku.players.get(interaction.guildId);
+                    if (!player) {
+                      throw new Error('Player was destroyed during connection attempts');
+                    }
+                    
+                    // Check multiple connection indicators
+                    const connectionChecks = {
+                      playerExists: !!player,
+                      hasVoiceConnection: !!player?.voiceConnection,
+                      playerConnected: player?.connected === true,
+                      playerState: player?.state,
+                      channelId: player?.channelId,
+                      voiceConnectionState: player?.voiceConnection?.state,
+                      inPlayersMap: client.shoukaku.players.has(interaction.guildId)
+                    };
+                    
+                    if (connectionAttempts <= 3 || connectionAttempts % 5 === 0) {
+                      console.log(`🔧 Connection checks:`, connectionChecks);
+                    }
+                    
+                    // Consider connected if any of these conditions are met
+                    if (player?.connected === true || 
+                        player?.voiceConnection?.state === 'ready' ||
+                        player?.voiceConnection?.state === 'connected' ||
+                        player?.channelId === currentVoiceChannel.id) {
+                      isConnected = true;
+                      console.log(`✅ Player connected via: ${
+                        player?.connected ? 'connected property' : 
+                        player?.voiceConnection?.state ? `voice state: ${player.voiceConnection.state}` : 
+                        'channel ID match'
+                      }`);
+                      break;
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                  }
+                  
+                  // Final connection verification - try to use the player regardless
+                  if (!isConnected) {
+                    console.log('⚠️ Standard connection checks failed, trying volume test...');
+                    console.log('🔧 Final player state:', {
+                      connected: player?.connected,
+                      channelId: player?.channelId,
+                      expectedChannelId: currentVoiceChannel.id,
+                      voiceConnectionState: player?.voiceConnection?.state,
+                      playerState: player?.state,
+                      node: player?.node?.name,
+                      nodeState: player?.node?.state,
+                      guildId: player?.guildId
+                    });
+                    
+                    // Try to set volume as a connection test
                     try {
-                      // Clean up any existing player first
-                      const existingPlayer = client.shoukaku.players.get(interaction.guildId);
-                      if (existingPlayer) {
-                        console.log('🧹 Cleaning up existing player before retry...');
-                        try {
-                          await existingPlayer.destroy();
-                        } catch (destroyError) {
-                          console.log('⚠️ Error destroying existing player:', destroyError.message);
-                        }
-                        client.shoukaku.players.delete(interaction.guildId);
-                      }
-
-                      // Wait before attempting connection
-                      if (strategy > 1) {
-                        const waitTime = strategy * 1000;
-                        console.log(`⏳ Waiting ${waitTime}ms before strategy ${strategy}...`);
-                        await new Promise(resolve => setTimeout(resolve, waitTime));
-                      }
-
-                      // Check node is still healthy
-                      const node = client.shoukaku.nodes.get('railway-node');
-                      if (!node || node.state !== 2) {
-                        throw new Error(`Lavalink node not ready (state: ${node?.state || 'null'})`);
-                      }
-
-                      console.log(`🔗 Strategy ${strategy}: Creating voice connection...`);
+                      console.log('🔄 Attempting volume test as connection verification...');
+                      await player.setGlobalVolume(75);
+                      console.log('✅ Volume set successfully - assuming connection is working');
+                      isConnected = true;
+                    } catch (volumeError) {
+                      console.error('❌ Volume test failed:', volumeError.message);
                       
-                      // Attempt connection with timeout
-                      const connectionPromise = client.shoukaku.joinVoiceChannel({
-                        guildId: interaction.guildId,
-                        channelId: currentVoiceChannel.id,
-                        shardId: interaction.guild.shardId
-                      });
-
-                      // Add timeout to connection attempt
-                      const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000);
-                      });
-
-                      player = await Promise.race([connectionPromise, timeoutPromise]);
-                      
-                      if (!player) {
-                        throw new Error('Player creation returned null');
-                      }
-
-                      console.log(`🔗 Strategy ${strategy}: Player created, verifying connection...`);
-
-                      // Give Discord time to establish connection
-                      await new Promise(resolve => setTimeout(resolve, 2000));
-
-                      // Check if we can set volume (good indicator of working connection)
-                      try {
-                        await player.setGlobalVolume(75);
-                        console.log(`✅ Strategy ${strategy}: Success! Connection established and volume set`);
-                        connectionSuccess = true;
-                        break;
-                      } catch (volumeError) {
-                        throw new Error(`Volume test failed: ${volumeError.message}`);
-                      }
-
-                    } catch (strategyError) {
-                      console.error(`❌ Strategy ${strategy} failed:`, strategyError.message);
-                      lastError = strategyError;
-                      
-                      // Clean up failed attempt
-                      if (player) {
+                      // Last resort - try to proceed anyway if player has channel ID
+                      if (player?.channelId === currentVoiceChannel.id) {
+                        console.log('🔄 Player has correct channel ID, proceeding anyway...');
+                        isConnected = true;
+                      } else {
+                        // Clean up and throw error
                         try {
                           await player.destroy();
-                        } catch (cleanupError) {
-                          console.log('⚠️ Cleanup error:', cleanupError.message);
+                          client.shoukaku.players.delete(interaction.guildId);
+                        } catch (cleanup) {
+                          console.log('⚠️ Cleanup error:', cleanup.message);
                         }
-                        client.shoukaku.players.delete(interaction.guildId);
-                        player = null;
-                      }
-                      
-                      // Don't continue if it's a permission error
-                      if (strategyError.message.includes('permission') || strategyError.message.includes('unauthorized')) {
-                        break;
+                        throw new Error(`Connection failed after ${maxConnectionAttempts} attempts. Last error: ${volumeError.message}`);
                       }
                     }
                   }
-
-                  if (!connectionSuccess || !player) {
-                    console.error('❌ All connection strategies failed');
-                    return componentInteraction.editReply({
-                      embeds: [new EmbedBuilder()
-                        .setColor('#FF0000')
-                        .setTitle('❌ Connection Failed')
-                        .setDescription('Could not establish voice connection after multiple attempts.')
-                        .addFields(
-                          {
-                            name: '🔧 Last Error',
-                            value: lastError?.message || 'Unknown error',
-                            inline: false
-                          },
-                          {
-                            name: '💡 Troubleshooting',
-                            value: '• Check bot permissions\n• Try a different voice channel\n• Restart the bot if issues persist',
-                            inline: false
-                          }
-                        )
-                      ]
-                    });
+                  
+                  // Set volume if not already done
+                  if (isConnected) {
+                    try {
+                      await player.setGlobalVolume(75);
+                      console.log('✅ Voice connection established and volume set to 75');
+                    } catch (volumeError) {
+                      console.log('⚠️ Volume setting failed but connection seems OK:', volumeError.message);
+                      // Continue anyway as connection might still work for playback
+                    }
                   }
-
-                  // Show success message
-                  if (needsReconnection) {
+                  
+                  // Show reconnection message
+                  if (needsReconnection && isConnected) {
                     await componentInteraction.followUp({
                       embeds: [new EmbedBuilder()
                         .setColor('#00FF94')
                         .setTitle('🔄 Reconnected!')
-                        .setDescription(`Successfully connected to **${currentVoiceChannel.name}**`)
+                        .setDescription(`Successfully reconnected to **${currentVoiceChannel.name}**`)
                       ],
                       flags: 64
                     });
                   }
-
+                  
                 } catch (connectionError) {
                   console.error('❌ Failed to create/reconnect player:', connectionError);
                   return componentInteraction.editReply({
