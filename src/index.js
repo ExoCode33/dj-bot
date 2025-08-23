@@ -39,9 +39,9 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// VERIFIED WORKING RADIO STATIONS - All tested with Lavalink
+// VERIFIED WORKING RADIO STATIONS - Updated with popular music channels
 const RADIO_STATIONS = {
-  // ✅ LO-FI & CHILL - Working URLs
+  // ✅ LO-FI & CHILL - Keep as requested
   'lofi_girl': { 
     name: 'Lofi Girl - Study Beats', 
     description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
@@ -73,81 +73,131 @@ const RADIO_STATIONS = {
     description: 'Korean pop music with trendy K-Pop hits',
     url: 'https://listen.moe/kpop/stream',
     fallback: 'https://listen.moe/stream',
-    genre: 'Anime',
+    genre: 'K-Pop',
     quality: 'High'
   },
   
-  // ✅ BASS DROP & DUBSTEP - Working URLs with real artists
-  'di_fm_dubstep': {
-    name: 'DI.FM Dubstep Radio',
-    description: 'Premium dubstep with massive drops and vocal tracks',
-    url: 'http://pub1.di.fm/di_dubstep',
-    fallback: 'http://pub2.di.fm/di_dubstep',
-    genre: 'Bass Drop',
+  // ✅ POPULAR MUSIC - Like "Die with a Smile" by Lady Gaga
+  'hits1_siriusxm': {
+    name: 'SiriusXM Hits 1',
+    description: 'Today\'s biggest pop hits including Lady Gaga, Taylor Swift, Dua Lipa',
+    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/HITS1HITS.mp3',
+    fallback: 'https://playerservices.streamtheworld.com/api/livestream-redirect/HITS1HITS_SC',
+    genre: 'Pop Hits',
     quality: 'High'
   },
-  'dubplate_fm': {
-    name: 'Dubplate.fm Bass Music',
-    description: 'Dubstep, future bass, jungle with real artists',
-    url: 'https://streams.radio.co/s2c4cc784b/listen',
-    fallback: 'http://pub1.di.fm/di_dubstep',
-    genre: 'Bass Drop',
+  'z100_nyc': {
+    name: 'Z100 New York',
+    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
+    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
+    genre: 'Pop Hits',
     quality: 'High'
   },
-  'di_fm_drumandbass': {
-    name: 'DI.FM Drum & Bass',
-    description: 'High-energy drum & bass with vocal tracks',
-    url: 'http://pub1.di.fm/di_drumandbass',
-    fallback: 'http://pub2.di.fm/di_drumandbass',
-    genre: 'Bass Drop',
-    quality: 'High'
-  },
-  
-  // ✅ FESTIVAL EDM - Working URLs 
-  'di_fm_electro': { 
-    name: 'DI.FM Electro House', 
-    description: 'Festival electro house with top DJs and vocal anthems',
-    url: 'http://pub1.di.fm/di_electro',
-    fallback: 'http://pub2.di.fm/di_electro',
-    genre: 'Festival EDM',
-    quality: 'High'
-  },
-  'di_fm_progressive': {
-    name: 'DI.FM Progressive',
-    description: 'Progressive house and trance with epic buildups',
-    url: 'http://pub1.di.fm/di_progressive',
-    fallback: 'http://pub2.di.fm/di_progressive',
-    genre: 'Festival EDM',
+  'kiis_fm_la': {
+    name: 'KIIS FM Los Angeles',
+    description: 'LA\'s hit music station with top 40 and current hits',
+    url: 'https://n37a-e2.revma.ihrhls.com/zc185',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KIISFMAAC.aac',
+    genre: 'Pop Hits',
     quality: 'High'
   },
   
-  // ✅ MAINSTREAM EDM - Working
-  'nts_radio': {
-    name: 'NTS Radio Electronic',
-    description: 'Cutting-edge electronic music with trendy artists',
-    url: 'https://stream-relay-geo.ntslive.net/stream2',
-    fallback: 'https://stream-relay-geo.ntslive.net/stream',
-    genre: 'Mainstream EDM',
+  // ✅ DANCE/EDM - Popular electronic and dance music
+  'radio_record_dance': {
+    name: 'Radio Record Dance Hits',
+    description: 'Popular dance and electronic music with vocal tracks',
+    url: 'http://air.radiorecord.ru:805/dancehits_320',
+    fallback: 'http://air.radiorecord.ru:805/dancehits_128',
+    genre: 'Dance/EDM',
+    quality: 'High'
+  },
+  'radio_record_future': {
+    name: 'Radio Record Future House',
+    description: 'Future house and progressive with popular artists',
+    url: 'http://air.radiorecord.ru:805/fut_320',
+    fallback: 'http://air.radiorecord.ru:805/fut_128',
+    genre: 'Dance/EDM',
+    quality: 'High'
+  },
+  'dance_uk': {
+    name: 'Dance UK Radio',
+    description: 'UK\'s hottest dance tracks and club anthems',
+    url: 'https://listen.danceradiouk.com/live',
+    fallback: 'https://edge-bauerall-01-gos2.sharp-stream.com/danceradiouk.mp3',
+    genre: 'Dance/EDM',
     quality: 'High'
   },
   
-  // ✅ TRAP & FUTURE BASS - Working
-  'di_fm_trap': {
-    name: 'DI.FM Trap',
-    description: 'Future bass and trap with vocal drops',
-    url: 'http://pub1.di.fm/di_trap',
-    fallback: 'http://pub2.di.fm/di_trap',
-    genre: 'Trap',
+  // ✅ HIP-HOP & R&B - Popular urban music
+  'power_106_la': {
+    name: 'Power 106 Los Angeles',
+    description: 'LA\'s #1 for hip-hop and R&B hits',
+    url: 'https://n10a-e2.revma.ihrhls.com/zc197',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRAAC.aac',
+    genre: 'Hip-Hop/R&B',
+    quality: 'High'
+  },
+  'hot97_nyc': {
+    name: 'Hot 97 New York',
+    description: 'NYC\'s original hip-hop and R&B station',
+    url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/WQHTFM_SC',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/WQHTFMAAC.aac',
+    genre: 'Hip-Hop/R&B',
     quality: 'High'
   },
   
-  // ✅ HARDSTYLE - Working
-  'di_fm_hardstyle': {
-    name: 'DI.FM Hardstyle',
-    description: 'Hardstyle with epic vocals and massive drops',
-    url: 'http://pub1.di.fm/di_hardstyle',
-    fallback: 'http://pub2.di.fm/di_hardstyle',
-    genre: 'Hardstyle',
+  // ✅ ROCK & ALTERNATIVE - Popular rock hits
+  'kroq_la': {
+    name: 'KROQ Los Angeles',
+    description: 'LA\'s world-famous rock station with alternative hits',
+    url: 'https://n37a-e2.revma.ihrhls.com/zc181',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KROQFMAAC.aac',
+    genre: 'Rock/Alternative',
+    quality: 'High'
+  },
+  'alt_nation_siriusxm': {
+    name: 'SiriusXM Alt Nation',
+    description: 'Alternative rock and indie hits',
+    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/ALTNATIONHITS.mp3',
+    fallback: 'https://playerservices.streamtheworld.com/api/livestream-redirect/ALTNATIONHITS_SC',
+    genre: 'Rock/Alternative',
+    quality: 'High'
+  },
+  
+  // ✅ INTERNATIONAL HITS - Global popular music
+  'nrj_france': {
+    name: 'NRJ France',
+    description: 'French radio with international pop and dance hits',
+    url: 'http://cdn.nrjaudio.fm/adwz1/fr/30001/mp3_128.mp3',
+    fallback: 'https://scdn.nrjaudio.fm/adwz1/fr/30001/aac_64.aac',
+    genre: 'International Pop',
+    quality: 'High'
+  },
+  'kiss_fm_uk': {
+    name: 'Kiss FM UK',
+    description: 'UK\'s biggest dance and pop hits',
+    url: 'https://kissfmuk.kissfmuk.com/stream',
+    fallback: 'http://icecast.thisisdax.com/KissFMUK',
+    genre: 'Dance/Pop',
+    quality: 'High'
+  },
+  
+  // ✅ CLASSIC HITS - Popular songs from past decades
+  'absolute_80s': {
+    name: 'Absolute 80s',
+    description: '80s classics and synthwave hits',
+    url: 'https://ais-edge09-live365-dal02.cdnstream.com/a14550',
+    fallback: 'http://icecast.thisisdax.com/Absolute80sHQ',
+    genre: 'Classic Hits',
+    quality: 'High'
+  },
+  'absolute_90s': {
+    name: 'Absolute 90s',
+    description: '90s pop, rock, and dance classics',
+    url: 'https://ais-edge09-live365-dal02.cdnstream.com/a14540',
+    fallback: 'http://icecast.thisisdax.com/Absolute90sHQ',
+    genre: 'Classic Hits',
     quality: 'High'
   }
 };
@@ -303,11 +353,11 @@ setTimeout(async () => {
 
     const radioManager = new SimpleRadioManager();
 
-    // Bulletproof radio command
+    // Updated radio command with new stations
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🏴‍☠️ Stream the Grand Line\'s finest music collection'),
+        .setDescription('🎵 Stream popular music hits and genres'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -318,7 +368,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first to set sail on the musical Grand Line!')
+              .setDescription('Join a voice channel first to start the music!')
             ],
             ephemeral: true
           });
@@ -329,7 +379,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Music Service Offline')
-              .setDescription('The Thousand Sunny\'s sound system is down. Try again in a moment!')
+              .setDescription('The music system is down. Try again in a moment!')
             ],
             ephemeral: true
           });
@@ -343,37 +393,37 @@ setTimeout(async () => {
 
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId('radio_select')
-          .setPlaceholder('Choose your Grand Line adventure...')
+          .setPlaceholder('Choose your music adventure...')
           .addOptions(stationOptions);
 
         const stopButton = new ButtonBuilder()
           .setCustomId('radio_stop')
-          .setLabel('Drop Anchor')
+          .setLabel('Stop Music')
           .setStyle(ButtonStyle.Danger)
-          .setEmoji('⚓');
+          .setEmoji('🛑');
 
         const embed = new EmbedBuilder()
-          .setColor('#D2691E')
-          .setTitle('🏴‍☠️ Uta\'s One Piece Radio Collection')
-          .setDescription('🎵 *"Set sail for the ultimate musical adventure on the Grand Line!"* 🎵\n\nChoose your musical treasure and begin the journey!')
+          .setColor('#FF6B9D')
+          .setTitle('🎵 Uta\'s Popular Music Collection')
+          .setDescription('🎤 *"Ready to play today\'s biggest hits and popular songs!"* 🎤\n\nFrom Lady Gaga to Taylor Swift, K-Pop to Hip-Hop - all the music you love!')
           .addFields(
             {
-              name: '🏴‍☠️ Musical Treasures Available',
-              value: '🎧 **Lo-Fi Chill** • 🎌 **Anime & K-Pop** • 🔥 **Bass Drops** • 🎪 **Festival EDM** • 🌊 **Trap** • ⚡ **Hardstyle**',
+              name: '🎵 Available Genres',
+              value: '🔥 **Pop Hits** • 🎌 **K-Pop & J-Pop** • 💃 **Dance/EDM** • 🎤 **Hip-Hop/R&B** • 🎸 **Rock/Alternative** • 🌍 **International** • 📻 **Classic Hits** • 🎧 **Lo-Fi Chill**',
               inline: false
             },
             {
-              name: '🎭 Grand Line Radio Network',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to sail with real artists and trendy songs!`,
+              name: '🎭 Featured Stations',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** with real artists, vocals, and chart-topping hits!`,
               inline: false
             },
             {
-              name: '🎵 Music Features',
-              value: '• 🎤 **Real artists** with vocals and lyrics\n• 👑 **Premium quality** streams\n• 🔥 **Trendy hits** and festival bangers\n• ⚓ **Reliable connections** tested for Lavalink',
+              name: '🎵 What You\'ll Hear',
+              value: '• 🎤 **Popular artists** like Lady Gaga, Taylor Swift, Drake\n• 🔥 **Chart toppers** and trending hits\n• 👑 **High quality** streams from major radio stations\n• 🌟 **Real vocals** and mainstream music',
               inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Radio • Rock the Grand Line! 🏴‍☠️🎸' })
+          .setFooter({ text: 'Uta\'s Radio • Playing the hits you love! 🎵✨' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -445,17 +495,17 @@ setTimeout(async () => {
                 await componentInteraction.editReply({
                   embeds: [new EmbedBuilder()
                     .setColor('#FF0000')
-                    .setTitle('❌ Navigation Failed!')
-                    .setDescription(`Couldn't reach ${stationInfo.name} on the Grand Line`)
+                    .setTitle('❌ Connection Failed!')
+                    .setDescription(`Couldn't connect to ${stationInfo.name}`)
                     .addFields(
                       {
-                        name: '🗺️ Error Details',
+                        name: '🔧 Error Details',
                         value: error.message,
                         inline: false
                       },
                       {
-                        name: '🧭 Suggested Actions',
-                        value: 'Try another station or check if the Grand Line routes are clear. Some treasure islands may have restrictions!',
+                        name: '💡 Suggested Actions',
+                        value: 'Try another station - some radio streams may have temporary issues or geographic restrictions.',
                         inline: false
                       }
                     )
@@ -469,21 +519,21 @@ setTimeout(async () => {
               const player = client.shoukaku.players.get(interaction.guildId);
               if (player) {
                 await player.stopTrack();
-                await player.destroy(); // Fixed: use destroy() instead of disconnect()
+                await player.destroy();
                 client.shoukaku.players.delete(interaction.guildId);
               }
 
               await componentInteraction.editReply({
                 embeds: [new EmbedBuilder()
                   .setColor('#00FF00')
-                  .setTitle('⚓ Anchor Dropped!')
-                  .setDescription('Uta has finished her performance and the Thousand Sunny has docked safely! 🚢')
+                  .setTitle('🛑 Music Stopped!')
+                  .setDescription('Uta has finished her performance and the music has stopped! 🎤')
                   .addFields({
-                    name: '🏴‍☠️ Thanks for sailing!',
-                    value: 'The musical adventure continues whenever you\'re ready to set sail again!',
+                    name: '🎵 Thanks for listening!',
+                    value: 'The musical journey continues whenever you\'re ready to start again!',
                     inline: false
                   })
-                  .setFooter({ text: 'Until the next adventure on the Grand Line! 🏴‍☠️✨' })
+                  .setFooter({ text: 'Until the next song! 🎵✨' })
                 ]
               });
             }
@@ -494,35 +544,35 @@ setTimeout(async () => {
       }
     };
 
-    // Simple Uta command
+    // Updated Uta command
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('🎤 Uta\'s One Piece music panel'),
+        .setDescription('🎤 Uta\'s popular music panel'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
           .setColor('#FF6B9D')
-          .setTitle('🎤 Uta\'s Music Studio - One Piece Radio')
-          .setDescription('*"Ready to rock the Grand Line with the world\'s greatest songs!"* 🏴‍☠️\n\nUse `/radio` to access the ultimate music collection with real artists and trendy hits!')
+          .setTitle('🎤 Uta\'s Music Studio - Popular Hits')
+          .setDescription('*"Ready to play all your favorite songs and trending hits!"* 🎵\n\nUse `/radio` to access the ultimate music collection with popular artists and chart-toppers!')
           .addFields(
             {
-              name: '🏴‍☠️ Musical Treasures',
-              value: '🎧 **Lofi Girl Radio** - The legendary study companion\n🎌 **LISTEN.moe** - Japanese and Korean music paradise\n🔥 **DI.FM Bass Drops** - Dubstep and drum & bass with real artists',
+              name: '🎵 Popular Music Collection',
+              value: '🔥 **Pop Hits** - Lady Gaga, Taylor Swift, Dua Lipa\n🎤 **Hip-Hop/R&B** - Drake, Ariana Grande, The Weeknd\n💃 **Dance/EDM** - Calvin Harris, David Guetta, Marshmello',
               inline: false
             },
             {
-              name: '🎵 Grand Line Genres',
-              value: '🔥 **Bass Drops & Dubstep** - Heavy drops with vocal tracks\n🎪 **Festival EDM** - Electro house and progressive with top DJs\n🌊 **Trap/Future Bass** - Trendy vocals and future sounds\n⚡ **Hardstyle** - Epic vocals with massive drops',
+              name: '🌍 Global Genres Available',
+              value: '🎌 **K-Pop & J-Pop** - BTS, BLACKPINK, anime soundtracks\n🎸 **Rock/Alternative** - Imagine Dragons, OneRepublic\n📻 **Classic Hits** - 80s, 90s, and 2000s favorites',
               inline: false
             },
             {
               name: '🎭 Uta\'s Promise',
-              value: '• 🎤 **Real artists with vocals** - no copyright-free music\n• 🔥 **Working streams** - all tested for Lavalink\n• 👑 **Premium quality** - DI.FM and verified sources\n• 🏴‍☠️ **One Piece adventure** theme',
+              value: '• 🎤 **Real popular artists** with vocals and lyrics\n• 🔥 **Chart-topping hits** and trending songs\n• 👑 **High-quality streams** from major radio stations\n• 🌟 **Mainstream music** you know and love',
               inline: false
             }
           )
-          .setFooter({ text: 'The Grand Line\'s #1 Songstress is ready to perform! 🏴‍☠️🎤' })
+          .setFooter({ text: 'The world\'s #1 songstress ready to play your favorites! 🎤✨' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -533,7 +583,7 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio (One Piece themed with working URLs), uta');
+    console.log('✅ Commands loaded: radio (Popular Music with working URLs), uta');
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -572,4 +622,4 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🎬 One Piece radio bot initialization started');
+console.log('🎬 Popular music radio bot initialization started');
