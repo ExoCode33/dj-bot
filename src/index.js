@@ -39,12 +39,12 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// ✅ CURATED HIGH-QUALITY RADIO STATIONS - Only the best working streams
+// ✅ CURATED HIGH-QUALITY RADIO STATIONS - Bass drops, festival vibes & chill beats
 const RADIO_STATIONS = {
-  // 🎧 LO-FI COLLECTIONS
+  // 🎧 LO-FI COLLECTIONS (Study & Chill)
   'lofi_girl': { 
     name: 'Lofi Girl - Study Beats', 
-    description: 'The original 24/7 lofi hip hop beats to relax/study to',
+    description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
     url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
     fallback: 'https://ice.somafm.com/groovesalad',
     genre: 'Lo-Fi',
@@ -67,57 +67,45 @@ const RADIO_STATIONS = {
     quality: 'High'
   },
   
-  // 🎌 ANIME & J-POP
-  'listen_moe': { 
-    name: 'LISTEN.moe (J-Pop/Anime)', 
-    description: 'Japanese music and anime soundtracks 24/7',
-    url: 'https://listen.moe/stream',
-    fallback: 'https://listen.moe/kpop/stream',
-    genre: 'Anime',
-    quality: 'High'
-  },
-  'listen_moe_kpop': { 
-    name: 'LISTEN.moe K-Pop', 
-    description: 'Korean pop music and K-Pop hits 24/7',
-    url: 'https://listen.moe/kpop/stream',
-    fallback: 'https://listen.moe/stream',
-    genre: 'Anime',
-    quality: 'High'
-  },
-  
-  // 🎪 TOMORROWLAND & EDM FESTIVAL VIBES
+  // 🎪 TOMORROWLAND & FESTIVAL EDM (Trendy drops & bass)
   'one_world_radio': { 
     name: 'Tomorrowland One World Radio', 
-    description: 'Official Tomorrowland radio - the sound of the festival 24/7',
+    description: 'Official Tomorrowland radio - festival anthems with massive drops',
     url: 'https://playerservices.streamtheworld.com/api/livestream-redirect/OWR.mp3',
     fallback: 'https://21293.live.streamtheworld.com/OWR.mp3',
-    genre: 'EDM',
+    genre: 'Bass Drop EDM',
     quality: 'Premium'
   },
-  'tomorrowland_anthems': { 
-    name: 'Tomorrowland Anthems', 
-    description: 'The biggest EDM anthems from Tomorrowland festivals',
-    url: 'https://22113.live.streamtheworld.com/TOMORROWLANDANTHEMS.mp3',
-    fallback: 'https://ice.somafm.com/thetrip',
-    genre: 'EDM',
+  'dubstep_beyond': { 
+    name: 'SomaFM Dub Step Beyond', 
+    description: 'Dubstep, heavy bass and earth-shaking drops (speaker warning!)',
+    url: 'https://ice.somafm.com/dubstep',
+    fallback: 'https://somafm.com/dubstep.pls',
+    genre: 'Bass Drop EDM',
     quality: 'High'
   },
-  
-  // 🔥 ADDITIONAL EDM/ELECTRONIC
   'beat_blender': { 
     name: 'SomaFM Beat Blender', 
-    description: 'Late night deep-house and downtempo chill',
+    description: 'Deep-house basslines and late night festival vibes',
     url: 'https://ice.somafm.com/beatblender',
     fallback: 'https://somafm.com/beatblender.pls',
-    genre: 'EDM',
+    genre: 'Bass Drop EDM',
     quality: 'High'
   },
   'the_trip': { 
     name: 'SomaFM The Trip', 
-    description: 'Progressive house/trance - tip top tunes',
+    description: 'Progressive house/trance with epic buildups and drops',
     url: 'https://ice.somafm.com/thetrip',
     fallback: 'https://somafm.com/thetrip.pls',
-    genre: 'EDM',
+    genre: 'Bass Drop EDM',
+    quality: 'High'
+  },
+  'fluid': { 
+    name: 'SomaFM Fluid', 
+    description: 'Electronic instrumental hip-hop with heavy liquid trap drops',
+    url: 'https://ice.somafm.com/fluid',
+    fallback: 'https://somafm.com/fluid.pls',
+    genre: 'Bass Drop EDM',
     quality: 'High'
   }
 };
@@ -318,16 +306,16 @@ setTimeout(async () => {
 
         // Organize stations by genre for better UX
         const stationsByGenre = {
-          'EDM': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'EDM'),
-          'Lo-Fi': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Lo-Fi'),
-          'Anime': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Anime')
+          'Bass Drop EDM': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Bass Drop EDM'),
+          'Lo-Fi': Object.entries(RADIO_STATIONS).filter(([_, station]) => station.genre === 'Lo-Fi')
         };
 
         const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => {
           const qualityEmoji = station.quality === 'Premium' ? '👑' : '⭐';
+          const genreEmoji = station.genre === 'Bass Drop EDM' ? '🔥' : '🎧';
           return {
-            label: `${qualityEmoji} ${station.name}`,
-            description: `${station.description} (${station.genre})`,
+            label: `${qualityEmoji} ${genreEmoji} ${station.name}`,
+            description: `${station.description}`,
             value: key
           };
         });
@@ -344,27 +332,27 @@ setTimeout(async () => {
           .setEmoji('🛑');
 
         const embed = new EmbedBuilder()
-          .setColor('#FF6B35')
-          .setTitle('🎪 Uta\'s Festival Radio Collection')
-          .setDescription('🎵 *"Welcome to the ultimate music festival experience!"* 🎵\n\nChoose your vibe and let the festival begin!')
+          .setColor('#FF1744')
+          .setTitle('🔥 Uta\'s Bass Drop Festival Collection')
+          .setDescription('🎵 *"Ready for the ultimate bass experience and chill vibes?"* 🎵\n\nChoose your energy level and let the festival begin!')
           .addFields(
             {
               name: '👑 Premium Stations',
-              value: `🎪 **Tomorrowland One World Radio** - Official festival sound\n🎧 **Lofi Girl Study Beats** - The legendary study companion`,
+              value: `🎪 **Tomorrowland One World Radio** - Official festival sound with massive drops\n🎧 **Lofi Girl Study Beats** - The legendary chill study companion`,
               inline: false
             },
             {
               name: '🎵 Genre Collection',
-              value: `🔥 **EDM/Electronic** (${stationsByGenre.EDM.length} stations) - Festival anthems and dance floor hits\n🎧 **Lo-Fi/Chill** (${stationsByGenre['Lo-Fi'].length} stations) - Perfect for studying and relaxing\n🎌 **Anime/J-Pop** (${stationsByGenre.Anime.length} stations) - Japanese music and K-Pop`,
+              value: `🔥 **Bass Drop EDM** (${stationsByGenre['Bass Drop EDM'].length} stations) - Festival bangers, dubstep drops, and trendy anthems\n🎧 **Lo-Fi/Chill** (${stationsByGenre['Lo-Fi'].length} stations) - Perfect for studying, relaxing, and focus`,
               inline: false
             },
             {
-              name: '🎭 Festival Experience',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to transport you to music paradise!`,
+              name: '🎭 Bass Drop Experience',
+              value: `**${Object.keys(RADIO_STATIONS).length} stations** ready to shake your speakers and soothe your soul!`,
               inline: false
             }
           )
-          .setFooter({ text: 'Uta\'s Festival Radio • The beat never stops! 🎪🎵' })
+          .setFooter({ text: 'Uta\'s Bass Festival Radio • From drops to chill! 🔥🎧' })
           .setTimestamp();
 
         const message = await interaction.reply({
@@ -419,15 +407,13 @@ setTimeout(async () => {
                 
                 // Genre-specific emojis and colors
                 const genreEmojis = {
-                  'EDM': '🔥',
-                  'Lo-Fi': '🎧',
-                  'Anime': '🎌'
+                  'Bass Drop EDM': '🔥',
+                  'Lo-Fi': '🎧'
                 };
                 
                 const genreColors = {
-                  'EDM': '#FF6B35',     // Orange
-                  'Lo-Fi': '#9370DB',   // Purple
-                  'Anime': '#FF69B4'    // Pink
+                  'Bass Drop EDM': '#FF1744',  // Red for intense bass
+                  'Lo-Fi': '#9370DB'           // Purple for chill
                 };
                 
                 const emoji = genreEmojis[result.station.genre] || '🎵';
@@ -461,7 +447,7 @@ setTimeout(async () => {
                         inline: true
                       }
                     )
-                    .setFooter({ text: `${result.station.genre} festival continues! 🎪${emoji}` })
+                    .setFooter({ text: result.station.genre === 'Bass Drop EDM' ? `Bass drops incoming! 🔥${emoji}` : `Chill vibes activated! 🎧${emoji}` })
                     .setTimestamp()
                   ]
                 });
@@ -521,22 +507,22 @@ setTimeout(async () => {
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🎤 Uta\'s Festival Music Studio')
-          .setDescription('*"Ready to rock the ultimate music festival!"* 🎪\n\nUse `/radio` to access premium Tomorrowland EDM, legendary Lofi Girl beats, and amazing anime music!')
+          .setColor('#FF1744')
+          .setTitle('🔥 Uta\'s Bass Drop Music Studio')
+          .setDescription('*"Ready for bass drops that shake the earth and beats that soothe the soul!"* 🎧\n\nUse `/radio` to access Tomorrowland festival bangers and legendary Lofi Girl chill beats!')
           .addFields(
             {
               name: '🎵 Featured Collections',
-              value: '👑 **Tomorrowland One World Radio** - Official festival experience\n🎧 **Lofi Girl Study Beats** - The iconic study companion\n🎌 **Japanese Music Paradise** - Anime soundtracks and J-Pop hits',
+              value: '👑 **Tomorrowland One World Radio** - Official festival experience with massive drops\n🎧 **Lofi Girl Study Beats** - The iconic chill study companion\n🔥 **Bass Drop EDM** - Dubstep, hardstyle, and festival bangers',
               inline: false
             },
             {
-              name: '🎪 Festival Genres',
-              value: '🔥 **EDM/Electronic** - Dance floor anthems and festival vibes\n🎧 **Lo-Fi/Chill** - Perfect background music for any activity\n🎌 **Anime/J-Pop** - High-energy Japanese music collection',
+              name: '🎪 Bass Festival Genres',
+              value: '🔥 **Bass Drop EDM** - Earth-shaking drops, trendy festival anthems, dubstep madness\n🎧 **Lo-Fi/Chill** - Perfect background music for studying, working, and relaxing',
               inline: false
             }
           )
-          .setFooter({ text: 'The festival never ends with Uta! 🎭✨' })
+          .setFooter({ text: 'From bass drops to chill vibes - Uta has it all! 🔥🎧' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
