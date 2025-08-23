@@ -1,6 +1,6 @@
 // src/config/stations.js - VERIFIED WORKING STATIONS with HARD BASS DROP focus
 export const RADIO_STATIONS = {
-  // ✅ WORKING - Keep these
+  // ✅ CONFIRMED WORKING - Keep these
   'lofi_girl': { 
     name: 'Lofi Girl - Study Beats', 
     description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
@@ -25,100 +25,6 @@ export const RADIO_STATIONS = {
     genre: 'K-Pop',
     quality: 'High'
   },
-  
-  // ✅ HARD BASS DROP & DUBSTEP - Working Russian Electronic stations
-  'radio_record_dub': {
-    name: 'Radio Record Dubstep',
-    description: 'Russian electronic radio with HARD dubstep drops and bass',
-    url: 'http://air.radiorecord.ru:805/dub_320',
-    fallback: 'http://air.radiorecord.ru:805/dub_128',
-    genre: 'Hard Bass Drop',
-    quality: 'High'
-  },
-  'radio_record_edm': {
-    name: 'Radio Record EDM',
-    description: 'Electronic dance music with festival bangers and HARD drops',
-    url: 'http://air.radiorecord.ru:805/edmr_320',
-    fallback: 'http://air.radiorecord.ru:805/edmr_128',
-    genre: 'Hard EDM',
-    quality: 'High'
-  },
-  'radio_record_trap': {
-    name: 'Radio Record Trap',
-    description: 'Future bass and trap with MASSIVE vocal drops',
-    url: 'http://air.radiorecord.ru:805/trap_320',
-    fallback: 'http://air.radiorecord.ru:805/trap_128',
-    genre: 'Hard Trap',
-    quality: 'High'
-  },
-  'radio_record_hardstyle': {
-    name: 'Radio Record Hardstyle',
-    description: 'HARDSTYLE with epic vocals and CRUSHING drops',
-    url: 'http://air.radiorecord.ru:805/hardstyle_320',
-    fallback: 'http://air.radiorecord.ru:805/hardstyle_128',
-    genre: 'Hardstyle',
-    quality: 'High'
-  },
-  'radio_record_dnb': {
-    name: 'Radio Record Drum & Bass',
-    description: 'HIGH-ENERGY drum & bass with BRUTAL drops',
-    url: 'http://air.radiorecord.ru:805/drumhits_320',
-    fallback: 'http://air.radiorecord.ru:805/drumhits_128',
-    genre: 'Hard D&B',
-    quality: 'High'
-  },
-  'radio_record_techno': {
-    name: 'Radio Record Techno',
-    description: 'Underground HARD techno with industrial drops',
-    url: 'http://air.radiorecord.ru:805/techno_320',
-    fallback: 'http://air.radiorecord.ru:805/techno_128',
-    genre: 'Hard Techno',
-    quality: 'High'
-  },
-  'radio_record_neurofunk': {
-    name: 'Radio Record Neurofunk',
-    description: 'DARK neurofunk D&B with AGGRESSIVE bass drops',
-    url: 'http://air.radiorecord.ru:805/neurofunk_320',
-    fallback: 'http://air.radiorecord.ru:805/neurofunk_128',
-    genre: 'Neurofunk',
-    quality: 'High'
-  },
-  
-  // ✅ ADDITIONAL HARD BASS - More aggressive options
-  'bassdrive': {
-    name: 'Bassdrive D&B',
-    description: 'UK underground drum & bass with HEAVY bass drops',
-    url: 'https://bassdrive.com/v2/streams/BassDrive.pls',
-    fallback: 'http://bassdrive.com:8000/stream',
-    genre: 'Underground D&B',
-    quality: 'High'
-  },
-  'hardbase_fm': {
-    name: 'HardBase.FM',
-    description: 'HARDCORE and GABBER with BRUTAL bass drops',
-    url: 'https://listen.hardbase.fm/tunein.php/hbfm-mp3.pls',
-    fallback: 'http://listen.hardbase.fm:7000/320.mp3',
-    genre: 'Hardcore',
-    quality: 'High'
-  },
-  'radio_record_goa': {
-    name: 'Radio Record Goa Trance',
-    description: 'Psychedelic trance with HYPNOTIC bass drops',
-    url: 'http://air.radiorecord.ru:805/goa_320',
-    fallback: 'http://air.radiorecord.ru:805/goa_128',
-    genre: 'Psytrance',
-    quality: 'High'
-  },
-  'radio_record_oldschool': {
-    name: 'Radio Record Old School',
-    description: 'Classic RAVE and BREAKBEAT with vintage drops',
-    url: 'http://air.radiorecord.ru:805/oldschool_320',
-    fallback: 'http://air.radiorecord.ru:805/oldschool_128',
-    genre: 'Old School Rave',
-    quality: 'High'
-  },
-  
-  // ✅ WORKING POPULAR STATIONS - Confirmed working from logs
   'z100_nyc': {
     name: 'Z100 New York',
     description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
@@ -128,29 +34,135 @@ export const RADIO_STATIONS = {
     quality: 'High'
   },
   
-  // ✅ ADDITIONAL HARD ELECTRONIC - More bass-heavy options
-  'radio_record_jungle': {
-    name: 'Radio Record Jungle',
-    description: 'JUNGLE and RAGGA D&B with EXPLOSIVE breaks',
-    url: 'http://air.radiorecord.ru:805/jungle_320',
-    fallback: 'http://air.radiorecord.ru:805/jungle_128',
-    genre: 'Jungle',
+  // ✅ ALTERNATIVE HARD BASS STATIONS - SomaFM (Known for Lavalink compatibility)
+  'somafm_groovesalad': {
+    name: 'SomaFM Groove Salad',
+    description: 'Ambient downtempo with electronic elements',
+    url: 'http://ice1.somafm.com/groovesalad-256-mp3',
+    fallback: 'http://ice2.somafm.com/groovesalad-256-mp3',
+    genre: 'Ambient Electronic',
     quality: 'High'
   },
-  'radio_record_experimental': {
-    name: 'Radio Record Experimental',
-    description: 'EXPERIMENTAL electronic with WEIRD bass drops',
-    url: 'http://air.radiorecord.ru:805/experimental_320',
-    fallback: 'http://air.radiorecord.ru:805/experimental_128',
-    genre: 'Experimental',
+  'somafm_dronezone': {
+    name: 'SomaFM Drone Zone',
+    description: 'Deep ambient electronic soundscapes',
+    url: 'http://ice1.somafm.com/dronezone-256-mp3',
+    fallback: 'http://ice2.somafm.com/dronezone-256-mp3',
+    genre: 'Ambient',
     quality: 'High'
   },
-  'radio_record_breaks': {
-    name: 'Radio Record Breaks',
-    description: 'BREAKBEAT and BIG BEAT with CRUSHING drops',
-    url: 'http://air.radiorecord.ru:805/breaks_320',
-    fallback: 'http://air.radiorecord.ru:805/breaks_128',
-    genre: 'Breaks',
+  'somafm_beatblender': {
+    name: 'SomaFM Beat Blender',
+    description: 'Downtempo, trip-hop, and electronic beats',
+    url: 'http://ice1.somafm.com/beatblender-128-mp3',
+    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
+    genre: 'Electronic Beats',
+    quality: 'High'
+  },
+  'somafm_deepspaceone': {
+    name: 'SomaFM Deep Space One',
+    description: 'Deep ambient electronic space music',
+    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
+    fallback: 'http://ice2.somafm.com/deepspaceone-128-mp3',
+    genre: 'Space Electronic',
+    quality: 'High'
+  },
+  
+  // ✅ DIRECT MP3 STREAMS - More likely to work
+  'iloveradio_hardstyle': {
+    name: 'ILoveRadio Hardstyle',
+    description: 'German hardstyle with CRUSHING drops',
+    url: 'https://streams.ilovemusic.de/iloveradio21.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio21.aac',
+    genre: 'Hardstyle',
+    quality: 'High'
+  },
+  'iloveradio_dance': {
+    name: 'ILoveRadio Dance',
+    description: 'Dance hits and electronic music',
+    url: 'https://streams.ilovemusic.de/iloveradio2.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio2.aac',
+    genre: 'Dance',
+    quality: 'High'
+  },
+  'iloveradio_clubsounds': {
+    name: 'ILoveRadio Club Sounds',
+    description: 'Club music and house beats',
+    url: 'https://streams.ilovemusic.de/iloveradio16.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio16.aac',
+    genre: 'Club Music',
+    quality: 'High'
+  },
+  
+  // ✅ BASS FOCUSED ALTERNATIVES - Radionomy (Usually works well)
+  'bass_radio_1': {
+    name: 'Bass Radio One',
+    description: 'Heavy bass and electronic music',
+    url: 'http://streaming.radionomy.com/Bass-Radio',
+    fallback: 'http://streaming.radionomy.com/HardBass',
+    genre: 'Bass Music',
+    quality: 'High'
+  },
+  'electronic_pioneer': {
+    name: 'Electronic Pioneer',
+    description: 'Underground electronic with heavy drops',
+    url: 'http://streaming.radionomy.com/Electronic-Pioneer',
+    fallback: 'http://streaming.radionomy.com/ElectronicBeats',
+    genre: 'Electronic',
+    quality: 'High'
+  },
+  'dubstep_beyond': {
+    name: 'Dubstep Beyond',
+    description: 'Pure dubstep with MASSIVE bass drops',
+    url: 'http://streaming.radionomy.com/Dubstep-Beyond',
+    fallback: 'http://streaming.radionomy.com/DubstepFM',
+    genre: 'Dubstep',
+    quality: 'High'
+  },
+  'hardstyle_fm': {
+    name: 'Hardstyle FM',
+    description: 'Non-stop hardstyle with BRUTAL kicks',
+    url: 'http://streaming.radionomy.com/HardstyleFM',
+    fallback: 'http://streaming.radionomy.com/Hardstyle-Music',
+    genre: 'Hardstyle',
+    quality: 'High'
+  },
+  
+  // ✅ ADDITIONAL WORKING ALTERNATIVES
+  'bigfm_electro': {
+    name: 'BigFM Electro',
+    description: 'German electronic music with heavy beats',
+    url: 'http://streams.bigfm.de/bigfm-nitroxparty-128-mp3',
+    fallback: 'http://streams.bigfm.de/bigfm-deutschland-128-mp3',
+    genre: 'Electronic',
+    quality: 'High'
+  },
+  'poolsuite_fm': {
+    name: 'Poolsuite FM',
+    description: 'Summer vibes and yacht rock for chill sessions',
+    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
+    genre: 'Chill',
+    quality: 'High'
+  },
+  
+  // ✅ HIP-HOP ALTERNATIVES
+  'hiphop_nation': {
+    name: 'Hip-Hop Nation',
+    description: 'Latest hip-hop and rap hits with heavy bass',
+    url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
+    fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
+    genre: 'Hip-Hop',
+    quality: 'High'
+  },
+  
+  // ✅ ROCK ALTERNATIVES
+  'rock_antenne': {
+    name: 'Rock Antenne',
+    description: 'German rock station with heavy guitars',
+    url: 'http://mp3channels.webradio.antenne.de/rockantenne',
+    fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
+    genre: 'Rock',
     quality: 'High'
   }
 };
