@@ -381,7 +381,7 @@ setTimeout(async () => {
               const selectedStation = componentInteraction.values[0];
               const stationInfo = RADIO_STATIONS[selectedStation];
               
-              await componentInteraction.deferReply({ ephemeral: true });
+              await componentInteraction.deferReply({ flags: 64 }); // Use flags instead of ephemeral
 
               // ENHANCED: Get current user's voice channel (they might have moved)
               const currentMember = await componentInteraction.guild.members.fetch(componentInteraction.user.id);
@@ -398,6 +398,7 @@ setTimeout(async () => {
               }
 
               console.log(`🔍 Checking player status for guild: ${interaction.guildId}`);
+              console.log(`🔊 User is in voice channel: ${currentVoiceChannel.name} (${currentVoiceChannel.id})`);
               
               // ENHANCED: Check if player exists and is properly connected
               let player = client.shoukaku.players.get(interaction.guildId);
@@ -410,12 +411,13 @@ setTimeout(async () => {
                   channelId: player.channelId,
                   currentChannelId: currentVoiceChannel.id,
                   playing: player.playing,
-                  paused: player.paused
+                  paused: player.paused,
+                  nodeConnected: player.node?.state === 2
                 });
 
                 // Check if player is connected to the wrong channel or disconnected
-                if (!player.connected || player.channelId !== currentVoiceChannel.id) {
-                  console.log('🔄 Player needs reconnection - disconnected or wrong channel');
+                if (!player.connected || player.channelId !== currentVoiceChannel.id || player.node?.state !== 2) {
+                  console.log('🔄 Player needs reconnection - disconnected, wrong channel, or node issue');
                   needsReconnection = true;
                   
                   try {
@@ -426,7 +428,9 @@ setTimeout(async () => {
                     console.log('🧹 Cleaned up old player');
                   } catch (cleanupError) {
                     console.log('⚠️ Error cleaning up old player:', cleanupError.message);
-                    // Continue anyway
+                    // Force cleanup
+                    client.shoukaku.players.delete(interaction.guildId);
+                    player = null;
                   }
                 }
               } else {
@@ -451,19 +455,41 @@ setTimeout(async () => {
                 }
 
                 try {
-                  // Create new player
+                  // Create new player with enhanced connection handling
+                  console.log(`🔗 Creating voice connection...`);
                   player = await client.shoukaku.joinVoiceChannel({
                     guildId: interaction.guildId,
                     channelId: currentVoiceChannel.id,
                     shardId: interaction.guild.shardId
                   });
                   
-                  // Wait for connection to stabilize
-                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  console.log(`🔗 Player created, waiting for connection...`);
                   
-                  // Verify connection
+                  // Enhanced connection verification with longer timeout
+                  let connectionAttempts = 0;
+                  const maxConnectionAttempts = 10;
+                  
+                  while (!player.connected && connectionAttempts < maxConnectionAttempts) {
+                    connectionAttempts++;
+                    console.log(`⏳ Connection attempt ${connectionAttempts}/${maxConnectionAttempts}...`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Check if player still exists
+                    if (!client.shoukaku.players.get(interaction.guildId)) {
+                      throw new Error('Player was destroyed during connection');
+                    }
+                  }
+                  
+                  // Final connection check
                   if (!player.connected) {
-                    throw new Error('Player failed to connect after creation');
+                    console.error('❌ Player connection failed after all attempts');
+                    console.log('🔧 Player state:', {
+                      connected: player.connected,
+                      channelId: player.channelId,
+                      node: player.node?.name,
+                      nodeState: player.node?.state
+                    });
+                    throw new Error(`Player failed to connect after ${maxConnectionAttempts} attempts`);
                   }
                   
                   await player.setGlobalVolume(75);
@@ -477,7 +503,7 @@ setTimeout(async () => {
                         .setTitle('🔄 Reconnected!')
                         .setDescription(`Successfully reconnected to **${currentVoiceChannel.name}**`)
                       ],
-                      ephemeral: true
+                      flags: 64 // Use flags instead of ephemeral
                     });
                   }
                   
@@ -573,7 +599,7 @@ setTimeout(async () => {
               }
 
             } else if (componentInteraction.customId === 'radio_stop') {
-              await componentInteraction.deferReply({ ephemeral: true });
+              await componentInteraction.deferReply({ flags: 64 }); // Use flags instead of ephemeral
 
               const player = client.shoukaku.players.get(interaction.guildId);
               if (player) {
@@ -607,7 +633,7 @@ setTimeout(async () => {
                   .setTitle('❌ Unexpected Error')
                   .setDescription('Something went wrong. Please try again.')
                 ],
-                ephemeral: true
+                flags: 64 // Use flags instead of ephemeral
               }).catch(() => {});
             }
           }
@@ -651,7 +677,7 @@ setTimeout(async () => {
       console.log('✅ Guild commands registered');
     }
 
-    // Event handlers
+    // Event handlers - FIXED deprecation warning
     client.once(Events.ClientReady, () => {
       console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
       global.discordReady = true;
