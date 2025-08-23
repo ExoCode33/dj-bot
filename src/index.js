@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import http from 'node:http';
-import { RADIO_STATIONS } from './config/stations.js';
+import { RADIO_STATIONS, MUSIC_CATEGORIES } from './config/stations.js';
 
 // PRIORITY: Start health server immediately
 console.log('🚀 STARTING UTA DJ BOT - HARD BASS EDITION');
@@ -191,11 +191,11 @@ setTimeout(async () => {
 
     const radioManager = new SimpleRadioManager();
 
-    // Updated radio command with HARD BASS focus
+    // Updated radio command with two-dropdown system
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🔊 Stream HARD BASS DROP music and electronic beats'),
+        .setDescription('🎵 Stream music by category with two-dropdown selection'),
       
       async execute(interaction) {
         console.log('🎵 Radio command executed');
@@ -206,7 +206,7 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first to experience the BASS DROP! 🔊')
+              .setDescription('Join a voice channel first to start the music! 🎵')
             ],
             ephemeral: true
           });
@@ -217,57 +217,74 @@ setTimeout(async () => {
             embeds: [new EmbedBuilder()
               .setColor('#FF0000')
               .setTitle('❌ Music Service Offline')
-              .setDescription('The BASS system is down. Try again in a moment! ⚡')
+              .setDescription('The music system is down. Try again in a moment! ⚡')
             ],
             ephemeral: true
           });
         }
 
-        const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => ({
-          label: station.name,
-          description: `${station.description} (${station.genre})`,
-          value: key
+        // Create category selection dropdown
+        const categoryOptions = Object.entries(MUSIC_CATEGORIES).map(([key, category]) => ({
+          label: category.name,
+          description: category.description,
+          value: key,
+          emoji: category.emoji
         }));
 
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId('radio_select')
-          .setPlaceholder('Choose your BASS ADVENTURE...')
-          .addOptions(stationOptions);
+        const categorySelectMenu = new StringSelectMenuBuilder()
+          .setCustomId('category_select')
+          .setPlaceholder('🎵 Choose a music category...')
+          .addOptions(categoryOptions);
 
         const stopButton = new ButtonBuilder()
           .setCustomId('radio_stop')
-          .setLabel('STOP BASS')
+          .setLabel('Stop Music')
           .setStyle(ButtonStyle.Danger)
-          .setEmoji('🔊');
+          .setEmoji('🛑');
 
         const embed = new EmbedBuilder()
-          .setColor('#FF0040')
-          .setTitle('🔊 UTA\'S HARD BASS DROP COLLECTION')
-          .setDescription('💀 *"Ready to DESTROY your speakers with the HARDEST drops!"* 💀\n\nFrom BRUTAL dubstep to CRUSHING hardstyle - feel the BASS!')
+          .setColor('#FF6B9D')
+          .setTitle('🎵 UTA\'S MUSIC COLLECTION')
+          .setDescription('🎤 *"Ready to play the perfect music for every mood!"* 🎤\n\n**Step 1:** Choose your music category\n**Step 2:** Select your favorite station\n**Step 3:** Enjoy the music! 🎵')
           .addFields(
             {
-              name: '💀 HARD BASS GENRES',
-              value: '🔥 **DUBSTEP** • ⚡ **HARDSTYLE** • 💣 **D&B** • 🌀 **TRAP** • 🔊 **TECHNO** • 💀 **HARDCORE** • 🎌 **ANIME** • 🎧 **LO-FI**',
-              inline: false
+              name: '🎌 K-Pop & Asian Hits',
+              value: 'BLACKPINK, BTS, TWICE, NewJeans, anime music',
+              inline: true
             },
             {
-              name: '🎭 BASS DROP ARSENAL',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** loaded with BRUTAL drops and CRUSHING bass!`,
-              inline: false
+              name: '🔊 Electronic & Bass Drop', 
+              value: 'Hardstyle, dubstep, house with CRUSHING drops',
+              inline: true
             },
             {
-              name: '🔊 WARNING: HEAVY BASS',
-              value: '• 💀 **HARD DROPS** that will shake your soul\n• ⚡ **HIGH ENERGY** electronic mayhem\n• 🔊 **BRUTAL BASS** that hits HARD\n• 💣 **CRUSHING BEATS** for true bass heads',
-              inline: false
+              name: '🎵 Pop & Mainstream',
+              value: 'Chart toppers, dance hits, popular music',
+              inline: true
+            },
+            {
+              name: '🎧 Chill & Lo-Fi',
+              value: 'Lo-fi beats, ambient, downtempo, study music',
+              inline: true
+            },
+            {
+              name: '🎤 Hip-Hop & Rap',
+              value: 'Latest hip-hop, rap, and R&B hits',
+              inline: true
+            },
+            {
+              name: '🎸 Rock & Metal',
+              value: 'Rock, metal, alternative with heavy guitars',
+              inline: true
             }
           )
-          .setFooter({ text: 'Uta\'s BASS ARSENAL • PREPARE FOR IMPACT! 💀🔊' })
+          .setFooter({ text: 'Uta\'s Music Collection • Choose your vibe! 🎵✨' })
           .setTimestamp();
 
         const message = await interaction.reply({
           embeds: [embed],
           components: [
-            new ActionRowBuilder().addComponents(selectMenu),
+            new ActionRowBuilder().addComponents(categorySelectMenu),
             new ActionRowBuilder().addComponents(stopButton)
           ]
         });
@@ -276,111 +293,196 @@ setTimeout(async () => {
 
         collector.on('collect', async (componentInteraction) => {
           try {
-            if (componentInteraction.customId === 'radio_select') {
-              const selectedStation = componentInteraction.values[0];
-              const stationInfo = RADIO_STATIONS[selectedStation];
-              
-              await componentInteraction.deferReply({ ephemeral: true });
-
-              // Get or create player with better error handling
-              let player = client.shoukaku.players.get(interaction.guildId);
-              
-              if (!player) {
-                console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
-                
-                // Check bot permissions first
-                const permissions = voiceChannel.permissionsFor(interaction.client.user);
-                if (!permissions.has(['Connect', 'Speak'])) {
-                  throw new Error('Uta needs Connect/Speak permissions for the BASS DROP!');
-                }
-                
-                player = await client.shoukaku.joinVoiceChannel({
-                  guildId: interaction.guildId,
-                  channelId: voiceChannel.id,
-                  shardId: interaction.guild.shardId
-                });
-                
-                // Wait a moment for connection to stabilize
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                await player.setGlobalVolume(85); // Higher volume for BASS
-                console.log('✅ Uta connected and BASS volume set to 85');
-              } else {
-                console.log('🔊 Uta already DROPPING BASS');
-                await player.setGlobalVolume(85); // Ensure high volume for bass
-              }
-
-              try {
-                const result = await radioManager.connectToStream(player, selectedStation);
-                
-                // SUCCESS: Show BASS success message then auto-dismiss
-                await componentInteraction.editReply({
-                  content: `🔊 BASS DROP INITIATED! Playing ${stationInfo.name}`,
-                  ephemeral: true
-                });
-                
-                // Auto-dismiss after 3 seconds
-                setTimeout(async () => {
-                  try {
-                    await componentInteraction.deleteReply();
-                  } catch (err) {
-                    // Ignore errors if already dismissed
-                  }
-                }, 3000);
-                
-              } catch (error) {
-                console.error(`❌ BASS DROP FAILED:`, error);
-                await componentInteraction.editReply({
-                  embeds: [new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('💀 BASS DROP FAILED!')
-                    .setDescription(`Couldn't connect to ${stationInfo.name} - BASS system malfunction!`)
-                    .addFields(
-                      {
-                        name: '🔧 Error Details',
-                        value: error.message,
-                        inline: false
-                      },
-                      {
-                        name: '💡 Try Another BASS Station',
-                        value: 'Some radio streams may have temporary issues. Try another station for your BASS FIX!',
-                        inline: false
-                      }
-                    )
-                  ]
-                });
-              }
-
+            if (componentInteraction.customId === 'category_select') {
+              await handleCategorySelection(componentInteraction, interaction, radioManager);
+            } else if (componentInteraction.customId === 'station_select') {
+              await handleStationSelection(componentInteraction, interaction, radioManager);
             } else if (componentInteraction.customId === 'radio_stop') {
-              await componentInteraction.deferReply({ ephemeral: true });
-
-              const player = client.shoukaku.players.get(interaction.guildId);
-              if (player) {
-                await player.stopTrack();
-                await player.destroy();
-                client.shoukaku.players.delete(interaction.guildId);
-              }
-
-              await componentInteraction.editReply({
-                embeds: [new EmbedBuilder()
-                  .setColor('#00FF00')
-                  .setTitle('🔊 BASS SYSTEM SHUTDOWN!')
-                  .setDescription('Uta has stopped the BASS DROP and the speakers are safe... for now! 💀')
-                  .addFields({
-                    name: '🎵 BASS SESSION COMPLETE',
-                    value: 'The HARD BASS adventure is paused. Ready to DROP more BASS whenever you are!',
-                    inline: false
-                  })
-                  .setFooter({ text: 'Until the next BASS DROP! 💀🔊' })
-                ]
-              });
+              await handleStopRadio(componentInteraction, interaction);
             }
           } catch (error) {
             console.error('❌ Radio interaction error:', error);
           }
         });
       }
-    };
+    };    // Handler functions for the two-dropdown system
+    async function handleCategorySelection(componentInteraction, originalInteraction, radioManager) {
+      const selectedCategory = componentInteraction.values[0];
+      const categoryInfo = MUSIC_CATEGORIES[selectedCategory];
+      
+      console.log(`🎵 User selected category: ${selectedCategory}`);
+      
+      // Get stations for this category
+      const categoryStations = Object.entries(RADIO_STATIONS)
+        .filter(([key, station]) => station.category === selectedCategory)
+        .map(([key, station]) => ({
+          label: station.name,
+          description: `${station.description} (${station.genre})`,
+          value: key
+        }));
+
+      if (categoryStations.length === 0) {
+        return componentInteraction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('❌ No Stations Available')
+            .setDescription(`No stations found for ${categoryInfo.name}`)
+          ],
+          ephemeral: true
+        });
+      }
+
+      const stationSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId('station_select')
+        .setPlaceholder(`${categoryInfo.emoji} Choose your ${categoryInfo.name.split(' ')[1]} station...`)
+        .addOptions(categoryStations);
+
+      const backButton = new ButtonBuilder()
+        .setCustomId('back_to_categories')
+        .setLabel('← Back to Categories')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🔙');
+
+      const stopButton = new ButtonBuilder()
+        .setCustomId('radio_stop')
+        .setLabel('Stop Music')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🛑');
+
+      const embed = new EmbedBuilder()
+        .setColor('#FF6B9D')
+        .setTitle(`${categoryInfo.emoji} ${categoryInfo.name.toUpperCase()}`)
+        .setDescription(`🎵 *"${categoryInfo.description}"*\n\n**Choose your station from ${categoryStations.length} available options:**`)
+        .addFields(
+          categoryStations.slice(0, 10).map(station => ({
+            name: `🎵 ${station.label}`,
+            value: station.description,
+            inline: false
+          }))
+        )
+        .setFooter({ text: `Uta's ${categoryInfo.name} Collection • Select your vibe! ${categoryInfo.emoji}` })
+        .setTimestamp();
+
+      await componentInteraction.update({
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(stationSelectMenu),
+          new ActionRowBuilder().addComponents(backButton, stopButton)
+        ]
+      });
+    }
+
+    async function handleStationSelection(componentInteraction, originalInteraction, radioManager) {
+      const selectedStation = componentInteraction.values[0];
+      const stationInfo = RADIO_STATIONS[selectedStation];
+      
+      console.log(`🎵 User selected station: ${selectedStation}`);
+      
+      await componentInteraction.deferReply({ ephemeral: true });
+
+      const voiceChannel = originalInteraction.member?.voice?.channel;
+      if (!voiceChannel) {
+        return componentInteraction.editReply({
+          embeds: [new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('❌ Voice Channel Required')
+            .setDescription('You need to be in a voice channel!')
+          ]
+        });
+      }
+
+      // Get or create player
+      let player = client.shoukaku.players.get(originalInteraction.guildId);
+      
+      if (!player) {
+        console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
+        
+        const permissions = voiceChannel.permissionsFor(originalInteraction.client.user);
+        if (!permissions.has(['Connect', 'Speak'])) {
+          throw new Error('Uta needs Connect/Speak permissions!');
+        }
+        
+        player = await client.shoukaku.joinVoiceChannel({
+          guildId: originalInteraction.guildId,
+          channelId: voiceChannel.id,
+          shardId: originalInteraction.guild.shardId
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await player.setGlobalVolume(85);
+        console.log('✅ Uta connected and volume set to 85');
+      } else {
+        console.log('🔊 Uta already performing');
+        await player.setGlobalVolume(85);
+      }
+
+      try {
+        const result = await radioManager.connectToStream(player, selectedStation);
+        
+        // SUCCESS
+        await componentInteraction.editReply({
+          embeds: [new EmbedBuilder()
+            .setColor('#00FF94')
+            .setTitle('🎵 Now Playing!')
+            .setDescription(`✅ **${stationInfo.name}** is now playing in **${voiceChannel.name}**!`)
+            .addFields(
+              {
+                name: '🎶 Station Info',
+                value: stationInfo.description,
+                inline: false
+              },
+              {
+                name: '🎵 Genre',
+                value: stationInfo.genre,
+                inline: true
+              },
+              {
+                name: '🎧 Quality',
+                value: stationInfo.quality,
+                inline: true
+              }
+            )
+            .setFooter({ text: 'Enjoy the music! 🎵✨' })
+            .setTimestamp()
+          ]
+        });
+        
+      } catch (error) {
+        console.error(`❌ Stream failed:`, error);
+        await componentInteraction.editReply({
+          embeds: [new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('❌ Connection Failed!')
+            .setDescription(`Couldn't connect to ${stationInfo.name}`)
+            .addFields({
+              name: '🔧 Error Details',
+              value: error.message,
+              inline: false
+            })
+          ]
+        });
+      }
+    }
+
+    async function handleStopRadio(componentInteraction, originalInteraction) {
+      await componentInteraction.deferReply({ ephemeral: true });
+
+      const player = client.shoukaku.players.get(originalInteraction.guildId);
+      if (player) {
+        await player.stopTrack();
+        await player.destroy();
+        client.shoukaku.players.delete(originalInteraction.guildId);
+      }
+
+      await componentInteraction.editReply({
+        embeds: [new EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('🛑 Music Stopped!')
+          .setDescription('Uta has finished her performance and the music has stopped! 🎤')
+          .setFooter({ text: 'Until the next song! 🎵✨' })
+        ]
+      });
+    }
 
     // Updated Uta command with BASS focus
     const utaCommand = {
