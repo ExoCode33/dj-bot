@@ -1,4 +1,4 @@
-// src/config/stations.js - VERIFIED WORKING STATIONS with HARD BASS DROP focus
+// src/config/stations.js - VERIFIED WORKING STATIONS organized by category
 export const RADIO_STATIONS = {
   // ✅ CONFIRMED WORKING - Keep these
   'lofi_girl': { 
@@ -7,40 +7,25 @@ export const RADIO_STATIONS = {
     url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
     fallback: 'http://streaming.radionomy.com/LoFi-Hip-Hop',
     genre: 'Lo-Fi',
+    category: 'chill',
     quality: 'Premium'
   },
-  'listen_moe_jpop': { 
-    name: 'LISTEN.moe J-Pop Radio', 
-    description: 'Japanese music and anime soundtracks with real artists',
-    url: 'https://listen.moe/stream',
-    fallback: 'https://listen.moe/fallback',
-    genre: 'Anime',
+  'poolsuite_fm': {
+    name: 'Poolsuite FM',
+    description: 'Summer vibes and yacht rock for chill sessions',
+    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
+    genre: 'Chill',
+    category: 'chill',
     quality: 'High'
   },
-  'listen_moe_kpop': { 
-    name: 'LISTEN.moe K-Pop Radio', 
-    description: 'Korean pop music with trendy K-Pop hits',
-    url: 'https://listen.moe/kpop/stream',
-    fallback: 'https://listen.moe/stream',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
-  'z100_nyc': {
-    name: 'Z100 New York',
-    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
-    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  
-  // ✅ ALTERNATIVE HARD BASS STATIONS - SomaFM (Known for Lavalink compatibility)
   'somafm_groovesalad': {
     name: 'SomaFM Groove Salad',
     description: 'Ambient downtempo with electronic elements',
     url: 'http://ice1.somafm.com/groovesalad-256-mp3',
     fallback: 'http://ice2.somafm.com/groovesalad-256-mp3',
     genre: 'Ambient Electronic',
+    category: 'chill',
     quality: 'High'
   },
   'somafm_dronezone': {
@@ -49,32 +34,65 @@ export const RADIO_STATIONS = {
     url: 'http://ice1.somafm.com/dronezone-256-mp3',
     fallback: 'http://ice2.somafm.com/dronezone-256-mp3',
     genre: 'Ambient',
+    category: 'chill',
     quality: 'High'
   },
-  'somafm_beatblender': {
-    name: 'SomaFM Beat Blender',
-    description: 'Downtempo, trip-hop, and electronic beats',
-    url: 'http://ice1.somafm.com/beatblender-128-mp3',
-    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
-    genre: 'Electronic Beats',
+
+  // ✅ K-POP & ASIAN MUSIC - Including BLACKPINK-style stations
+  'listen_moe_jpop': { 
+    name: 'LISTEN.moe J-Pop Radio', 
+    description: 'Japanese music and anime soundtracks with real artists',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/fallback',
+    genre: 'J-Pop',
+    category: 'kpop',
     quality: 'High'
   },
-  'somafm_deepspaceone': {
-    name: 'SomaFM Deep Space One',
-    description: 'Deep ambient electronic space music',
-    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
-    fallback: 'http://ice2.somafm.com/deepspaceone-128-mp3',
-    genre: 'Space Electronic',
+  'listen_moe_kpop': { 
+    name: 'LISTEN.moe K-Pop Radio', 
+    description: 'Korean pop music with trendy K-Pop hits',
+    url: 'https://listen.moe/kpop/stream',
+    fallback: 'https://listen.moe/stream',
+    genre: 'K-Pop',
+    category: 'kpop',
     quality: 'High'
   },
-  
-  // ✅ DIRECT MP3 STREAMS - More likely to work
+  'kpop_starz': {
+    name: 'K-Pop Starz Radio',
+    description: 'BLACKPINK, BTS, TWICE, aespa and top K-Pop hits',
+    url: 'http://streaming.radionomy.com/KPOP-STARZ',
+    fallback: 'http://streaming.radionomy.com/K-Pop-Powerplay-Kawaii',
+    genre: 'K-Pop Hits',
+    category: 'kpop',
+    quality: 'High'
+  },
+  'asia_dream_radio': {
+    name: 'Asia DREAM Radio',
+    description: 'K-Pop, J-Pop and C-Pop with BLACKPINK, NewJeans, IVE',
+    url: 'http://streaming.radionomy.com/Asia-DREAM-Radio',
+    fallback: 'http://streaming.radionomy.com/J-Pop-Powerplay-Kawaii',
+    genre: 'Asian Pop',
+    category: 'kpop',
+    quality: 'High'
+  },
+  'hallyu_pop': {
+    name: 'Hallyu K-Pop Radio',
+    description: 'Korean Wave hits with BLACKPINK, (G)I-DLE, ITZY style',
+    url: 'http://streaming.radionomy.com/Hallyu-Kpop',
+    fallback: 'http://streaming.radionomy.com/KPOP-STARZ',
+    genre: 'Hallyu',
+    category: 'kpop',
+    quality: 'High'
+  },
+
+  // ✅ ELECTRONIC & BASS DROP
   'iloveradio_hardstyle': {
     name: 'ILoveRadio Hardstyle',
     description: 'German hardstyle with CRUSHING drops',
     url: 'https://streams.ilovemusic.de/iloveradio21.mp3',
     fallback: 'https://streams.ilovemusic.de/iloveradio21.aac',
     genre: 'Hardstyle',
+    category: 'electronic',
     quality: 'High'
   },
   'iloveradio_dance': {
@@ -83,6 +101,7 @@ export const RADIO_STATIONS = {
     url: 'https://streams.ilovemusic.de/iloveradio2.mp3',
     fallback: 'https://streams.ilovemusic.de/iloveradio2.aac',
     genre: 'Dance',
+    category: 'electronic',
     quality: 'High'
   },
   'iloveradio_clubsounds': {
@@ -91,16 +110,16 @@ export const RADIO_STATIONS = {
     url: 'https://streams.ilovemusic.de/iloveradio16.mp3',
     fallback: 'https://streams.ilovemusic.de/iloveradio16.aac',
     genre: 'Club Music',
+    category: 'electronic',
     quality: 'High'
   },
-  
-  // ✅ BASS FOCUSED ALTERNATIVES - Radionomy (Usually works well)
   'bass_radio_1': {
     name: 'Bass Radio One',
     description: 'Heavy bass and electronic music',
     url: 'http://streaming.radionomy.com/Bass-Radio',
     fallback: 'http://streaming.radionomy.com/HardBass',
     genre: 'Bass Music',
+    category: 'electronic',
     quality: 'High'
   },
   'electronic_pioneer': {
@@ -109,6 +128,7 @@ export const RADIO_STATIONS = {
     url: 'http://streaming.radionomy.com/Electronic-Pioneer',
     fallback: 'http://streaming.radionomy.com/ElectronicBeats',
     genre: 'Electronic',
+    category: 'electronic',
     quality: 'High'
   },
   'dubstep_beyond': {
@@ -117,6 +137,7 @@ export const RADIO_STATIONS = {
     url: 'http://streaming.radionomy.com/Dubstep-Beyond',
     fallback: 'http://streaming.radionomy.com/DubstepFM',
     genre: 'Dubstep',
+    category: 'electronic',
     quality: 'High'
   },
   'hardstyle_fm': {
@@ -125,44 +146,103 @@ export const RADIO_STATIONS = {
     url: 'http://streaming.radionomy.com/HardstyleFM',
     fallback: 'http://streaming.radionomy.com/Hardstyle-Music',
     genre: 'Hardstyle',
+    category: 'electronic',
     quality: 'High'
   },
-  
-  // ✅ ADDITIONAL WORKING ALTERNATIVES
+  'somafm_beatblender': {
+    name: 'SomaFM Beat Blender',
+    description: 'Downtempo, trip-hop, and electronic beats',
+    url: 'http://ice1.somafm.com/beatblender-128-mp3',
+    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
+    genre: 'Electronic Beats',
+    category: 'electronic',
+    quality: 'High'
+  },
+
+  // ✅ POP & MAINSTREAM
+  'z100_nyc': {
+    name: 'Z100 New York',
+    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
+    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
+    genre: 'Pop Hits',
+    category: 'pop',
+    quality: 'High'
+  },
   'bigfm_electro': {
     name: 'BigFM Electro',
     description: 'German electronic music with heavy beats',
     url: 'http://streams.bigfm.de/bigfm-nitroxparty-128-mp3',
     fallback: 'http://streams.bigfm.de/bigfm-deutschland-128-mp3',
-    genre: 'Electronic',
+    genre: 'Electronic Pop',
+    category: 'pop',
     quality: 'High'
   },
-  'poolsuite_fm': {
-    name: 'Poolsuite FM',
-    description: 'Summer vibes and yacht rock for chill sessions',
-    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    genre: 'Chill',
-    quality: 'High'
-  },
-  
-  // ✅ HIP-HOP ALTERNATIVES
+
+  // ✅ HIP-HOP & RAP
   'hiphop_nation': {
     name: 'Hip-Hop Nation',
     description: 'Latest hip-hop and rap hits with heavy bass',
     url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
     fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
     genre: 'Hip-Hop',
+    category: 'hiphop',
     quality: 'High'
   },
-  
-  // ✅ ROCK ALTERNATIVES
+
+  // ✅ ROCK & ALTERNATIVE
   'rock_antenne': {
     name: 'Rock Antenne',
     description: 'German rock station with heavy guitars',
     url: 'http://mp3channels.webradio.antenne.de/rockantenne',
     fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
     genre: 'Rock',
+    category: 'rock',
     quality: 'High'
+  },
+
+  // ✅ SPACE & AMBIENT
+  'somafm_deepspaceone': {
+    name: 'SomaFM Deep Space One',
+    description: 'Deep ambient electronic space music',
+    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
+    fallback: 'http://ice2.somafm.com/deepspaceone-128-mp3',
+    genre: 'Space Electronic',
+    category: 'chill',
+    quality: 'High'
+  }
+};
+
+// Category definitions for the dropdown system
+export const MUSIC_CATEGORIES = {
+  'kpop': {
+    name: '🎌 K-Pop & Asian Hits',
+    description: 'BLACKPINK, BTS, TWICE, NewJeans, anime music',
+    emoji: '🎌'
+  },
+  'electronic': {
+    name: '🔊 Electronic & Bass Drop', 
+    description: 'Hardstyle, dubstep, house, techno with CRUSHING drops',
+    emoji: '🔊'
+  },
+  'pop': {
+    name: '🎵 Pop & Mainstream',
+    description: 'Chart toppers, dance hits, popular music',
+    emoji: '🎵'
+  },
+  'chill': {
+    name: '🎧 Chill & Lo-Fi',
+    description: 'Lo-fi beats, ambient, downtempo, study music',
+    emoji: '🎧'
+  },
+  'hiphop': {
+    name: '🎤 Hip-Hop & Rap',
+    description: 'Latest hip-hop, rap, and R&B hits',
+    emoji: '🎤'
+  },
+  'rock': {
+    name: '🎸 Rock & Metal',
+    description: 'Rock, metal, alternative with heavy guitars',
+    emoji: '🎸'
   }
 };
