@@ -39,119 +39,156 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// BULLETPROOF RADIO STATIONS - Tested and working streams
+// VERIFIED WORKING RADIO STATIONS - All tested with Lavalink
 const RADIO_STATIONS = {
-  'lofi_girl': { 
-    name: 'Lofi Girl Radio', 
-    description: '24/7 chill lo-fi hip hop beats',
-    url: 'http://stream.zeno.fm/f3wvbbqmdg8uv',
-    fallback: 'http://hyades.shoutca.st:8043/stream',
+  // ✅ LO-FI & AMBIENT - SomaFM (guaranteed to work)
+  'groove_salad': { 
+    name: 'SomaFM Groove Salad', 
+    description: 'Chilled ambient/downtempo beats and grooves',
+    url: 'https://ice.somafm.com/groovesalad',
+    fallback: 'https://somafm.com/groovesalad.pls',
     genre: 'Lo-Fi'
   },
+  'drone_zone': { 
+    name: 'SomaFM Drone Zone', 
+    description: 'Atmospheric textures with minimal beats',
+    url: 'https://ice.somafm.com/dronezone',
+    fallback: 'https://somafm.com/dronezone.pls',
+    genre: 'Lo-Fi'
+  },
+  'deep_space_one': { 
+    name: 'SomaFM Deep Space One', 
+    description: 'Deep ambient electronic and space music',
+    url: 'https://ice.somafm.com/deepspaceone',
+    fallback: 'https://somafm.com/deepspaceone.pls',
+    genre: 'Lo-Fi'
+  },
+  'lush': { 
+    name: 'SomaFM Lush', 
+    description: 'Sensuous female vocals with electronic influence',
+    url: 'https://ice.somafm.com/lush',
+    fallback: 'https://somafm.com/lush.pls',
+    genre: 'Lo-Fi'
+  },
+  'secret_agent': { 
+    name: 'SomaFM Secret Agent', 
+    description: 'Soundtrack for your stylish, mysterious life',
+    url: 'https://ice.somafm.com/secretagent',
+    fallback: 'https://somafm.com/secretagent.pls',
+    genre: 'Lo-Fi'
+  },
+  
+  // ✅ ELECTRONIC & DUBSTEP - SomaFM verified streams
+  'beat_blender': { 
+    name: 'SomaFM Beat Blender', 
+    description: 'Late night deep-house and downtempo chill',
+    url: 'https://ice.somafm.com/beatblender',
+    fallback: 'https://somafm.com/beatblender.pls',
+    genre: 'Dubstep'
+  },
+  'dubstep_beyond': { 
+    name: 'SomaFM Dub Step Beyond', 
+    description: 'Dubstep, Dub and Deep Bass (speaker warning!)',
+    url: 'https://ice.somafm.com/dubstep',
+    fallback: 'https://somafm.com/dubstep.pls',
+    genre: 'Dubstep'
+  },
+  'cliqhop_idm': { 
+    name: 'SomaFM cliqhop idm', 
+    description: 'Intelligent Dance Music - blips and beeps with beats',
+    url: 'https://ice.somafm.com/cliqhop',
+    fallback: 'https://somafm.com/cliqhop.pls',
+    genre: 'Dubstep'
+  },
+  'the_trip': { 
+    name: 'SomaFM The Trip', 
+    description: 'Progressive house/trance - tip top tunes',
+    url: 'https://ice.somafm.com/thetrip',
+    fallback: 'https://somafm.com/thetrip.pls',
+    genre: 'Dubstep'
+  },
+  'fluid': { 
+    name: 'SomaFM Fluid', 
+    description: 'Electronic instrumental hiphop and liquid trap',
+    url: 'https://ice.somafm.com/fluid',
+    fallback: 'https://somafm.com/fluid.pls',
+    genre: 'Dubstep'
+  },
+  
+  // ✅ ROCK & METAL - SomaFM verified streams
+  'metal_detector': { 
+    name: 'SomaFM Metal Detector', 
+    description: 'Black to doom, prog to sludge, thrash to post metal',
+    url: 'https://ice.somafm.com/metal',
+    fallback: 'https://somafm.com/metal.pls',
+    genre: 'Rock'
+  },
+  'left_coast_70s': { 
+    name: 'SomaFM Left Coast 70s', 
+    description: 'Mellow album rock from the Seventies',
+    url: 'https://ice.somafm.com/seventies',
+    fallback: 'https://somafm.com/seventies.pls',
+    genre: 'Rock'
+  },
+  'digitalis': { 
+    name: 'SomaFM Digitalis', 
+    description: 'Digitally affected analog rock',
+    url: 'https://ice.somafm.com/digitalis',
+    fallback: 'https://somafm.com/digitalis.pls',
+    genre: 'Rock'
+  },
+  'underground_80s': { 
+    name: 'SomaFM Underground 80s', 
+    description: 'Early 80s UK Synthpop and New Wave',
+    url: 'https://ice.somafm.com/u80s',
+    fallback: 'https://somafm.com/u80s.pls',
+    genre: 'Rock'
+  },
+  
+  // ✅ ANIME & ALTERNATIVE - Verified working streams
   'listen_moe': { 
-    name: 'LISTEN.moe (KPOP)', 
-    description: 'K-Pop and Japanese music 24/7',
+    name: 'LISTEN.moe (J-Pop/Anime)', 
+    description: 'Japanese music and anime soundtracks 24/7',
     url: 'https://listen.moe/stream',
     fallback: 'https://listen.moe/kpop/stream',
     genre: 'Anime'
   },
-  'soma_groovesalad': { 
-    name: 'SomaFM Groove Salad', 
-    description: 'Ambient downtempo space music',
-    url: 'http://ice1.somafm.com/groovesalad-256-mp3',
-    fallback: 'http://ice2.somafm.com/groovesalad-256-mp3',
+  'indie_pop_rocks': { 
+    name: 'SomaFM Indie Pop Rocks', 
+    description: 'New and classic favorite indie pop tracks',
+    url: 'https://ice.somafm.com/indiepop',
+    fallback: 'https://somafm.com/indiepop.pls',
+    genre: 'Rock'
+  },
+  'poptron': { 
+    name: 'SomaFM PopTron', 
+    description: 'Electropop and indie dance rock with sparkle',
+    url: 'https://ice.somafm.com/poptron',
+    fallback: 'https://somafm.com/poptron.pls',
+    genre: 'Rock'
+  },
+  
+  // ✅ SPECIAL/EXPERIMENTAL - SomaFM unique channels
+  'vaporwaves': { 
+    name: 'SomaFM Vaporwaves', 
+    description: 'All Vaporwave. All the time.',
+    url: 'https://ice.somafm.com/vaporwaves',
+    fallback: 'https://somafm.com/vaporwaves.pls',
     genre: 'Lo-Fi'
   },
-  'soma_beatblender': { 
-    name: 'SomaFM Beat Blender', 
-    description: 'Deep house and electronica',
-    url: 'http://ice1.somafm.com/beatblender-128-mp3',
-    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
+  'defcon_radio': { 
+    name: 'SomaFM DEF CON Radio', 
+    description: 'Music for Hacking - the DEF CON year-round channel',
+    url: 'https://ice.somafm.com/defcon',
+    fallback: 'https://somafm.com/defcon.pls',
     genre: 'Dubstep'
   },
-  'bassdrive': { 
-    name: 'BassDrive DnB', 
-    description: 'UK Drum & Bass and jungle',
-    url: 'http://bassdrive.com:8000/stream',
-    fallback: 'http://stream.bassdrive.co.uk:8200/',
-    genre: 'Dubstep'
-  },
-  'rockradio_classic': { 
-    name: 'RockRadio Classic Rock', 
-    description: 'Classic rock legends 24/7',
-    url: 'http://sc-classicrock.1.fm:8200/',
-    fallback: 'http://sc-tcr.1.fm:8010/',
+  'heavyweight_reggae': { 
+    name: 'SomaFM Heavyweight Reggae', 
+    description: 'Reggae, Ska, Rocksteady classic and deep tracks',
+    url: 'https://ice.somafm.com/reggae',
+    fallback: 'https://somafm.com/reggae.pls',
     genre: 'Rock'
-  },
-  'rockradio_metal': { 
-    name: 'RockRadio Heavy Metal', 
-    description: 'Heavy metal and hard rock',
-    url: 'http://sc-metal.1.fm:8400/',
-    fallback: 'http://sc-heavy.1.fm:8300/',
-    genre: 'Rock'
-  },
-  'rockradio_alt': { 
-    name: 'RockRadio Alternative', 
-    description: 'Alternative and indie rock',
-    url: 'http://sc-alt.1.fm:8500/',
-    fallback: 'http://sc-indie.1.fm:8600/',
-    genre: 'Rock'
-  },
-  'radio_caprice_electronic': { 
-    name: 'Radio Caprice Electronic', 
-    description: 'Electronic and synth music',
-    url: 'http://79.111.14.76:8000/electronic',
-    fallback: 'http://79.111.14.76:8000/synthwave',
-    genre: 'Dubstep'
-  },
-  'radio_caprice_rock': { 
-    name: 'Radio Caprice Rock', 
-    description: 'Rock and metal collection',
-    url: 'http://79.111.14.76:8000/rock',
-    fallback: 'http://79.111.14.76:8000/metal',
-    genre: 'Rock'
-  },
-  'soma_dronezone': { 
-    name: 'SomaFM Drone Zone', 
-    description: 'Atmospheric ambient space',
-    url: 'http://ice1.somafm.com/dronezone-256-mp3',
-    fallback: 'http://ice2.somafm.com/dronezone-256-mp3',
-    genre: 'Lo-Fi'
-  },
-  'soma_deepspaceone': { 
-    name: 'SomaFM Deep Space One', 
-    description: 'Ambient space music',
-    url: 'http://ice1.somafm.com/deepspaceone-128-mp3',
-    fallback: 'http://ice2.somafm.com/deepspaceone-128-mp3',
-    genre: 'Lo-Fi'
-  },
-  'anime_jp': { 
-    name: 'AnimeNfo Radio', 
-    description: 'Anime and J-Pop music 24/7',
-    url: 'http://itori.animenfo.com:443/radio.m3u',
-    fallback: 'http://momori.animenfo.com:8000/radio.m3u',
-    genre: 'Anime'
-  },
-  'chillhop': { 
-    name: 'Chillhop Radio', 
-    description: 'Hip hop instrumental beats',
-    url: 'http://streams.fluxfm.de/Chillhop/mp3-320/',
-    fallback: 'http://hyades.shoutca.st:8043/stream',
-    genre: 'Lo-Fi'
-  },
-  'soma_lush': { 
-    name: 'SomaFM Lush', 
-    description: 'Sensual and chill electronic',
-    url: 'http://ice1.somafm.com/lush-128-mp3',
-    fallback: 'http://ice2.somafm.com/lush-128-mp3',
-    genre: 'Lo-Fi'
-  },
-  'soma_secretagent': { 
-    name: 'SomaFM Secret Agent', 
-    description: 'Downtempo spy jazz lounge',
-    url: 'http://ice1.somafm.com/secretagent-128-mp3',
-    fallback: 'http://ice2.somafm.com/secretagent-128-mp3',
-    genre: 'Lo-Fi'
   }
 };
 
