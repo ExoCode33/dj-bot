@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
-// DI.FM channels that are known to work
+// DI.FM channels that are known to work - Updated descriptions
 const DIFM_CHANNELS = {
   'trance': { name: 'Trance', description: 'Uplifting and euphoric trance music' },
   'house': { name: 'House', description: 'Classic and modern house beats' },
@@ -25,6 +25,7 @@ export const execute = async (interaction) => {
         .setColor('#FF0000')
         .setTitle('❌ Voice Channel Required')
         .setDescription('You need to be in a voice channel to use the radio!')
+        .setFooter({ text: 'Join a voice channel and try again!' })
       ],
       ephemeral: true
     });
@@ -37,6 +38,7 @@ export const execute = async (interaction) => {
         .setColor('#FF0000')
         .setTitle('❌ Missing Permissions')
         .setDescription('I need Connect and Speak permissions in your voice channel!')
+        .setFooter({ text: 'Check bot permissions and try again!' })
       ],
       ephemeral: true
     });
@@ -57,6 +59,7 @@ export const execute = async (interaction) => {
           value: `Nodes: ${nodes.size}, State: ${node?.state || 'none'}`,
           inline: true
         })
+        .setFooter({ text: 'Service will be back online shortly!' })
       ],
       ephemeral: true
     });
@@ -65,13 +68,13 @@ export const execute = async (interaction) => {
   // Create channel selection menu
   const channelOptions = Object.entries(DIFM_CHANNELS).map(([key, channel]) => ({
     label: channel.name,
-    description: channel.description,
+    description: `${channel.description} - Auto-plays when selected!`,
     value: key
   }));
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('difm_select')
-    .setPlaceholder('Choose a DI.FM channel...')
+    .setPlaceholder('Choose a DI.FM channel... (Auto-plays!)')
     .addOptions(channelOptions);
 
   const stopButton = new ButtonBuilder()
@@ -80,30 +83,42 @@ export const execute = async (interaction) => {
     .setStyle(ButtonStyle.Danger)
     .setEmoji('🛑');
 
+  const statusButton = new ButtonBuilder()
+    .setCustomId('difm_status')
+    .setLabel('Radio Status')
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('📊');
+
   const embed = new EmbedBuilder()
     .setColor('#FF6B35')
     .setTitle('📻 DI.FM Electronic Music Radio')
-    .setDescription('Select a channel to start streaming!')
+    .setDescription('Select a channel below and it will start playing automatically!')
+    .setImage('https://i.imgur.com/YourDIFMBanner.png') // Replace with DI.FM banner image
     .addFields(
       {
         name: '🎵 Available Channels',
-        value: Object.values(DIFM_CHANNELS).map(ch => `• **${ch.name}**`).join('\n'),
+        value: Object.values(DIFM_CHANNELS).map(ch => `• **${ch.name}** - ${ch.description}`).join('\n'),
         inline: false
       },
       {
         name: '🔊 Current Voice Channel',
-        value: voiceChannel.name,
+        value: `📍 **${voiceChannel.name}**`,
+        inline: true
+      },
+      {
+        name: '✨ How It Works',
+        value: '1️⃣ Select a channel below\n2️⃣ Music starts automatically\n3️⃣ Switch channels anytime\n4️⃣ Use Stop when done',
         inline: true
       }
     )
-    .setFooter({ text: 'DI.FM - Addictive Electronic Music' })
+    .setFooter({ text: 'DI.FM - Addictive Electronic Music • Auto-Play Enabled' })
     .setTimestamp();
 
   const message = await interaction.reply({
     embeds: [embed],
     components: [
       new ActionRowBuilder().addComponents(selectMenu),
-      new ActionRowBuilder().addComponents(stopButton)
+      new ActionRowBuilder().addComponents(stopButton, statusButton)
     ]
   });
 
@@ -118,6 +133,8 @@ export const execute = async (interaction) => {
         await handleChannelSelection(componentInteraction, interaction);
       } else if (componentInteraction.customId === 'difm_stop') {
         await handleStopRadio(componentInteraction, interaction);
+      } else if (componentInteraction.customId === 'difm_status') {
+        await handleRadioStatus(componentInteraction, interaction);
       }
     } catch (error) {
       console.error('❌ Radio interaction error:', error);
@@ -127,6 +144,7 @@ export const execute = async (interaction) => {
             .setColor('#FF0000')
             .setTitle('❌ Error')
             .setDescription('An error occurred while processing your request.')
+            .setFooter({ text: 'Please try again!' })
           ],
           ephemeral: true
         }).catch(() => {});
@@ -148,22 +166,40 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
   await selectInteraction.deferReply({ ephemeral: true });
 
   try {
-    // Get or create player
-    let player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
-    const voiceChannel = originalInteraction.member.voice.channel;
-    
-    if (!player) {
-      console.log('🔊 Creating new voice connection...');
-      player = await originalInteraction.client.shoukaku.joinVoiceChannel({
-        guildId: originalInteraction.guildId,
-        channelId: voiceChannel.id,
-        shardId: originalInteraction.guild.shardId
-      });
+    // Clean up existing player first
+    let existingPlayer = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
+    if (existingPlayer) {
+      console.log('🧹 Cleaning up existing connection...');
+      try {
+        await existingPlayer.stopTrack();
+        await existingPlayer.destroy();
+        originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
+      } catch (cleanupError) {
+        console.warn('⚠️ Cleanup error:', cleanupError.message);
+        originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
+      }
       
-      // Set volume
-      await player.setGlobalVolume(35);
-      console.log('✅ Voice connection established');
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
+
+    // Get voice channel
+    const voiceChannel = originalInteraction.member.voice.channel;
+    if (!voiceChannel) {
+      throw new Error('Voice channel not found');
+    }
+
+    // Create new player
+    console.log('🔊 Creating new voice connection...');
+    const player = await originalInteraction.client.shoukaku.joinVoiceChannel({
+      guildId: originalInteraction.guildId,
+      channelId: voiceChannel.id,
+      shardId: originalInteraction.guild.shardId
+    });
+    
+    // Set volume
+    await player.setGlobalVolume(35);
+    console.log('✅ Voice connection established');
 
     // Try different DI.FM stream URLs
     const streamUrls = [
@@ -208,20 +244,26 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
       await selectInteraction.editReply({
         embeds: [new EmbedBuilder()
           .setColor('#00FF00')
-          .setTitle('📻 DI.FM Radio Playing')
+          .setTitle('📻 DI.FM Radio Playing!')
           .setDescription(`🎵 **${channelInfo.name}** is now playing in **${voiceChannel.name}**`)
           .addFields(
             {
-              name: '🎶 Channel',
+              name: '🎶 Channel Info',
               value: channelInfo.description,
               inline: false
             },
             {
-              name: '🌐 Stream URL',
-              value: `\`${usedUrl}\``,
-              inline: false
+              name: '🔊 Audio Settings',
+              value: `Volume: 35%\nQuality: High\nStatus: 🔴 Live`,
+              inline: true
+            },
+            {
+              name: '✨ Controls',
+              value: 'Select another channel to switch\nUse Stop button to end playback',
+              inline: true
             }
           )
+          .setFooter({ text: 'Enjoy your music! 🎵' })
           .setTimestamp()
         ]
       });
@@ -241,6 +283,7 @@ async function handleChannelSelection(selectInteraction, originalInteraction) {
           value: error.message,
           inline: false
         })
+        .setFooter({ text: 'Try selecting a different channel!' })
       ]
     });
   }
@@ -255,7 +298,7 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
     try {
       console.log('🛑 Stopping radio and disconnecting...');
       await player.stopTrack();
-      await player.disconnect();
+      await player.destroy();
       originalInteraction.client.shoukaku.players.delete(originalInteraction.guildId);
       console.log('✅ Radio stopped successfully');
     } catch (error) {
@@ -265,10 +308,46 @@ async function handleStopRadio(buttonInteraction, originalInteraction) {
 
   await buttonInteraction.editReply({
     embeds: [new EmbedBuilder()
-      .setColor('#00FF00')
+      .setColor('#FFA500')
       .setTitle('🛑 Radio Stopped')
-      .setDescription('DI.FM radio has been disconnected')
+      .setDescription('DI.FM radio has been disconnected. Thanks for listening!')
+      .setFooter({ text: 'Come back anytime for more music! 🎵' })
       .setTimestamp()
     ]
   });
+}
+
+async function handleRadioStatus(buttonInteraction, originalInteraction) {
+  await buttonInteraction.deferReply({ ephemeral: true });
+
+  const player = originalInteraction.client.shoukaku.players.get(originalInteraction.guildId);
+  const isPlaying = player && player.playing;
+  
+  const embed = new EmbedBuilder()
+    .setColor(isPlaying ? '#00FF94' : '#FFA500')
+    .setTitle('📊 Radio Status')
+    .setThumbnail(originalInteraction.client.user.displayAvatarURL())
+    .addFields(
+      {
+        name: '📻 Current Status',
+        value: isPlaying 
+          ? `🎵 **Playing DI.FM Radio**\n📍 ${originalInteraction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'}\n🔊 Volume: 35%\n📡 Quality: High`
+          : '⏸️ **Not Playing**\nSelect a channel above to start!',
+        inline: false
+      },
+      {
+        name: '🎵 Available Channels',
+        value: `${Object.keys(DIFM_CHANNELS).length} electronic music channels`,
+        inline: true
+      },
+      {
+        name: '🔧 System Status',
+        value: `Audio Engine: ✅ Ready\nConnection: ${player ? '✅ Connected' : '❌ Disconnected'}`,
+        inline: true
+      }
+    )
+    .setFooter({ text: 'DI.FM Radio Status • Auto-Play Enabled' })
+    .setTimestamp();
+
+  await buttonInteraction.editReply({ embeds: [embed] });
 }
