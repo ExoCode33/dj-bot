@@ -203,11 +203,11 @@ async function startDiscordBot() {
           const components = await RadioUI.createPersistentRadioComponents(persistentMessage.guildId, currentlyPlaying);
           
           // Check if banner exists and attach it
-          const bannerPath = path.join(__dirname, '../images/Uta-banner.png');
+          const bannerPath = path.join(__dirname, '../images/Uta-banner.gif');
           let files = [];
           
           if (fs.existsSync(bannerPath)) {
-            const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.png' });
+            const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.gif' });
             files.push(bannerAttachment);
           }
           
@@ -256,16 +256,16 @@ async function startDiscordBot() {
         const components = await RadioUI.createPersistentRadioComponents(channel.guildId, currentlyPlaying);
 
         // Create banner attachment
-        const bannerPath = path.join(__dirname, '../images/Uta-banner.png');
+        const bannerPath = path.join(__dirname, '../images/Uta-banner.gif');
         let files = [];
         
         if (fs.existsSync(bannerPath)) {
-          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.png' });
+          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.gif' });
           files.push(bannerAttachment);
           console.log('✅ Banner attachment created');
         } else {
           console.warn('⚠️ Banner file not found at:', bannerPath);
-          console.warn('⚠️ Expected location: images/Uta-banner.png');
+          console.warn('⚠️ Expected location: images/Uta-banner.gif');
           console.warn('⚠️ Banner will not be displayed');
         }
 
