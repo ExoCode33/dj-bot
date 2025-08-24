@@ -132,11 +132,24 @@ export class SimpleRadioManager {
       }
     }
     
-    // Strategy 2: Force remove from all tracking
+    // Strategy 2: Force remove from all tracking maps
     this.client.shoukaku.players.delete(guildId);
     console.log('🗑️ Player removed from Shoukaku map');
     
-    // Strategy 3: Check Discord voice state and force disconnect if needed
+    // Strategy 3: Clean up Shoukaku connections map (more aggressive)
+    try {
+      const nodes = this.client.shoukaku.nodes;
+      for (const [nodeName, node] of nodes) {
+        if (node.connections && node.connections.has(guildId)) {
+          console.log(`🧹 Removing connection from node ${nodeName}`);
+          node.connections.delete(guildId);
+        }
+      }
+    } catch (nodeCleanupError) {
+      console.warn('⚠️ Error cleaning node connections:', nodeCleanupError.message);
+    }
+    
+    // Strategy 4: Force Discord voice state cleanup
     try {
       const guild = this.client.guilds.cache.get(guildId);
       if (guild) {
@@ -150,14 +163,33 @@ export class SimpleRadioManager {
             console.warn('⚠️ Could not force Discord disconnect:', disconnectError.message);
           }
         }
+        
+        // Also try to update the voice state directly
+        try {
+          await guild.members.me.voice.disconnect();
+        } catch (voiceDisconnectError) {
+          // Ignore errors here, it's a backup attempt
+        }
       }
     } catch (voiceError) {
       console.warn('⚠️ Error checking voice state:', voiceError.message);
     }
     
-    // Strategy 4: Wait for cleanup to propagate
+    // Strategy 5: Nuclear option - clear ALL internal state
+    try {
+      // Force clear the internal Shoukaku connection tracker
+      const connector = this.client.shoukaku.connector;
+      if (connector && connector.connections) {
+        connector.connections.delete(guildId);
+        console.log('🔥 Cleared connector connection tracking');
+      }
+    } catch (connectorError) {
+      console.warn('⚠️ Error cleaning connector:', connectorError.message);
+    }
+    
+    // Strategy 6: Wait longer for all cleanup to propagate
     console.log('⏳ Waiting for cleanup to propagate...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Increased to 5 seconds
     console.log('✅ Cleanup completed');
   }
 
