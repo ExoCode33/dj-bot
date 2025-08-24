@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import http from 'node:http';
-import { RADIO_STATIONS } from './config/stations.js';
 
 // PRIORITY: Start health server immediately
 console.log('🚀 STARTING UTA DJ BOT - World\'s Greatest Diva Edition');
@@ -13,36 +12,157 @@ const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
 
+// RADIO_STATIONS defined inline to avoid import issues
+const RADIO_STATIONS = {
+  'lofi_girl': { 
+    name: 'Lofi Girl - Study Beats', 
+    description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
+    url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
+    fallback: 'http://streaming.radionomy.com/LoFi-Hip-Hop',
+    genre: 'Lo-Fi',
+    quality: 'Premium'
+  },
+  'listen_moe_jpop': { 
+    name: 'LISTEN.moe J-Pop Radio', 
+    description: 'Japanese music and anime soundtracks with real artists',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/fallback',
+    genre: 'Anime',
+    quality: 'High'
+  },
+  'listen_moe_kpop': { 
+    name: 'LISTEN.moe K-Pop Radio', 
+    description: 'Korean pop music with trendy K-Pop hits',
+    url: 'https://listen.moe/kpop/stream',
+    fallback: 'https://listen.moe/stream',
+    genre: 'K-Pop',
+    quality: 'High'
+  },
+  'z100_nyc': {
+    name: 'Z100 New York',
+    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
+    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
+    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
+    genre: 'Pop Hits',
+    quality: 'High'
+  },
+  'somafm_groovesalad': {
+    name: 'SomaFM Groove Salad',
+    description: 'Ambient downtempo with electronic elements',
+    url: 'http://ice1.somafm.com/groovesalad-256-mp3',
+    fallback: 'http://ice2.somafm.com/groovesalad-256-mp3',
+    genre: 'Ambient Electronic',
+    quality: 'High'
+  },
+  'somafm_dronezone': {
+    name: 'SomaFM Drone Zone',
+    description: 'Deep ambient electronic soundscapes',
+    url: 'http://ice1.somafm.com/dronezone-256-mp3',
+    fallback: 'http://ice2.somafm.com/dronezone-256-mp3',
+    genre: 'Ambient',
+    quality: 'High'
+  },
+  'somafm_beatblender': {
+    name: 'SomaFM Beat Blender',
+    description: 'Downtempo, trip-hop, and electronic beats',
+    url: 'http://ice1.somafm.com/beatblender-128-mp3',
+    fallback: 'http://ice2.somafm.com/beatblender-128-mp3',
+    genre: 'Electronic Beats',
+    quality: 'High'
+  },
+  'iloveradio_dance': {
+    name: 'ILoveRadio Dance',
+    description: 'Dance hits and electronic music',
+    url: 'https://streams.ilovemusic.de/iloveradio2.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio2.aac',
+    genre: 'Dance',
+    quality: 'High'
+  },
+  'hiphop_nation': {
+    name: 'Hip-Hop Nation',
+    description: 'Latest hip-hop and rap hits with heavy bass',
+    url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
+    fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
+    genre: 'Hip-Hop',
+    quality: 'High'
+  },
+  'rock_antenne': {
+    name: 'Rock Antenne',
+    description: 'German rock station with heavy guitars',
+    url: 'http://mp3channels.webradio.antenne.de/rockantenne',
+    fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
+    genre: 'Rock',
+    quality: 'High'
+  }
+};
+
+console.log(`📻 Loaded ${Object.keys(RADIO_STATIONS).length} radio stations`);
+
 // Health server - MUST start first
 const server = http.createServer((req, res) => {
-  console.log(`📡 Health check requested: ${req.url}`);
+  console.log(`📡 Health check requested: ${req.url} from ${req.connection.remoteAddress}`);
   
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      service: 'uta-dj-bot',
-      discord: global.discordReady || false,
-      lavalink: global.lavalinkReady || false,
-      radioChannel: RADIO_CHANNEL_ID,
-      defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.0'
-    }));
-  } else {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Uta\'s Music Studio is online! 🎤✨');
+  try {
+    if (req.url === '/health') {
+      const healthData = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        service: 'uta-dj-bot',
+        discord: global.discordReady || false,
+        lavalink: global.lavalinkReady || false,
+        radioChannel: RADIO_CHANNEL_ID,
+        defaultVolume: DEFAULT_VOLUME,
+        stationsLoaded: Object.keys(RADIO_STATIONS).length,
+        version: '2.0.1',
+        memory: {
+          used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+          total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
+        }
+      };
+      
+      res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify(healthData, null, 2));
+      console.log('✅ Health check response sent');
+    } else {
+      res.writeHead(200, { 
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(`Uta's Music Studio is online! 🎤✨\nUptime: ${Math.floor(process.uptime())} seconds\nStations: ${Object.keys(RADIO_STATIONS).length} available`);
+      console.log('✅ Root endpoint response sent');
+    }
+  } catch (error) {
+    console.error('❌ Error in health endpoint:', error);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Health check error: ' + error.message);
   }
 });
 
 server.listen(port, '0.0.0.0', (err) => {
   if (err) {
-    console.error('❌ Failed to start health server:', err);
+    console.error('❌ CRITICAL: Failed to start health server:', err);
+    console.error('This will cause Railway health checks to fail!');
     process.exit(1);
   }
-  console.log(`✅ Health server running on 0.0.0.0:${port}`);
+  console.log(`✅ Health server SUCCESSFULLY running on 0.0.0.0:${port}`);
   console.log(`🔗 Health check: http://0.0.0.0:${port}/health`);
+  console.log(`🔗 Root endpoint: http://0.0.0.0:${port}/`);
+  
+  // Test the health endpoint immediately
+  setTimeout(() => {
+    console.log('🧪 Testing health endpoint...');
+    const testReq = http.request(`http://localhost:${port}/health`, (res) => {
+      console.log(`✅ Health endpoint test: Status ${res.statusCode}`);
+    });
+    testReq.on('error', (err) => {
+      console.error('❌ Health endpoint test failed:', err.message);
+    });
+    testReq.end();
+  }, 1000);
 });
 
 // Error handlers
