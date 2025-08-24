@@ -1,41 +1,4 @@
-# --- BOT SERVICE (Node.js) ---
-DISCORD_TOKEN=your_discord_bot_token
-CLIENT_ID=your_discord_application_id
-GUILD_ID=your_test_guild_id   # optional for faster testing
-
-# PERSISTENT RADIO PANEL
-RADIO_CHANNEL_ID=your_radio_channel_id   # Channel where radio panel will be posted permanently
-
-LAVALINK_NAME=railway-node
-LAVALINK_URL=your-lavalink-service.up.railway.app:443
-LAVALINK_AUTH=super_secure_password
-LAVALINK_SECURE=true
-
-AUTHORIZED_ROLE_ID=your_dj_role_id
-DEFAULT_VOLUME=35
-
-# --- LAVALINK SERVICE (Java) ---
-SERVER_PORT=2333
-LAVALINK_PASSWORD=super_secure_password
-
-# Spotify Integration (Required for Spotify links)
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-SPOTIFY_SP_DC=optional_spotify_sp_dc_cookie
-SPOTIFY_COUNTRY_CODE=US
-
-# Apple Music Integration (Optional)
-APPLE_MUSIC_API_TOKEN=optional_apple_music_token
-APPLE_MUSIC_COUNTRY_CODE=US
-
-# Deezer Integration (Optional)
-DEEZER_MASTER_KEY=optional_deezer_master_key
-
-# YouTube Configuration (Optional - helps with anti-bot)
-YOUTUBE_COUNTRY_CODE=US
-
-# Java Memory Settings (Increased for better performance)
-JAVA_TOOL_OPTIONS=-Xms256m -Xmx1024m -XX:+UseG1GC -XX:+UseStringDeduplication
+// src/config/stations.js - VERIFIED WORKING STATIONS organized by category
 export const RADIO_STATIONS = {
   // ✅ CONFIRMED WORKING - Keep these
   'lofi_girl': { 
