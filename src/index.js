@@ -464,75 +464,7 @@ setTimeout(async () => {
       }
     }
 
-    async function handleBackToCategories(componentInteraction, originalInteraction) {
-      console.log('🔙 User clicked back to categories');
-      
-      // Recreate the original category selection interface
-      const categoryOptions = Object.entries(MUSIC_CATEGORIES).map(([key, category]) => ({
-        label: category.name,
-        description: category.description,
-        value: key,
-        emoji: category.emoji
-      }));
-
-      const categorySelectMenu = new StringSelectMenuBuilder()
-        .setCustomId('category_select')
-        .setPlaceholder('🎵 Choose a music category...')
-        .addOptions(categoryOptions);
-
-      const stopButton = new ButtonBuilder()
-        .setCustomId('radio_stop')
-        .setLabel('Stop Music')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('🛑');
-
-      const embed = new EmbedBuilder()
-        .setColor('#FF6B9D')
-        .setTitle('🎵 UTA\'S MUSIC COLLECTION')
-        .setDescription('🎤 *"Ready to play the perfect music for every mood!"* 🎤\n\n**Step 1:** Choose your music category\n**Step 2:** Select your favorite station\n**Step 3:** Enjoy the music! 🎵')
-        .addFields(
-          {
-            name: '🎌 K-Pop & Asian Hits',
-            value: 'BLACKPINK, BTS, TWICE, NewJeans, anime music',
-            inline: true
-          },
-          {
-            name: '🔊 Electronic & Bass Drop', 
-            value: 'Hardstyle, dubstep, house with CRUSHING drops',
-            inline: true
-          },
-          {
-            name: '🎵 Pop & Mainstream',
-            value: 'Chart toppers, dance hits, popular music',
-            inline: true
-          },
-          {
-            name: '🎧 Chill & Lo-Fi',
-            value: 'Lo-fi beats, ambient, downtempo, study music',
-            inline: true
-          },
-          {
-            name: '🎤 Hip-Hop & Rap',
-            value: 'Latest hip-hop, rap, and R&B hits',
-            inline: true
-          },
-          {
-            name: '🎸 Rock & Metal',
-            value: 'Rock, metal, alternative with heavy guitars',
-            inline: true
-          }
-        )
-        .setFooter({ text: 'Uta\'s Music Collection • Choose your vibe! 🎵✨' })
-        .setTimestamp();
-
-      await componentInteraction.update({
-        embeds: [embed],
-        components: [
-          new ActionRowBuilder().addComponents(categorySelectMenu),
-          new ActionRowBuilder().addComponents(stopButton)
-        ]
-      });
-    }
+    async function handleStopRadio(componentInteraction, originalInteraction) {
       await componentInteraction.deferReply({ ephemeral: true });
 
       const player = client.shoukaku.players.get(originalInteraction.guildId);
