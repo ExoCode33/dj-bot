@@ -1,4 +1,4 @@
-// src/features/radio/ui.js - UPDATED VERSION WITH BANNER AND NO MUSIC STYLES LIST
+=// src/features/radio/ui.js - UPDATED VERSION WITH BANNER AND NO MUSIC STYLES LIST
 import { 
   EmbedBuilder, 
   ActionRowBuilder,
@@ -16,9 +16,9 @@ export class RadioUI {
 
     return new EmbedBuilder()
       .setColor('#FF6B9D')
+      .setImage('attachment://Uta-banner.gif')
       .setTitle('🎤 Uta\'s Radio Studio')
       .setDescription('*"Welcome to my radio studio! Pick any station and I\'ll start playing it immediately!"*\n\n🎵 Choose a music style and station below!')
-      .setImage('attachment://Uta-banner.gif')
       .addFields(
         {
           name: '📻 Current Status',
