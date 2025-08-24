@@ -203,7 +203,7 @@ async function startDiscordBot() {
           const components = await RadioUI.createPersistentRadioComponents(persistentMessage.guildId, currentlyPlaying);
           
           // Check if banner exists and attach it
-          const bannerPath = path.join(__dirname, '../images/Uta-banner.gif');
+          const bannerPath = path.join(process.cwd(), 'images/Uta-banner.gif');
           let files = [];
           
           if (fs.existsSync(bannerPath)) {
@@ -256,7 +256,7 @@ async function startDiscordBot() {
         const components = await RadioUI.createPersistentRadioComponents(channel.guildId, currentlyPlaying);
 
         // Create banner attachment
-        const bannerPath = path.join(__dirname, '../images/Uta-banner.gif');
+        const bannerPath = path.join(process.cwd(), 'images/Uta-banner.gif');
         let files = [];
         
         if (fs.existsSync(bannerPath)) {
