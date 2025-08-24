@@ -1,4 +1,4 @@
-// src/features/radio/ui.js
+// src/features/radio/ui.js - UPDATED VERSION
 import { 
   EmbedBuilder, 
   ActionRowBuilder,
@@ -38,7 +38,7 @@ export class RadioUI {
         }
       )
       .setFooter({ 
-        text: 'Uta\'s Radio Studio • Auto-Play Enabled ✨',
+        text: 'Uta\'s Radio Studio • Smart Connection Management ✨',
         iconURL: client.user?.displayAvatarURL() 
       })
       .setTimestamp();
@@ -88,8 +88,28 @@ export class RadioUI {
     ];
   }
 
-  static createStatusEmbed(interaction, currentlyPlaying, player, defaultVolume) {
+  static createStatusEmbed(interaction, currentlyPlaying, player, defaultVolume, connectionStatus = null) {
     const playingInfo = currentlyPlaying.get(interaction.guildId);
+
+    // Enhanced status info
+    let systemStatusValue = `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}`;
+    
+    if (connectionStatus) {
+      const playerStatus = connectionStatus.playerConnected ? '✅ Connected' : 
+                          connectionStatus.hasPlayer ? '⚠️ Connecting' : '❌ Disconnected';
+      systemStatusValue += `\nPlayer: ${playerStatus}`;
+      
+      if (connectionStatus.isSwitching) {
+        systemStatusValue += '\n🔄 Switching stations...';
+      }
+      
+      if (connectionStatus.playerState !== undefined) {
+        const stateNames = ['Disconnected', 'Connecting', 'Nearly Connected', 'Nearly Disconnected', 'Connected'];
+        systemStatusValue += `\nConnection State: ${stateNames[connectionStatus.playerState] || `Unknown (${connectionStatus.playerState})`}`;
+      }
+    } else {
+      systemStatusValue += `\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}`;
+    }
 
     return new EmbedBuilder()
       .setColor('#FF6B9D')
@@ -104,7 +124,7 @@ export class RadioUI {
         },
         {
           name: '💖 System Status',
-          value: `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}`,
+          value: systemStatusValue,
           inline: false
         },
         {
