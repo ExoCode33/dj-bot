@@ -1,4 +1,4 @@
-// src/config/stations.js - COMPREHENSIVE COLLECTION WITH 54+ VERIFIED STATIONS
+// src/config/stations.js - CLEAN VERSION WITH 22 STATIONS
 export const RADIO_STATIONS = {
   // HIP-HOP & R&B STATIONS
   'hot97_nyc': {
@@ -143,8 +143,8 @@ export const RADIO_STATIONS = {
     genre: 'Lo-Fi Hip-Hop',
     quality: 'Premium'
   },
-  'lofi_girl': { 
-    name: 'Lofi Girl - Study Radio', 
+  'lofi_girl': {
+    name: 'Lofi Girl - Study Radio',
     description: 'The legendary 24/7 lo-fi hip hop beats to relax and study to',
     url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
     fallback: 'http://streaming.radionomy.com/LoFi-Hip-Hop',
@@ -177,230 +177,32 @@ export const RADIO_STATIONS = {
     genre: 'Pop Hits',
     quality: 'Premium'
   }
-};quality: 'High'
-  },
-  'somafm_fluid': {
-    name: 'SomaFM Fluid',
-    description: 'Instrumental hip hop, future soul and liquid trap beats',
-    url: 'https://ice.somafm.com/fluid',
-    fallback: 'https://ice.somafm.com/vaporwaves',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'somafm_vaporwaves': {
-    name: 'SomaFM Vaporwaves',
-    description: 'Pure vaporwave music with lo-fi aesthetics',
-    url: 'https://ice.somafm.com/vaporwaves',
-    fallback: 'https://ice.somafm.com/deepspaceone',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'somafm_deep_space': {
-    name: 'SomaFM Deep Space One',
-    description: 'Deep ambient electronic and space music for meditation',
-    url: 'https://ice.somafm.com/deepspaceone',
-    fallback: 'https://ice.somafm.com/gsclassic',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'somafm_groove_classic': {
-    name: 'SomaFM Groove Salad Classic',
-    description: 'Classic early 2000s ambient/downtempo with vintage lo-fi sound',
-    url: 'https://ice.somafm.com/gsclassic',
-    fallback: 'http://pub7.di.fm/di_chillhop',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'difm_chillhop': {
-    name: 'DI.FM ChillHop',
-    description: 'Mellow chill beats, lo-fi hip-hop, trip hop, and downtempo',
-    url: 'http://pub7.di.fm/di_chillhop',
-    fallback: 'http://stream.laut.fm/lofi',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'laut_fm_lofi': {
-    name: 'laut.fm LOFI',
-    description: 'Chilly lo-fi songs for escaping reality, indie lo-fi artists',
-    url: 'http://stream.laut.fm/lofi',
-    fallback: 'http://uk4.internet-radio.com:8405/live.mp3',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'box_lofi_radio': {
-    name: 'BOX Lofi Radio',
-    description: 'Serene blend of lo-fi, chill hop, chill pop, and sleep music',
-    url: 'http://uk4.internet-radio.com:8405/live.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    genre: 'Lo-Fi',
-    quality: 'High'
-  },
-  'lofi_girl': { 
-    name: 'Lofi Girl - Study Beats', 
-    description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
-    url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    fallback: 'http://streaming.radionomy.com/LoFi-Hip-Hop',
-    genre: 'Lo-Fi',
-    quality: 'Premium'
-  },
-
-  // POP HITS STATIONS
-  'z100_nyc': {
-    name: 'Z100 New York',
-    description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
-    url: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  'capital_london': {
-    name: 'Capital London',
-    description: 'UK\'s No.1 Hit Music Station - Pop hits and chart music',
-    url: 'https://media-ssl.musicradio.com/CapitalMP3',
-    fallback: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    genre: 'Pop Hits',
-    quality: 'High'
-  },
-  'kiis_fm_la': {
-    name: 'KIIS FM Los Angeles',
-    description: 'LA\'s hit music station with Olivia Rodrigo, Taylor Swift, Dua Lipa',
-    url: 'https://n3ba-e2.revma.ihrhls.com/zc185',
-    fallback: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    genre: 'Pop Hits',
-    quality: 'High'
-  }
 };
 
-// Updated UI file to remove Music Styles section and add banner
-// src/features/radio/ui.js - UPDATED VERSION WITHOUT MUSIC STYLES LIST
-import { 
-  EmbedBuilder, 
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder 
-} from 'discord.js';
-import { RADIO_CATEGORIES } from '../../config/stations.js';
-
-export class RadioUI {
-  static async createPersistentRadioEmbed(client, currentlyPlaying) {
-    const currentStatus = Array.from(currentlyPlaying.entries())
-      .map(([guildId, info]) => `🎵 ${info.stationName}`)
-      .join('\n') || '✨ Ready to play!';
-
-    return new EmbedBuilder()
-      .setColor('#FF6B9D')
-      .setTitle('🎤 Uta\'s Radio Studio')
-      .setDescription('*"Welcome to my radio studio! Pick any station and I\'ll start playing it immediately!"*\n\n🎵 Choose a music style and station below!')
-      .setImage('attachment://images/Uta-banner.png')
-      .addFields(
-        {
-          name: '📻 Current Status',
-          value: currentStatus,
-          inline: false
-        },
-        {
-          name: '✨ How It Works',
-          value: '1️⃣ Pick a **music style**\n2️⃣ Choose your **station** → **Auto-plays immediately!**\n3️⃣ Switch stations anytime\n4️⃣ Use **⏸️ Stop** when done',
-          inline: false
-        }
-      )
-      .setFooter({ 
-        text: 'Uta\'s Radio Studio • Smart Connection Management ✨',
-        iconURL: client.user?.displayAvatarURL() 
-      })
-      .setTimestamp();
+export const RADIO_CATEGORIES = {
+  'pop_hits': {
+    name: '🎤 Chart Toppers',
+    description: 'Today\'s biggest pop hits and radio favorites',
+    stations: ['z100_nyc', 'capital_london', 'kiis_fm_la']
+  },
+  'kpop_jpop': {
+    name: '🎌 K-Pop & J-Pop Universe',
+    description: 'Korean and Japanese music featuring BlackPink, BTS, TWICE, and anime hits',
+    stations: ['big_b_kpop', 'kpop_highway_radio', 'listen_moe_kpop', 'exclusively_bts', 'hotmixradio_kpop', 'listen_moe_jpop', 'big_b_jpop', 'asia_dream_jpop']
+  },
+  'hiphop_rnb': {
+    name: '🎤 Hip-Hop & Urban',
+    description: 'Premium hip-hop and R&B from legendary stations',
+    stations: ['hot97_nyc']
+  },
+  'electronic_dubstep': {
+    name: '🎵 Electronic & Bass',
+    description: 'Dubstep, trap, future bass, and high-energy electronic music',
+    stations: ['trap_nation_electronic', 'radio_record_dubstep', 'radio_record_bass_house', 'radio_record_future_bass', 'radio_record_hardstyle']
+  },
+  'chill_lofi': {
+    name: '🌸 Chill & Study Vibes',
+    description: 'Lo-fi hip-hop, ambient, and relaxing beats for focus and relaxation',
+    stations: ['electronic_gaming_radio', 'somafm_groove_salad_lofi', 'laut_fm_lofi', 'lofi_girl']
   }
-
-  static async createPersistentRadioComponents(guildId, currentlyPlaying) {
-    const categorySelect = new StringSelectMenuBuilder()
-      .setCustomId('persistent_category_select')
-      .setPlaceholder('🎵 What music style would you like?')
-      .addOptions(
-        Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
-          label: category.name,
-          description: category.description,
-          value: key
-        }))
-      );
-
-    const stationSelect = new StringSelectMenuBuilder()
-      .setCustomId('persistent_station_select')
-      .setPlaceholder('🎤 Choose a music style first...')
-      .addOptions([{
-        label: 'Select music style above',
-        description: 'Pick from the menu above',
-        value: 'placeholder'
-      }])
-      .setDisabled(true);
-
-    const isPlaying = currentlyPlaying.has(guildId);
-
-    const stopButton = new ButtonBuilder()
-      .setCustomId('persistent_stop')
-      .setLabel('⏸️ Stop Radio')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🛑')
-      .setDisabled(!isPlaying);
-
-    const statusButton = new ButtonBuilder()
-      .setCustomId('persistent_status')
-      .setLabel('📊 Status')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🎭');
-
-    return [
-      new ActionRowBuilder().addComponents(categorySelect),
-      new ActionRowBuilder().addComponents(stationSelect),
-      new ActionRowBuilder().addComponents(stopButton, statusButton)
-    ];
-  }
-
-  static createStatusEmbed(interaction, currentlyPlaying, player, defaultVolume, connectionStatus = null) {
-    const playingInfo = currentlyPlaying.get(interaction.guildId);
-
-    // Enhanced status info
-    let systemStatusValue = `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}`;
-    
-    if (connectionStatus) {
-      const playerStatus = connectionStatus.playerConnected ? '✅ Connected' : 
-                          connectionStatus.hasPlayer ? '⚠️ Connecting' : '❌ Disconnected';
-      systemStatusValue += `\nPlayer: ${playerStatus}`;
-      
-      if (connectionStatus.isSwitching) {
-        systemStatusValue += '\n🔄 Switching stations...';
-      }
-      
-      if (connectionStatus.playerState !== undefined) {
-        const stateNames = ['Disconnected', 'Connecting', 'Nearly Connected', 'Nearly Disconnected', 'Connected'];
-        systemStatusValue += `\nConnection State: ${stateNames[connectionStatus.playerState] || `Unknown (${connectionStatus.playerState})`}`;
-      }
-    } else {
-      systemStatusValue += `\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}`;
-    }
-
-    return new EmbedBuilder()
-      .setColor('#FF6B9D')
-      .setTitle('🌟 Radio Status')
-      .addFields(
-        {
-          name: '🎵 Currently Playing',
-          value: playingInfo ? 
-            `🎧 **${playingInfo.stationName}**\n📍 ${interaction.guild.channels.cache.get(playingInfo.voiceChannelId)?.name}\n🔊 Volume: ${defaultVolume}%\n⏰ Started: <t:${Math.floor(playingInfo.startedAt / 1000)}:R>` : 
-            '✨ Ready to play music!',
-          inline: false
-        },
-        {
-          name: '💖 System Status',
-          value: systemStatusValue,
-          inline: false
-        },
-        {
-          name: '🎪 Available Stations',
-          value: `${Object.keys(RADIO_CATEGORIES).reduce((total, cat) => total + RADIO_CATEGORIES[cat].stations.length, 0)} stations across ${Object.keys(RADIO_CATEGORIES).length} categories`,
-          inline: false
-        }
-      )
-      .setTimestamp();
-  }
-}
+};
