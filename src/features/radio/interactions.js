@@ -10,6 +10,7 @@ export class RadioInteractionHandler {
     this.currentlyPlaying = currentlyPlaying;
     this.updatePersistentMessage = updatePersistentMessage;
     this.defaultVolume = parseInt(process.env.DEFAULT_VOLUME) || 35;
+    this.lastStationSwitch = new Map(); // Rate limiting
   }
 
   async handleCategorySelect(interaction) {
@@ -63,6 +64,17 @@ export class RadioInteractionHandler {
       });
     }
 
+    // Rate limiting check - prevent rapid station switching
+    const lastSwitch = this.lastStationSwitch.get(interaction.guildId);
+    const now = Date.now();
+    if (lastSwitch && (now - lastSwitch) < 5000) { // 5 second cooldown
+      const waitTime = Math.ceil((5000 - (now - lastSwitch)) / 1000);
+      return interaction.reply({
+        content: `*"Please wait ${waitTime} more seconds before switching stations!"* ⏰`,
+        ephemeral: true
+      });
+    }
+
     // Check if already switching
     const status = await this.radioManager.getConnectionStatus(interaction.guildId);
     if (status.isSwitching) {
@@ -71,6 +83,9 @@ export class RadioInteractionHandler {
         ephemeral: true
       });
     }
+
+    // Update rate limiting
+    this.lastStationSwitch.set(interaction.guildId, now);
 
     await interaction.reply({
       content: `🎵 *"Switching to ${station.name}..."*`,
