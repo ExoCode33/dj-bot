@@ -515,26 +515,54 @@ async function startDiscordBot() {
           try {
             let player = client.shoukaku.players.get(interaction.guildId);
             
+            // If player exists, check if it's still connected properly
             if (player) {
+              console.log('🔍 Existing player found, checking connection...');
               const currentVC = interaction.guild.channels.cache.get(player.voiceId);
-              if (!currentVC || !currentVC.members.has(client.user.id)) {
-                await player.destroy().catch(() => {});
+              const botInChannel = currentVC?.members.has(client.user.id);
+              
+              console.log(`Player voice channel: ${currentVC?.name || 'Unknown'}`);
+              console.log(`Bot in channel: ${botInChannel}`);
+              console.log(`Requested channel: ${voiceChannel.name}`);
+              
+              // If player is in wrong channel or disconnected, clean it up
+              if (!currentVC || !botInChannel || currentVC.id !== voiceChannel.id) {
+                console.log('🧹 Cleaning up stale player...');
+                try {
+                  await player.destroy();
+                } catch (destroyError) {
+                  console.warn('⚠️ Error destroying player:', destroyError.message);
+                }
                 client.shoukaku.players.delete(interaction.guildId);
                 player = null;
               }
             }
             
+            // Create new player if needed
             if (!player) {
+              console.log(`🔊 Creating new voice connection to: ${voiceChannel.name}`);
+              
+              // Check permissions
+              const permissions = voiceChannel.permissionsFor(client.user);
+              if (!permissions.has(['Connect', 'Speak'])) {
+                throw new Error('Missing permissions for voice channel');
+              }
+              
               player = await client.shoukaku.joinVoiceChannel({
                 guildId: interaction.guildId,
                 channelId: voiceChannel.id,
                 shardId: interaction.guild.shardId
               });
               
+              console.log('✅ New voice connection created');
               await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+              console.log('✅ Using existing player');
             }
             
             await player.setGlobalVolume(DEFAULT_VOLUME);
+            console.log(`🔊 Volume set to ${DEFAULT_VOLUME}%`);
+            
             await radioManager.connectToStream(player, selectedStation);
             const station = RADIO_STATIONS[selectedStation];
 
@@ -553,6 +581,13 @@ async function startDiscordBot() {
             await interaction.editReply({
               content: `*"Something went wrong... ${error.message}"*`
             });
+            
+            // Auto-delete error after 5 seconds
+            setTimeout(async () => {
+              try {
+                await interaction.deleteReply();
+              } catch (err) {}
+            }, 5000);
           }
 
         } else if (interaction.customId === 'persistent_stop') {
