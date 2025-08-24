@@ -1,4 +1,4 @@
-// src/features/radio/interactions.js
+// src/features/radio/interactions.js - IMPROVED VERSION
 import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { RADIO_CATEGORIES, RADIO_STATIONS } from '../../config/stations.js';
 import { RadioUI } from './ui.js';
@@ -63,6 +63,15 @@ export class RadioInteractionHandler {
       });
     }
 
+    // Check if already switching
+    const status = await this.radioManager.getConnectionStatus(interaction.guildId);
+    if (status.isSwitching) {
+      return interaction.reply({
+        content: '*"I\'m already switching stations... please wait a moment!"* ⏳',
+        ephemeral: true
+      });
+    }
+
     await interaction.reply({
       content: `🎵 *"Switching to ${station.name}..."*`,
       ephemeral: true
@@ -93,12 +102,12 @@ export class RadioInteractionHandler {
       // Update the main message to show current status
       await this.updatePersistentMessage();
 
-      // Auto-delete success message after 4 seconds
+      // Auto-delete success message after 3 seconds (reduced from 4)
       setTimeout(async () => {
         try {
           await interaction.deleteReply();
         } catch (err) {}
-      }, 4000);
+      }, 3000);
 
     } catch (error) {
       console.error('❌ Auto-play failed:', error);
@@ -106,20 +115,40 @@ export class RadioInteractionHandler {
       // Remove from tracking if failed
       this.currentlyPlaying.delete(interaction.guildId);
       
+      let errorMessage = `*"Sorry, I couldn't play ${station.name}.*`;
+      
+      // Provide helpful error messages
+      if (error.message.includes('wait 10 seconds')) {
+        errorMessage += ` Please wait a moment and try again!"* ⏳`;
+      } else if (error.message.includes('Already switching')) {
+        errorMessage += ` I'm still switching stations, please wait!"* ⏳`;
+      } else {
+        errorMessage += ` ${error.message}"*`;
+      }
+      
       await interaction.editReply({
-        content: `*"Sorry, I couldn't play ${station.name}. ${error.message}"*`
+        content: errorMessage
       });
       
-      // Auto-delete error after 6 seconds
+      // Auto-delete error after 5 seconds
       setTimeout(async () => {
         try {
           await interaction.deleteReply();
         } catch (err) {}
-      }, 6000);
+      }, 5000);
     }
   }
 
   async handleStop(interaction) {
+    // Check if already switching
+    const status = await this.radioManager.getConnectionStatus(interaction.guildId);
+    if (status.isSwitching) {
+      return interaction.reply({
+        content: '*"Please wait for the current station switch to complete!"* ⏳',
+        ephemeral: true
+      });
+    }
+
     await interaction.reply({
       content: '*"Stopping the music... Thank you for listening!"* 🎭',
       ephemeral: true
@@ -144,12 +173,13 @@ export class RadioInteractionHandler {
       try {
         await interaction.deleteReply();
       } catch (err) {}
-    }, 3000);
+    }, 2000);
   }
 
   async handleStatus(interaction) {
     const player = this.client.shoukaku.players.get(interaction.guildId);
-    const embed = RadioUI.createStatusEmbed(interaction, this.currentlyPlaying, player, this.defaultVolume);
+    const status = await this.radioManager.getConnectionStatus(interaction.guildId);
+    const embed = RadioUI.createStatusEmbed(interaction, this.currentlyPlaying, player, this.defaultVolume, status);
     
     await interaction.reply({
       embeds: [embed],
@@ -177,6 +207,17 @@ export class RadioInteractionHandler {
       }
     } catch (error) {
       console.error('❌ Interaction error:', error);
+      
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({
+            content: '*"Something went wrong... please try again!"* ⚠️',
+            ephemeral: true
+          });
+        } catch (replyError) {
+          console.error('❌ Failed to send error reply:', replyError.message);
+        }
+      }
     }
   }
 }
