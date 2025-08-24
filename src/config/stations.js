@@ -24,35 +24,27 @@ export const RADIO_STATIONS = {
     genre: 'K-Pop',
     quality: 'High'
   },
-  'kpop_starz': {
-    name: 'K-Pop Starz Radio',
-    description: 'Latest K-Pop hits including BlackPink, ITZY, aespa, and more',
-    url: 'http://streaming.radionomy.com/KPOP-Starz',
-    fallback: 'http://streaming.radionomy.com/Korea-Radio',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
-  'arirang_radio': {
-    name: 'Arirang Radio K-Pop',
-    description: 'Korean broadcasting with K-Pop music and culture',
-    url: 'http://streaming.radionomy.com/Arirang-Radio',
+  '113fm_kpop': {
+    name: '113.FM K-Pop',
+    description: 'Dedicated K-Pop station with BTS, BlackPink, Stray Kids, and more',
+    url: 'https://113fm-atunwadigital.streamguys1.com/1018',
     fallback: 'https://listen.moe/kpop/stream',
     genre: 'K-Pop',
     quality: 'High'
   },
-  'kpop_music_radio': {
-    name: 'K-Pop Music Radio',
-    description: 'Dedicated Korean pop music station with idol groups',
-    url: 'http://streaming.radionomy.com/K-Pop-Music-Radio',
-    fallback: 'http://streaming.radionomy.com/KPOP-Starz',
+  'big_b_kpop': {
+    name: 'Big B Radio K-Pop',
+    description: 'Korean pop music with latest idol groups and comebacks',
+    url: 'http://streams.bigbradio.com/bigb-kpop-64',
+    fallback: 'https://listen.moe/kpop/stream',
     genre: 'K-Pop',
     quality: 'High'
   },
-  'seoul_fm': {
-    name: 'Seoul FM K-Pop',
-    description: 'Direct from Seoul with the latest K-Pop trends',
-    url: 'http://streaming.radionomy.com/Seoul-FM',
-    fallback: 'https://listen.moe/kpop/stream',
+  'hunter_fm_kpop': {
+    name: 'Hunter.FM K-Pop',
+    description: 'Non-stop K-Pop hits from top Korean artists',
+    url: 'https://hunterradio.radioca.st:8443/kpop',
+    fallback: 'https://113fm-atunwadigital.streamguys1.com/1018',
     genre: 'K-Pop',
     quality: 'High'
   },
@@ -116,7 +108,7 @@ export const RADIO_CATEGORIES = {
   'kpop_jpop': {
     name: '🎌 K-Pop & J-Pop Collection',
     description: 'Korean and Japanese music including BlackPink, BTS, and anime OSTs',
-    stations: ['listen_moe_kpop', 'kpop_starz', 'arirang_radio', 'kpop_music_radio', 'seoul_fm', 'listen_moe_jpop']
+    stations: ['listen_moe_kpop', '113fm_kpop', 'big_b_kpop', 'hunter_fm_kpop', 'listen_moe_jpop']
   },
   'electronic_dance': {
     name: '🎵 Electronic & Dance',
