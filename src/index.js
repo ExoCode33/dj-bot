@@ -133,7 +133,8 @@ async function startDiscordBot() {
       Collection, 
       Events, 
       REST, 
-      Routes 
+      Routes,
+      AttachmentBuilder
     } = discord;
     
     const client = new Client({
@@ -200,9 +201,20 @@ async function startDiscordBot() {
         try {
           const embed = await RadioUI.createPersistentRadioEmbed(client, currentlyPlaying);
           const components = await RadioUI.createPersistentRadioComponents(persistentMessage.guildId, currentlyPlaying);
+          
+          // Check if banner exists and attach it
+          const bannerPath = path.join(__dirname, '../images/Uta-banner.png');
+          let files = [];
+          
+          if (fs.existsSync(bannerPath)) {
+            const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.png' });
+            files.push(bannerAttachment);
+          }
+          
           await persistentMessage.edit({
             embeds: [embed],
-            components: components
+            components: components,
+            files: files
           });
         } catch (error) {
           console.warn('⚠️ Failed to update persistent message:', error.message);
@@ -218,7 +230,7 @@ async function startDiscordBot() {
       updatePersistentMessage
     );
 
-    // Initialize persistent radio function
+    // Initialize persistent radio function - WITH BANNER SUPPORT
     async function initializePersistentRadio() {
       try {
         const channel = await client.channels.fetch(RADIO_CHANNEL_ID);
@@ -243,9 +255,25 @@ async function startDiscordBot() {
         const embed = await RadioUI.createPersistentRadioEmbed(client, currentlyPlaying);
         const components = await RadioUI.createPersistentRadioComponents(channel.guildId, currentlyPlaying);
 
+        // Create banner attachment
+        const bannerPath = path.join(__dirname, '../images/Uta-banner.png');
+        let files = [];
+        
+        if (fs.existsSync(bannerPath)) {
+          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.png' });
+          files.push(bannerAttachment);
+          console.log('✅ Banner attachment created');
+        } else {
+          console.warn('⚠️ Banner file not found at:', bannerPath);
+          console.warn('⚠️ Expected location: images/Uta-banner.png');
+          console.warn('⚠️ Banner will not be displayed');
+        }
+
+        // Send message with banner
         persistentMessage = await channel.send({
           embeds: [embed],
-          components: components
+          components: components,
+          files: files
         });
 
         console.log(`✅ Persistent radio created: ${persistentMessage.id}`);
