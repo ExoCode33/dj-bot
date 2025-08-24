@@ -153,7 +153,7 @@ const server = http.createServer((req, res) => {
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
       defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.3',
+      version: '2.0.4',
       imagesDirectory: IMAGES_DIR,
       availableImages: fs.existsSync(IMAGES_DIR) ? fs.readdirSync(IMAGES_DIR) : [],
       baseUrl: BASE_URL
@@ -165,7 +165,6 @@ const server = http.createServer((req, res) => {
     const imagePath = path.join(IMAGES_DIR, filename);
     
     console.log(`🖼️ Image request: ${filename}`);
-    console.log(`📁 Looking for: ${imagePath}`);
     
     // Security check - prevent directory traversal
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
@@ -183,12 +182,12 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, {
           'Content-Type': mimeType,
           'Content-Length': imageData.length,
-          'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-          'Access-Control-Allow-Origin': '*' // Allow CORS
+          'Cache-Control': 'public, max-age=3600',
+          'Access-Control-Allow-Origin': '*'
         });
         res.end(imageData);
         
-        console.log(`✅ Served image: ${filename} (${imageData.length} bytes, ${mimeType})`);
+        console.log(`✅ Served image: ${filename} (${imageData.length} bytes)`);
       } catch (error) {
         console.error(`❌ Error reading image ${filename}:`, error.message);
         res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -232,29 +231,11 @@ const server = http.createServer((req, res) => {
         <head><title>Uta's Music Studio</title></head>
         <body style="font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #FF6B9D, #FF6B35);">
           <h1 style="color: white;">🎤 Uta's Music Studio is Online! ✨</h1>
-          <h2 style="color: white;">📁 Image Management</h2>
+          <p style="color: white;"><strong>Base URL:</strong> ${BASE_URL}</p>
           <p style="color: white;">
-            <strong>Upload your images to:</strong><br>
-            <code style="background: rgba(0,0,0,0.2); padding: 5px; border-radius: 3px;">${IMAGES_DIR}</code>
+            <a href="/images" style="color: #FFE066;">📋 View Images</a> | 
+            <a href="/health" style="color: #FFE066;">📊 Health Check</a>
           </p>
-          <p style="color: white;">
-            <strong>Base URL:</strong><br>
-            <code style="background: rgba(0,0,0,0.2); padding: 5px; border-radius: 3px;">${BASE_URL}</code>
-          </p>
-          <p style="color: white;">
-            <a href="/images" style="color: #FFE066; text-decoration: none; font-weight: bold;">📋 View Available Images</a><br>
-            <a href="/health" style="color: #FFE066; text-decoration: none; font-weight: bold;">📊 Health Check</a>
-          </p>
-          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin-top: 20px;">
-            <h3 style="color: white;">🖼️ Image Requirements:</h3>
-            <ul style="color: white;">
-              <li><strong>uta-banner.png</strong> - Main radio studio banner (1200x300px)</li>
-              <li><strong>uta-profile.png</strong> - Profile picture (256x256px)</li>
-              <li><strong>uta-icon.png</strong> - Small icon (64x64px)</li>
-              <li><strong>radio-banner.png</strong> - Radio interface banner (1200x300px)</li>
-              <li><strong>difm-banner.png</strong> - DI.FM specific banner (1200x300px)</li>
-            </ul>
-          </div>
         </body>
       </html>
     `);
@@ -263,9 +244,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`✅ Health server running on 0.0.0.0:${port}`);
-  console.log(`📁 Images directory: ${IMAGES_DIR}`);
   console.log(`🌐 Base URL: ${BASE_URL}`);
-  console.log(`🖼️ Image URLs will be: ${BASE_URL}/images/filename.png`);
 });
 
 // Error handlers
@@ -277,7 +256,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// Radio Categories - Updated wording
+// Radio Categories
 const RADIO_CATEGORIES = {
   'pop_hits': {
     name: '🎤 Pop & Chart Hits',
@@ -306,73 +285,195 @@ const RADIO_CATEGORIES = {
   }
 };
 
-// Enhanced Radio Manager with better connection handling
-class EnhancedRadioManager {
+// AGGRESSIVE Radio Manager - FIXES CONNECTION SWITCHING ISSUES
+class AggressiveRadioManager {
   constructor(client) {
     this.client = client;
-    this.currentConnections = new Map(); // Track active connections per guild
+    this.currentConnections = new Map();
+    this.cleanupInProgress = new Set(); // Track guilds currently being cleaned up
   }
 
   async switchStation(guildId, stationKey, voiceChannelId) {
-    console.log(`🔄 Switching station for guild ${guildId} to ${stationKey}`);
+    console.log(`🔄 [${guildId}] Switching to station: ${stationKey}`);
+    
+    // Prevent concurrent cleanup/connection attempts
+    if (this.cleanupInProgress.has(guildId)) {
+      console.log(`⏳ [${guildId}] Cleanup already in progress, waiting...`);
+      
+      // Wait for cleanup to finish
+      let attempts = 0;
+      while (this.cleanupInProgress.has(guildId) && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
+      if (this.cleanupInProgress.has(guildId)) {
+        throw new Error('Cleanup took too long, please try again');
+      }
+    }
     
     try {
-      // Clean up existing connection properly
-      await this.cleanupConnection(guildId);
+      this.cleanupInProgress.add(guildId);
       
-      // Wait a moment for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // STEP 1: Nuclear cleanup of existing connection
+      await this.nuclearCleanup(guildId);
       
-      // Create new connection and play station
+      // STEP 2: Wait for Discord to process the cleanup
+      console.log(`⏳ [${guildId}] Waiting for cleanup to settle...`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // STEP 3: Final verification - ensure no lingering connections
+      await this.verifyCleanState(guildId);
+      
+      // STEP 4: Create new connection
       const result = await this.connectToStream(guildId, stationKey, voiceChannelId);
       
-      // Track the new connection
+      // STEP 5: Track the new connection
       this.currentConnections.set(guildId, {
         stationKey,
         voiceChannelId,
         connectedAt: Date.now()
       });
       
+      console.log(`✅ [${guildId}] Successfully switched to ${stationKey}`);
       return result;
+      
     } catch (error) {
-      console.error(`❌ Failed to switch station: ${error.message}`);
+      console.error(`❌ [${guildId}] Failed to switch station: ${error.message}`);
       throw error;
+    } finally {
+      this.cleanupInProgress.delete(guildId);
     }
   }
 
-  async cleanupConnection(guildId) {
-    console.log(`🧹 Cleaning up connection for guild ${guildId}`);
+  async nuclearCleanup(guildId) {
+    console.log(`💥 [${guildId}] Starting NUCLEAR cleanup...`);
     
-    const existingPlayer = this.client.shoukaku.players.get(guildId);
-    if (existingPlayer) {
-      try {
-        console.log('⏹️ Stopping current track...');
-        await existingPlayer.stopTrack();
+    try {
+      // Phase 1: Shoukaku player cleanup
+      const existingPlayer = this.client.shoukaku.players.get(guildId);
+      if (existingPlayer) {
+        console.log(`🎵 [${guildId}] Found existing player, destroying...`);
         
-        console.log('🔌 Destroying player...');
-        await existingPlayer.destroy();
+        try {
+          // Stop track immediately
+          await Promise.race([
+            existingPlayer.stopTrack(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Stop timeout')), 2000))
+          ]);
+          console.log(`⏹️ [${guildId}] Track stopped`);
+        } catch (error) {
+          console.warn(`⚠️ [${guildId}] Error stopping track: ${error.message}`);
+        }
         
-        console.log('🗑️ Removing from players map...');
-        this.client.shoukaku.players.delete(guildId);
-      } catch (error) {
-        console.warn(`⚠️ Error during cleanup: ${error.message}`);
-        // Force remove even if cleanup fails
-        this.client.shoukaku.players.delete(guildId);
+        try {
+          // Destroy player with timeout
+          await Promise.race([
+            existingPlayer.destroy(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Destroy timeout')), 3000))
+          ]);
+          console.log(`💀 [${guildId}] Player destroyed`);
+        } catch (error) {
+          console.warn(`⚠️ [${guildId}] Error destroying player: ${error.message}`);
+        }
+      }
+      
+      // Phase 2: Force remove from all Shoukaku maps
+      this.client.shoukaku.players.delete(guildId);
+      console.log(`🗑️ [${guildId}] Removed from shoukaku players`);
+      
+      // Phase 3: Clean all nodes
+      const nodes = Array.from(this.client.shoukaku.nodes.values());
+      for (const node of nodes) {
+        try {
+          if (node.players && node.players.has(guildId)) {
+            console.log(`🌐 [${guildId}] Cleaning node: ${node.name}`);
+            node.players.delete(guildId);
+          }
+          
+          // Try REST cleanup if available
+          if (node.rest && node.state === 2) { // Connected state
+            try {
+              await Promise.race([
+                node.rest.destroyPlayer(guildId),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('REST timeout')), 2000))
+              ]);
+              console.log(`🔗 [${guildId}] REST cleanup on ${node.name}`);
+            } catch (restError) {
+              // REST cleanup is optional, don't log errors unless debug mode
+              if (process.env.DEBUG) {
+                console.log(`🔗 [${guildId}] REST cleanup failed: ${restError.message}`);
+              }
+            }
+          }
+        } catch (nodeError) {
+          console.warn(`⚠️ [${guildId}] Node cleanup error: ${nodeError.message}`);
+        }
+      }
+      
+      // Phase 4: Discord.js voice cleanup
+      const guild = this.client.guilds.cache.get(guildId);
+      if (guild && guild.members.me.voice.channelId) {
+        console.log(`🔊 [${guildId}] Discord.js voice cleanup...`);
+        try {
+          await Promise.race([
+            guild.members.me.voice.disconnect(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Voice disconnect timeout')), 2000))
+          ]);
+          console.log(`🔇 [${guildId}] Discord voice disconnected`);
+        } catch (voiceError) {
+          console.warn(`⚠️ [${guildId}] Voice disconnect error: ${voiceError.message}`);
+        }
+      }
+      
+      // Phase 5: Clear our tracking
+      this.currentConnections.delete(guildId);
+      
+      console.log(`✅ [${guildId}] Nuclear cleanup completed`);
+      
+    } catch (error) {
+      console.error(`💥 [${guildId}] Nuclear cleanup error: ${error.message}`);
+      
+      // Emergency cleanup - remove everything we can
+      this.client.shoukaku.players.delete(guildId);
+      this.currentConnections.delete(guildId);
+      
+      const nodes = Array.from(this.client.shoukaku.nodes.values());
+      for (const node of nodes) {
+        if (node.players) {
+          node.players.delete(guildId);
+        }
+      }
+    }
+  }
+
+  async verifyCleanState(guildId) {
+    console.log(`🔍 [${guildId}] Verifying clean state...`);
+    
+    // Check if any players still exist
+    if (this.client.shoukaku.players.has(guildId)) {
+      console.warn(`⚠️ [${guildId}] Player still exists after cleanup! Force removing...`);
+      this.client.shoukaku.players.delete(guildId);
+    }
+    
+    // Check nodes
+    const nodes = Array.from(this.client.shoukaku.nodes.values());
+    for (const node of nodes) {
+      if (node.players && node.players.has(guildId)) {
+        console.warn(`⚠️ [${guildId}] Node ${node.name} still has player! Force removing...`);
+        node.players.delete(guildId);
       }
     }
     
-    // Remove from our tracking
-    this.currentConnections.delete(guildId);
-    console.log('✅ Cleanup completed');
+    console.log(`✅ [${guildId}] State verification complete`);
   }
 
   async connectToStream(guildId, stationKey, voiceChannelId) {
     const station = RADIO_STATIONS[stationKey];
     if (!station) throw new Error('Station not found');
 
-    console.log(`🎵 Connecting to ${station.name}: ${station.url}`);
+    console.log(`🎵 [${guildId}] Connecting to ${station.name}`);
     
-    // Get the guild and voice channel
     const guild = this.client.guilds.cache.get(guildId);
     const voiceChannel = guild.channels.cache.get(voiceChannelId);
     
@@ -380,60 +481,99 @@ class EnhancedRadioManager {
       throw new Error('Voice channel not found');
     }
 
-    // Create new player
-    console.log('🔊 Creating new voice connection...');
-    const player = await this.client.shoukaku.joinVoiceChannel({
-      guildId: guildId,
-      channelId: voiceChannelId,
-      shardId: guild.shardId
-    });
+    // Final check before creating connection
+    if (this.client.shoukaku.players.has(guildId)) {
+      throw new Error('Player still exists! This should not happen after cleanup');
+    }
+
+    console.log(`🔊 [${guildId}] Creating fresh voice connection...`);
+    let player;
+    
+    try {
+      // Create connection with retry logic
+      let connectionAttempts = 0;
+      const maxAttempts = 3;
+      
+      while (connectionAttempts < maxAttempts) {
+        try {
+          player = await this.client.shoukaku.joinVoiceChannel({
+            guildId: guildId,
+            channelId: voiceChannelId,
+            shardId: guild.shardId
+          });
+          console.log(`✅ [${guildId}] Voice connection created (attempt ${connectionAttempts + 1})`);
+          break;
+        } catch (connectionError) {
+          connectionAttempts++;
+          
+          if (connectionError.message.includes('existing connection') && connectionAttempts < maxAttempts) {
+            console.warn(`⚠️ [${guildId}] Connection attempt ${connectionAttempts} failed, retrying after cleanup...`);
+            
+            // Emergency micro-cleanup
+            this.client.shoukaku.players.delete(guildId);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          } else {
+            throw connectionError;
+          }
+        }
+      }
+      
+      if (!player) {
+        throw new Error('Failed to create voice connection after multiple attempts');
+      }
+
+    } catch (error) {
+      console.error(`❌ [${guildId}] Voice connection failed: ${error.message}`);
+      throw new Error(`Cannot create voice connection: ${error.message}`);
+    }
 
     // Set volume
     await player.setGlobalVolume(DEFAULT_VOLUME);
-    console.log(`🔊 Volume set to ${DEFAULT_VOLUME}%`);
+    console.log(`🔊 [${guildId}] Volume set to ${DEFAULT_VOLUME}%`);
     
-    // Try different URLs
+    // Try to play the stream
     const urlsToTry = [station.url];
     if (station.fallback) urlsToTry.push(station.fallback);
     
     for (const url of urlsToTry) {
       try {
-        console.log(`🔄 Trying stream URL: ${url}`);
+        console.log(`🔄 [${guildId}] Trying: ${url}`);
         const result = await player.node.rest.resolve(url);
         
         if (result.loadType === 'track' && result.data) {
           await player.playTrack({ track: { encoded: result.data.encoded } });
-          console.log(`✅ Successfully started stream: ${url}`);
+          console.log(`✅ [${guildId}] Stream started successfully`);
           return { success: true, station, url, player };
         } else if (result.tracks && result.tracks.length > 0) {
           await player.playTrack({ track: { encoded: result.tracks[0].encoded } });
-          console.log(`✅ Successfully started stream: ${url}`);
+          console.log(`✅ [${guildId}] Stream started successfully`);
           return { success: true, station, url, player };
         }
       } catch (error) {
-        console.error(`❌ URL failed: ${url} - ${error.message}`);
+        console.error(`❌ [${guildId}] URL ${url} failed: ${error.message}`);
         continue;
       }
     }
     
-    // If we get here, all URLs failed - cleanup the player
+    // If we get here, all URLs failed
     try {
       await player.destroy();
       this.client.shoukaku.players.delete(guildId);
     } catch (cleanupError) {
-      console.warn('⚠️ Error cleaning up failed player:', cleanupError.message);
+      console.warn(`⚠️ [${guildId}] Cleanup after stream failure: ${cleanupError.message}`);
     }
     
     throw new Error(`All stream URLs failed for ${station.name}`);
   }
 
-  getCurrentConnection(guildId) {
-    return this.currentConnections.get(guildId);
+  async stopConnection(guildId) {
+    console.log(`⏹️ [${guildId}] Stopping connection...`);
+    await this.nuclearCleanup(guildId);
   }
 
-  async stopConnection(guildId) {
-    console.log(`⏹️ Stopping connection for guild ${guildId}`);
-    await this.cleanupConnection(guildId);
+  getCurrentConnection(guildId) {
+    return this.currentConnections.get(guildId);
   }
 }
 
@@ -491,13 +631,6 @@ async function startDiscordBot() {
         secure: process.env.LAVALINK_SECURE === 'true'
       }];
 
-      console.log('🎵 Lavalink config:', {
-        name: nodes[0].name,
-        url: nodes[0].url,
-        secure: nodes[0].secure,
-        auth: nodes[0].auth ? '***' : 'missing'
-      });
-
       client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
         resume: true,
         resumeKey: 'uta-bot-persistent-radio',
@@ -525,9 +658,9 @@ async function startDiscordBot() {
       console.log('✅ Lavalink configured');
     }
 
-    const radioManager = new EnhancedRadioManager(client);
+    const radioManager = new AggressiveRadioManager(client);
     let persistentMessage = null;
-    let currentlyPlaying = new Map(); // Track what's playing per guild
+    let currentlyPlaying = new Map();
 
     // Enhanced embed creation with LOCAL banner images
     async function createPersistentRadioEmbed() {
@@ -567,501 +700,16 @@ async function startDiscordBot() {
 
       if (bannerUrl) {
         embed.setImage(bannerUrl);
-        console.log('✅ Using local radio banner image:', bannerUrl);
-      } else {
-        console.log('⚠️ No radio-banner.png found, skipping image');
       }
-      
       if (profileUrl) {
         embed.setThumbnail(profileUrl);
-        console.log('✅ Using local profile image:', profileUrl);
-      } else {
-        console.log('⚠️ No uta-profile.png found, skipping thumbnail');
       }
-      
       if (iconUrl) {
         embed.setFooter({ 
           text: 'Uta\'s Radio Studio • Auto-Play Enabled ✨',
           iconURL: iconUrl
         });
-        console.log('✅ Using local icon image:', iconUrl);
       } else {
         embed.setFooter({ 
           text: 'Uta\'s Radio Studio • Auto-Play Enabled ✨',
-          iconURL: client.user?.displayAvatarURL() 
-        });
-        console.log('⚠️ No uta-icon.png found, using bot avatar');
-      }
-
-      return embed;
-    }
-
-    async function createPersistentRadioComponents(guildId) {
-      const categorySelect = new StringSelectMenuBuilder()
-        .setCustomId('persistent_category_select')
-        .setPlaceholder('🎵 What music style would you like?')
-        .addOptions(
-          Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
-            label: category.name,
-            description: category.description,
-            value: key
-          }))
-        );
-
-      const stationSelect = new StringSelectMenuBuilder()
-        .setCustomId('persistent_station_select')
-        .setPlaceholder('🎤 Choose a music style first...')
-        .addOptions([{
-          label: 'Select music style above',
-          description: 'Pick from the menu above',
-          value: 'placeholder'
-        }])
-        .setDisabled(true);
-
-      const isPlaying = currentlyPlaying.has(guildId);
-
-      const stopButton = new ButtonBuilder()
-        .setCustomId('persistent_stop')
-        .setLabel('⏸️ Stop Radio')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('🛑')
-        .setDisabled(!isPlaying);
-
-      const statusButton = new ButtonBuilder()
-        .setCustomId('persistent_status')
-        .setLabel('📊 Status')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🎭');
-
-      return [
-        new ActionRowBuilder().addComponents(categorySelect),
-        new ActionRowBuilder().addComponents(stationSelect),
-        new ActionRowBuilder().addComponents(stopButton, statusButton)
-      ];
-    }
-
-    async function updatePersistentMessage() {
-      if (persistentMessage) {
-        try {
-          const embed = await createPersistentRadioEmbed();
-          const components = await createPersistentRadioComponents(persistentMessage.guildId);
-          await persistentMessage.edit({
-            embeds: [embed],
-            components: components
-          });
-          console.log('✅ Updated persistent message');
-        } catch (error) {
-          console.warn('⚠️ Failed to update persistent message:', error.message);
-        }
-      }
-    }
-
-    async function initializePersistentRadio() {
-      try {
-        console.log(`🎵 Attempting to initialize radio in channel: ${RADIO_CHANNEL_ID}`);
-        
-        const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(error => {
-          console.error(`❌ Failed to fetch channel ${RADIO_CHANNEL_ID}:`, error.message);
-          return null;
-        });
-        
-        if (!channel) {
-          console.error(`❌ Radio channel not found: ${RADIO_CHANNEL_ID}`);
-          console.log('💡 Make sure RADIO_CHANNEL_ID is set correctly in your environment variables');
-          return;
-        }
-
-        console.log(`🎵 Initializing radio in #${channel.name} (${channel.id})`);
-
-        // Clear messages (be more careful with permissions)
-        try {
-          const messages = await channel.messages.fetch({ limit: 50 });
-          const botMessages = messages.filter(msg => msg.author.id === client.user.id);
-          
-          if (botMessages.size > 0) {
-            console.log(`🧹 Cleaning up ${botMessages.size} old bot messages...`);
-            // Delete bot messages one by one to avoid bulk delete issues
-            for (const message of botMessages.values()) {
-              try {
-                await message.delete();
-              } catch (deleteError) {
-                console.warn('⚠️ Could not delete message:', deleteError.message);
-              }
-            }
-          }
-        } catch (error) {
-          console.warn(`⚠️ Could not clear channel (this is normal): ${error.message}`);
-        }
-
-        // Create embed and components
-        console.log('✨ Creating persistent radio interface...');
-        const embed = await createPersistentRadioEmbed();
-        const components = await createPersistentRadioComponents(channel.guildId);
-
-        persistentMessage = await channel.send({
-          embeds: [embed],
-          components: components
-        });
-
-        console.log(`✅ Persistent radio created successfully!`);
-        console.log(`📋 Message ID: ${persistentMessage.id}`);
-        console.log(`📍 Channel: #${channel.name} in ${channel.guild.name}`);
-
-      } catch (error) {
-        console.error(`❌ Failed to initialize radio:`, error.message);
-        console.error('Full error:', error);
-      }
-    }
-
-    // Commands
-    const radioCommand = {
-      data: new SlashCommandBuilder()
-        .setName('radio')
-        .setDescription('🎤 Visit Uta\'s Radio Studio'),
-      
-      async execute(interaction) {
-        await interaction.reply({
-          content: `🎤 *"Come visit my radio studio!"*\n\nI'm waiting for you at <#${RADIO_CHANNEL_ID}> to play amazing music together! ✨`,
-          ephemeral: true
-        });
-      }
-    };
-
-    const utaCommand = {
-      data: new SlashCommandBuilder()
-        .setName('uta')
-        .setDescription('💕 About Uta, the world\'s greatest diva'),
-      
-      async execute(interaction) {
-        const embed = new EmbedBuilder()
-          .setColor('#FF6B9D')
-          .setTitle('🎤 Hi! I\'m Uta!')
-          .setDescription(`*"I want to make everyone happy through music!"*\n\n**Visit my radio studio: <#${RADIO_CHANNEL_ID}>**`)
-          .addFields(
-            {
-              name: '✨ About Me',
-              value: `🌟 World's beloved diva\n🎭 Daughter of Red-Haired Shanks\n🎵 Music lover extraordinaire\n💕 Voice that brings joy to everyone`,
-              inline: false
-            },
-            {
-              name: '🎵 My Radio Studio Features',
-              value: `• ${Object.keys(RADIO_CATEGORIES).length} music styles\n• ${Object.keys(RADIO_STATIONS).length} radio stations\n• Instant auto-play when you select a station!\n• Easy station switching anytime`,
-              inline: false
-            }
-          )
-          .setFooter({ text: 'With love, Uta ♪ Let\'s enjoy music together! 💕' })
-          .setTimestamp();
-
-        // Add profile image if available
-        const profileUrl = getImageUrl('uta-profile.png');
-        if (profileUrl) {
-          embed.setImage(profileUrl);
-        }
-
-        await interaction.reply({ embeds: [embed] });
-      }
-    };
-
-    client.commands.set('radio', radioCommand);
-    client.commands.set('uta', utaCommand);
-
-    // Enhanced interaction handler
-    async function handlePersistentInteraction(interaction) {
-      try {
-        if (!persistentMessage || interaction.message?.id !== persistentMessage.id) return;
-        
-        if (interaction.customId === 'persistent_category_select') {
-          const selectedCategory = interaction.values[0];
-          const category = RADIO_CATEGORIES[selectedCategory];
-          
-          const stationOptions = category.stations
-            .filter(stationKey => RADIO_STATIONS[stationKey])
-            .map(stationKey => {
-              const station = RADIO_STATIONS[stationKey];
-              return {
-                label: station.name,
-                description: `${station.description} (${station.genre})`,
-                value: stationKey
-              };
-            });
-
-          const newStationSelect = new StringSelectMenuBuilder()
-            .setCustomId('persistent_station_select')
-            .setPlaceholder(`🎵 Choose from ${category.name}... (Auto-plays!)`)
-            .addOptions(stationOptions)
-            .setDisabled(false);
-
-          const components = interaction.message.components.map((row, index) => {
-            if (index === 1) {
-              return new ActionRowBuilder().addComponents(newStationSelect);
-            }
-            return ActionRowBuilder.from(row);
-          });
-
-          await interaction.update({ components });
-          interaction.message._selectedCategory = selectedCategory;
-
-        } else if (interaction.customId === 'persistent_station_select') {
-          const selectedStation = interaction.values[0];
-          const station = RADIO_STATIONS[selectedStation];
-          
-          const voiceChannel = interaction.member?.voice?.channel;
-          if (!voiceChannel) {
-            return interaction.reply({
-              content: '*"Please join a voice channel first so I can play music for you!"* 🎤',
-              ephemeral: true
-            });
-          }
-
-          if (!client.shoukaku || !global.lavalinkReady) {
-            return interaction.reply({
-              content: '*"My audio system isn\'t ready yet... please try again in a moment!"* ✨',
-              ephemeral: true
-            });
-          }
-
-          await interaction.reply({
-            content: `🎵 *"Switching to ${station.name}..."*`,
-            ephemeral: true
-          });
-
-          try {
-            console.log(`🎵 Auto-playing ${selectedStation} for guild ${interaction.guildId}`);
-            
-            // Use the enhanced radio manager to switch stations
-            const result = await radioManager.switchStation(
-              interaction.guildId, 
-              selectedStation, 
-              voiceChannel.id
-            );
-
-            // Update our tracking
-            currentlyPlaying.set(interaction.guildId, {
-              stationKey: selectedStation,
-              stationName: station.name,
-              voiceChannelId: voiceChannel.id,
-              startedAt: Date.now()
-            });
-
-            await interaction.editReply({
-              content: `🎵 *"Now playing ${station.name}!"* (Volume: ${DEFAULT_VOLUME}%)\n🎧 Playing in **${voiceChannel.name}**`
-            });
-
-            // Update the main message to show current status
-            await updatePersistentMessage();
-
-            // Auto-delete success message after 4 seconds
-            setTimeout(async () => {
-              try {
-                await interaction.deleteReply();
-              } catch (err) {}
-            }, 4000);
-
-          } catch (error) {
-            console.error('❌ Auto-play failed:', error);
-            
-            // Remove from tracking if failed
-            currentlyPlaying.delete(interaction.guildId);
-            
-            await interaction.editReply({
-              content: `*"Sorry, I couldn't play ${station.name}. ${error.message}"*`
-            });
-            
-            // Auto-delete error after 6 seconds
-            setTimeout(async () => {
-              try {
-                await interaction.deleteReply();
-              } catch (err) {}
-            }, 6000);
-          }
-
-        } else if (interaction.customId === 'persistent_stop') {
-          await interaction.reply({
-            content: '*"Stopping the music... Thank you for listening!"* 🎭',
-            ephemeral: true
-          });
-
-          try {
-            await radioManager.stopConnection(interaction.guildId);
-            currentlyPlaying.delete(interaction.guildId);
-            await updatePersistentMessage();
-            
-            console.log(`⏹️ Stopped radio for guild ${interaction.guildId}`);
-          } catch (error) {
-            console.error('❌ Stop failed:', error);
-          }
-
-          setTimeout(async () => {
-            try {
-              await interaction.deleteReply();
-            } catch (err) {}
-          }, 3000);
-
-        } else if (interaction.customId === 'persistent_status') {
-          const playingInfo = currentlyPlaying.get(interaction.guildId);
-          const player = client.shoukaku.players.get(interaction.guildId);
-
-          const embed = new EmbedBuilder()
-            .setColor('#FF6B9D')
-            .setTitle('🌟 Radio Status')
-            .addFields(
-              {
-                name: '🎵 Currently Playing',
-                value: playingInfo ? 
-                  `🎧 **${playingInfo.stationName}**\n📍 ${interaction.guild.channels.cache.get(playingInfo.voiceChannelId)?.name}\n🔊 Volume: ${DEFAULT_VOLUME}%\n⏰ Started: <t:${Math.floor(playingInfo.startedAt / 1000)}:R>` : 
-                  '✨ Ready to play music!',
-                inline: false
-              },
-              {
-                name: '💖 System Status',
-                value: `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}`,
-                inline: false
-              },
-              {
-                name: '🎪 Available Stations',
-                value: `${Object.keys(RADIO_STATIONS).length} stations across ${Object.keys(RADIO_CATEGORIES).length} categories`,
-                inline: false
-              }
-            )
-            .setFooter({ text: 'Select a station above to start playing instantly!' })
-            .setTimestamp();
-
-          // Add profile thumbnail if available
-          const profileUrl = getImageUrl('uta-profile.png');
-          if (profileUrl) {
-            embed.setThumbnail(profileUrl);
-          } else {
-            embed.setThumbnail(client.user.displayAvatarURL());
-          }
-
-          await interaction.reply({
-            embeds: [embed],
-            ephemeral: true
-          });
-        }
-
-      } catch (error) {
-        console.error('❌ Interaction error:', error);
-        try {
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({
-              content: '*"Something went wrong... please try again!"*',
-              ephemeral: true
-            });
-          }
-        } catch (replyError) {
-          console.error('❌ Failed to send error reply:', replyError);
-        }
-      }
-    }
-
-    // Register commands
-    console.log('📋 Registering slash commands...');
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    const commands = [radioCommand.data.toJSON(), utaCommand.data.toJSON()];
-    
-    try {
-      if (process.env.GUILD_ID) {
-        console.log(`🎯 Registering guild commands for: ${process.env.GUILD_ID}`);
-        await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
-        console.log('✅ Guild commands registered successfully');
-      } else {
-        console.log('🌍 Registering global commands...');
-        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-        console.log('✅ Global commands registered successfully');
-      }
-    } catch (error) {
-      console.error('❌ Command registration failed:', error.message);
-    }
-
-    // Event handlers
-    client.once(Events.ClientReady, async () => {
-      console.log(`🎉 Discord ready: ${client.user.tag}`);
-      console.log(`🏰 Connected to ${client.guilds.cache.size} guilds`);
-      console.log(`👥 Serving ${client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)} users`);
-      
-      global.discordReady = true;
-      
-      // Initialize persistent radio after a short delay
-      setTimeout(() => {
-        console.log('🎵 Initializing persistent radio interface...');
-        initializePersistentRadio();
-      }, 3000);
-    });
-
-    client.on(Events.InteractionCreate, async (interaction) => {
-      try {
-        if (interaction.isChatInputCommand()) {
-          const command = client.commands.get(interaction.commandName);
-          if (command) {
-            console.log(`🎯 Executing command: /${interaction.commandName} by ${interaction.user.tag}`);
-            await command.execute(interaction);
-          }
-        } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
-          console.log(`🎛️ Handling interaction: ${interaction.customId} by ${interaction.user.tag}`);
-          await handlePersistentInteraction(interaction);
-        }
-      } catch (error) {
-        console.error('❌ Interaction error:', error.message);
-        console.error('Full error:', error);
-      }
-    });
-
-    // Enhanced voice state update handler to clean up disconnected players
-    client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-      try {
-        // Check if the bot was disconnected from a voice channel
-        if (oldState.member?.id === client.user.id && oldState.channelId && !newState.channelId) {
-          console.log(`🔌 Bot disconnected from voice channel in guild ${oldState.guild.id}`);
-          
-          // Clean up player and tracking
-          const player = client.shoukaku.players.get(oldState.guild.id);
-          if (player) {
-            try {
-              await player.destroy();
-              client.shoukaku.players.delete(oldState.guild.id);
-            } catch (error) {
-              console.warn('⚠️ Error cleaning up disconnected player:', error.message);
-              client.shoukaku.players.delete(oldState.guild.id);
-            }
-          }
-          
-          // Remove from tracking
-          currentlyPlaying.delete(oldState.guild.id);
-          radioManager.currentConnections.delete(oldState.guild.id);
-          
-          // Update persistent message
-          await updatePersistentMessage();
-        }
-      } catch (error) {
-        console.error('❌ Voice state update error:', error.message);
-      }
-    });
-
-    // Additional error handling
-    client.on(Events.Error, error => {
-      console.error('❌ Discord client error:', error.message);
-    });
-
-    client.on(Events.Warn, warning => {
-      console.warn('⚠️ Discord client warning:', warning);
-    });
-
-    // Login to Discord
-    console.log('🔑 Logging into Discord...');
-    await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Discord login initiated');
-
-  } catch (error) {
-    console.error('💥 Bot startup failed:', error.message);
-    console.error('Full error:', error);
-  }
-}
-
-// Start the bot with a small delay to ensure health server is ready
-setTimeout(() => {
-  console.log('🎤 Starting Discord bot initialization...');
-  startDiscordBot();
-}, 2000);
-
-console.log('🎤 Uta DJ Bot with local images initialization started');
+          iconURL: client.user?.displayAvatarURL()
