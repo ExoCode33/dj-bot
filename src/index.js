@@ -93,126 +93,44 @@ const RADIO_STATIONS = {
     fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
     genre: 'Rock',
     quality: 'High'
-  },
-  'iloveradio_hardstyle': {
-    name: 'ILoveRadio Hardstyle',
-    description: 'German hardstyle with energetic drops',
-    url: 'https://streams.ilovemusic.de/iloveradio21.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio21.aac',
-    genre: 'Hardstyle',
-    quality: 'High'
-  },
-  'bigfm_electro': {
-    name: 'BigFM Electro',
-    description: 'German electronic music with energetic beats',
-    url: 'http://streams.bigfm.de/bigfm-nitroxparty-128-mp3',
-    fallback: 'http://streams.bigfm.de/bigfm-deutschland-128-mp3',
-    genre: 'Electronic',
-    quality: 'High'
-  },
-  'iloveradio_clubsounds': {
-    name: 'ILoveRadio Club Sounds',
-    description: 'Club music and house beats',
-    url: 'https://streams.ilovemusic.de/iloveradio16.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio16.aac',
-    genre: 'Club Music',
-    quality: 'High'
-  },
-  'electronic_pioneer': {
-    name: 'Electronic Pioneer',
-    description: 'Underground electronic with dynamic drops',
-    url: 'http://streaming.radionomy.com/Electronic-Pioneer',
-    fallback: 'http://streaming.radionomy.com/ElectronicBeats',
-    genre: 'Electronic',
-    quality: 'High'
-  },
-  'poolsuite_fm': {
-    name: 'Poolsuite FM',
-    description: 'Summer vibes and yacht rock for chill sessions',
-    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    genre: 'Chill',
-    quality: 'High'
   }
 };
 
 console.log(`📻 Loaded ${Object.keys(RADIO_STATIONS).length} radio stations`);
 
-// Health server - MUST start first
+// Health server - MUST start first and stay simple
 const server = http.createServer((req, res) => {
-  console.log(`📡 Health check requested: ${req.url} from ${req.connection.remoteAddress}`);
+  console.log(`📡 Health check: ${req.url}`);
   
-  try {
-    if (req.url === '/health') {
-      const healthData = {
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        service: 'uta-dj-bot',
-        discord: global.discordReady || false,
-        lavalink: global.lavalinkReady || false,
-        radioChannel: RADIO_CHANNEL_ID,
-        defaultVolume: DEFAULT_VOLUME,
-        stationsLoaded: Object.keys(RADIO_STATIONS).length,
-        version: '2.0.1',
-        memory: {
-          used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
-          total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
-        }
-      };
-      
-      res.writeHead(200, { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(JSON.stringify(healthData, null, 2));
-      console.log('✅ Health check response sent');
-    } else {
-      res.writeHead(200, { 
-        'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(`Uta's Music Studio is online! 🎤✨\nUptime: ${Math.floor(process.uptime())} seconds\nStations: ${Object.keys(RADIO_STATIONS).length} available`);
-      console.log('✅ Root endpoint response sent');
-    }
-  } catch (error) {
-    console.error('❌ Error in health endpoint:', error);
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    res.end('Health check error: ' + error.message);
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      service: 'uta-dj-bot',
+      discord: global.discordReady || false,
+      lavalink: global.lavalinkReady || false,
+      defaultVolume: DEFAULT_VOLUME,
+      version: '2.0.2'
+    }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Uta\'s Music Studio is online! 🎤✨');
   }
 });
 
-server.listen(port, '0.0.0.0', (err) => {
-  if (err) {
-    console.error('❌ CRITICAL: Failed to start health server:', err);
-    console.error('This will cause Railway health checks to fail!');
-    process.exit(1);
-  }
-  console.log(`✅ Health server SUCCESSFULLY running on 0.0.0.0:${port}`);
-  console.log(`🔗 Health check: http://0.0.0.0:${port}/health`);
-  console.log(`🔗 Root endpoint: http://0.0.0.0:${port}/`);
-  
-  // Test the health endpoint immediately
-  setTimeout(() => {
-    console.log('🧪 Testing health endpoint...');
-    const testReq = http.request(`http://localhost:${port}/health`, (res) => {
-      console.log(`✅ Health endpoint test: Status ${res.statusCode}`);
-    });
-    testReq.on('error', (err) => {
-      console.error('❌ Health endpoint test failed:', err.message);
-    });
-    testReq.end();
-  }, 1000);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Health server running on 0.0.0.0:${port}`);
 });
 
 // Error handlers
 process.on('uncaughtException', (error) => {
   console.error('💥 Uncaught Exception:', error.message);
-  console.error('Stack:', error.stack);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason);
 });
 
 // Radio Categories - Uta themed
@@ -225,12 +143,12 @@ const RADIO_CATEGORIES = {
   'electronic_dance': {
     name: '🎵 Electronic & Dance',
     description: 'Electronic beats for Uta\'s energetic shows',
-    stations: ['somafm_beatblender', 'somafm_groovesalad', 'bigfm_electro', 'iloveradio_clubsounds', 'electronic_pioneer']
+    stations: ['somafm_beatblender', 'somafm_groovesalad', 'iloveradio_dance']
   },
   'chill_ambient': {
     name: '🌸 Chill & Ambient',
     description: 'Relaxing sounds for Uta\'s softer moments',
-    stations: ['somafm_dronezone', 'somafm_deepspaceone', 'lofi_girl', 'poolsuite_fm']
+    stations: ['somafm_dronezone', 'lofi_girl']
   },
   'anime_jpop': {
     name: '🎌 Anime & J-Pop',
@@ -240,7 +158,7 @@ const RADIO_CATEGORIES = {
   'rock_alternative': {
     name: '🎸 Rock & Alternative',
     description: 'Rock music for Uta\'s powerful performances',
-    stations: ['rock_antenne', 'iloveradio_hardstyle']
+    stations: ['rock_antenne']
   }
 };
 
@@ -257,7 +175,6 @@ class SimpleRadioManager {
     
     for (const url of urlsToTry) {
       try {
-        console.log(`🔄 Trying URL: ${url}`);
         const result = await player.node.rest.resolve(url);
         
         if (result.loadType === 'track' && result.data) {
@@ -278,32 +195,25 @@ class SimpleRadioManager {
   }
 }
 
-// Global variables for initialization state
+// Global variables
 global.discordReady = false;
 global.lavalinkReady = false;
 
-// Start Discord bot safely
+// Start Discord bot
 async function startDiscordBot() {
   try {
-    console.log('🤖 Starting Discord bot initialization...');
+    console.log('🤖 Starting Discord bot...');
     
-    // Check required environment variables
-    if (!process.env.DISCORD_TOKEN) {
-      console.error('❌ DISCORD_TOKEN is required!');
-      return;
-    }
-    if (!process.env.CLIENT_ID) {
-      console.error('❌ CLIENT_ID is required!');
+    if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID) {
+      console.error('❌ Missing required environment variables');
       return;
     }
 
-    console.log('🔄 Loading Discord.js and Shoukaku...');
-    
     // Dynamic imports
     const discord = await import('discord.js');
     const shoukaku = await import('shoukaku');
     
-    console.log('✅ Libraries loaded successfully');
+    console.log('✅ Libraries loaded');
 
     const { 
       Client, 
@@ -320,7 +230,6 @@ async function startDiscordBot() {
       Routes 
     } = discord;
     
-    // Create Discord client
     const client = new Client({
       intents: [
         GatewayIntentBits.Guilds, 
@@ -331,10 +240,8 @@ async function startDiscordBot() {
 
     client.commands = new Collection();
 
-    // Setup Lavalink if configured
+    // Setup Lavalink
     if (process.env.LAVALINK_URL) {
-      console.log('🎵 Setting up Lavalink connection...');
-      
       const nodes = [{
         name: process.env.LAVALINK_NAME || 'railway-node',
         url: process.env.LAVALINK_URL,
@@ -352,7 +259,7 @@ async function startDiscordBot() {
       });
 
       client.shoukaku.on('ready', (name) => {
-        console.log(`✅ Lavalink "${name}" ready and operational`);
+        console.log(`✅ Lavalink "${name}" ready`);
         global.lavalinkReady = true;
       });
 
@@ -361,78 +268,61 @@ async function startDiscordBot() {
         global.lavalinkReady = false;
       });
 
-      client.shoukaku.on('disconnect', (name, reason) => {
-        console.warn(`⚠️ Lavalink "${name}" disconnected: ${reason}`);
-        global.lavalinkReady = false;
-      });
-
       console.log('✅ Lavalink configured');
-    } else {
-      console.warn('⚠️ No Lavalink URL provided - music features disabled');
     }
 
-    // Initialize radio manager
     const radioManager = new SimpleRadioManager();
     let persistentMessage = null;
 
-    // Persistent Radio Functions
+    // Persistent Radio Functions - Uta themed but simple
     async function createPersistentRadioEmbed() {
       return new EmbedBuilder()
         .setColor('#FF6B9D')
         .setTitle('🎤 Uta\'s Concert Hall')
-        .setDescription('*"Welcome to my world! I\'m so happy you\'re here to listen to music with me! Music has the power to make everyone smile and bring us all together!"* 💕\n\n🎵 What kind of music should we enjoy together today?')
+        .setDescription('*"Welcome to my world! I\'m here to sing beautiful music for everyone!"*\n\n🎵 Choose a music style and let me perform for you!')
         .addFields(
           {
-            name: '🎶 My Musical Collection',
+            name: '🎶 Music Styles Available',
             value: Object.values(RADIO_CATEGORIES).map(cat => 
-              `${cat.name} - *${cat.description}*`
+              `${cat.name} - ${cat.description}`
             ).join('\n'),
             inline: false
           },
           {
-            name: '✨ How to Request a Song',
-            value: '1️⃣ Pick a **music style** that speaks to your heart\n2️⃣ Choose your favorite **station** from my collection\n3️⃣ Press **▶️ Play** and I\'ll perform for you!\n4️⃣ Use **⏸️ Stop** when you\'re ready to rest',
-            inline: false
-          },
-          {
-            name: '💖 Uta\'s Promise',
-            value: 'I promise to fill this space with the most beautiful melodies! Every song I sing is filled with love and hope for a better world where music unites everyone! 🌟',
+            name: '✨ How to Request',
+            value: '1️⃣ Pick a **music style**\n2️⃣ Choose your **station**\n3️⃣ Press **▶️ Play**\n4️⃣ Use **⏸️ Stop** when done',
             inline: false
           }
         )
         .setFooter({ 
-          text: 'With love, Uta ♪ World\'s Greatest Diva ♪ Let\'s make beautiful music together! 💕',
+          text: 'Uta\'s Concert Hall • World\'s Greatest Diva ✨',
           iconURL: client.user?.displayAvatarURL() 
         })
         .setTimestamp();
     }
 
     async function createPersistentRadioComponents() {
-      // Category selector
       const categorySelect = new StringSelectMenuBuilder()
         .setCustomId('persistent_category_select')
-        .setPlaceholder('🎵 What kind of music speaks to your heart today?')
+        .setPlaceholder('🎵 What music style would you like?')
         .addOptions(
           Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
             label: category.name,
             description: category.description,
-            value: key,
-            emoji: category.name.split(' ')[0]
+            value: key
           }))
         );
 
-      // Station selector (initially disabled)
       const stationSelect = new StringSelectMenuBuilder()
         .setCustomId('persistent_station_select')
-        .setPlaceholder('🎤 Choose a music style first, and I\'ll show you my favorites!')
+        .setPlaceholder('🎤 Choose a music style first...')
         .addOptions([{
-          label: 'Pick a music style above first!',
-          description: 'I\'m excited to share my collection with you!',
+          label: 'Select music style above',
+          description: 'Pick from the menu above',
           value: 'placeholder'
         }])
         .setDisabled(true);
 
-      // Control buttons
       const playButton = new ButtonBuilder()
         .setCustomId('persistent_play')
         .setLabel('▶️ Play')
@@ -460,34 +350,25 @@ async function startDiscordBot() {
 
     async function initializePersistentRadio() {
       try {
-        console.log(`🎵 Initializing persistent radio in channel ${RADIO_CHANNEL_ID}...`);
-        
-        const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(err => {
-          console.error(`❌ Could not fetch radio channel: ${err.message}`);
-          return null;
-        });
-        
+        const channel = await client.channels.fetch(RADIO_CHANNEL_ID);
         if (!channel) {
-          console.error(`❌ Radio channel ${RADIO_CHANNEL_ID} not found!`);
+          console.error(`❌ Radio channel not found: ${RADIO_CHANNEL_ID}`);
           return;
         }
 
-        console.log(`🎵 Found radio channel: #${channel.name}`);
+        console.log(`🎵 Initializing radio in #${channel.name}`);
 
-        // Clear existing messages
+        // Clear messages
         try {
           const messages = await channel.messages.fetch({ limit: 100 });
           if (messages.size > 0) {
-            console.log(`🧹 Deleting ${messages.size} existing messages from radio channel`);
-            await channel.bulkDelete(messages).catch(err => {
-              console.warn(`⚠️ Could not bulk delete: ${err.message}`);
-            });
+            await channel.bulkDelete(messages);
           }
         } catch (error) {
-          console.warn(`⚠️ Could not clear radio channel: ${error.message}`);
+          console.warn(`⚠️ Could not clear channel: ${error.message}`);
         }
 
-        // Create the persistent radio embed
+        // Create embed
         const embed = await createPersistentRadioEmbed();
         const components = await createPersistentRadioComponents();
 
@@ -496,15 +377,14 @@ async function startDiscordBot() {
           components: components
         });
 
-        console.log(`✅ Persistent radio embed created with ID: ${persistentMessage.id}`);
+        console.log(`✅ Persistent radio created: ${persistentMessage.id}`);
 
       } catch (error) {
-        console.error(`❌ Failed to initialize persistent radio: ${error.message}`);
-        console.error('Stack:', error.stack);
+        console.error(`❌ Failed to initialize radio: ${error.message}`);
       }
     }
 
-    // Setup commands
+    // Commands
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
@@ -512,16 +392,7 @@ async function startDiscordBot() {
       
       async execute(interaction) {
         await interaction.reply({
-          embeds: [new EmbedBuilder()
-            .setColor('#FF6B9D')
-            .setTitle('🎤 Welcome to My Concert Hall!')
-            .setDescription(`*"I'm so excited you want to listen to music with me! My concert hall is always open, and I have so many beautiful songs to share!"*\n\nCome visit me at <#${RADIO_CHANNEL_ID}> and let's make music together! 💕`)
-            .addFields({
-              name: '✨ What I Can Do',
-              value: '🎵 Sing any song you request\n🌟 Share my favorite music styles\n💖 Make everyone happy through music\n🎤 Perform just for you anytime!',
-              inline: false
-            })
-          ],
+          content: `🎤 *"Come visit my concert hall!"*\n\nI'm waiting for you at <#${RADIO_CHANNEL_ID}> to sing beautiful music together! ✨`,
           ephemeral: true
         });
       }
@@ -530,47 +401,38 @@ async function startDiscordBot() {
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('💕 Get to know Uta, the world\'s greatest diva'),
+        .setDescription('💕 About Uta, the world\'s greatest diva'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
           .setColor('#FF6B9D')
-          .setTitle('🎤 Hi there! I\'m Uta!')
-          .setDescription(`*"Music is the most wonderful thing in the world! It can bring everyone together and make us all smile! I want to create a world where everyone can be happy!"* 💕\n\n**🎵 Come listen to me sing: <#${RADIO_CHANNEL_ID}>**`)
+          .setTitle('🎤 Hi! I\'m Uta!')
+          .setDescription(`*"I want to make everyone happy through music!"*\n\n**Visit my concert hall: <#${RADIO_CHANNEL_ID}>**`)
           .addFields(
             {
-              name: '💖 About Me',
-              value: `🌟 I'm the world's most beloved diva!\n🎭 My papa is Red-Haired Shanks of the Red Hair Pirates\n🎵 I have the power of the Uta Uta no Mi (Song-Song Fruit)\n💕 My voice can touch anyone's heart!`,
+              name: '✨ About Me',
+              value: `🌟 World's beloved diva\n🎭 Daughter of Red-Haired Shanks\n🎵 Uta Uta no Mi user\n💕 Voice that touches hearts`,
               inline: false
             },
             {
-              name: '🎶 My Concert Hall',
-              value: `Visit <#${RADIO_CHANNEL_ID}> where I can:\n• Sing ${Object.keys(RADIO_CATEGORIES).length} different styles of music\n• Play from ${Object.keys(RADIO_STATIONS).length} amazing radio stations\n• Perform beautiful songs just for you!\n• Make every day brighter with music! ✨`,
-              inline: false
-            },
-            {
-              name: '🌟 My Dream',
-              value: '*"I want to use my music to create a world where everyone can be happy and live in harmony! Every song I sing carries my love and hope for a better tomorrow!"* 💫',
+              name: '🎵 My Concert Hall',
+              value: `• ${Object.keys(RADIO_CATEGORIES).length} music styles\n• ${Object.keys(RADIO_STATIONS).length} radio stations\n• Beautiful performances just for you!`,
               inline: false
             }
           )
-          .setFooter({ text: 'With all my love, Uta ♪ Let\'s make the world better with music! 💕' })
+          .setFooter({ text: 'With love, Uta ♪ Let\'s make music together! 💕' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
       }
     };
 
-    // Register commands
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log('✅ Commands loaded: radio, uta');
-
-    // Persistent radio interaction handler
+    // Interaction handler
     async function handlePersistentInteraction(interaction) {
       try {
-        // Only handle interactions from the persistent radio message
         if (!persistentMessage || interaction.message?.id !== persistentMessage.id) return;
         
         if (interaction.customId === 'persistent_category_select') {
@@ -583,7 +445,7 @@ async function startDiscordBot() {
               const station = RADIO_STATIONS[stationKey];
               return {
                 label: station.name,
-                description: `${station.description} (${station.genre})`,
+                description: station.description,
                 value: stationKey
               };
             });
@@ -610,25 +472,22 @@ async function startDiscordBot() {
           
           interaction.message._selectedStation = selectedStation;
           
-          const reply = await interaction.reply({
-            content: `🎵 *"I love this one! ${station.name} has such beautiful melodies!"*`,
+          await interaction.reply({
+            content: `🎵 *"${station.name} ready!"*`,
             ephemeral: true
           });
 
-          // Auto-delete after 3 seconds
           setTimeout(async () => {
             try {
               await interaction.deleteReply();
-            } catch (err) {
-              // Ignore if already deleted
-            }
+            } catch (err) {}
           }, 3000);
 
         } else if (interaction.customId === 'persistent_play') {
           const selectedStation = interaction.message._selectedStation;
           if (!selectedStation) {
             return interaction.reply({
-              content: '*"Please choose a song for me to sing first! I want to perform something you\'ll love!"* 💕',
+              content: '*"Please choose a song first!"* 💕',
               ephemeral: true
             });
           }
@@ -636,31 +495,29 @@ async function startDiscordBot() {
           const voiceChannel = interaction.member?.voice?.channel;
           if (!voiceChannel) {
             return interaction.reply({
-              content: '*"Come join me in a voice channel so I can sing for you! Music is always better when we\'re together!"* 🎤💕',
+              content: '*"Join a voice channel so I can sing for you!"* 🎤',
               ephemeral: true
             });
           }
 
           if (!client.shoukaku || !global.lavalinkReady) {
             return interaction.reply({
-              content: '*"Oh no! My voice isn\'t ready yet... Give me just a moment to warm up!"* ✨',
+              content: '*"My voice isn\'t ready yet..."* ✨',
               ephemeral: true
             });
           }
 
-          const reply = await interaction.reply({
-            content: '*"Here we go! Let me sing this beautiful song for you!"* 🎵',
+          await interaction.reply({
+            content: '*"Starting my performance!"*',
             ephemeral: true
           });
 
           try {
-            // Check for existing player and clean up if needed
             let player = client.shoukaku.players.get(interaction.guildId);
             
             if (player) {
-              const currentVoiceChannel = interaction.guild.channels.cache.get(player.voiceId);
-              if (!currentVoiceChannel || !currentVoiceChannel.members.has(client.user.id)) {
-                console.log('🧹 Cleaning up disconnected player...');
+              const currentVC = interaction.guild.channels.cache.get(player.voiceId);
+              if (!currentVC || !currentVC.members.has(client.user.id)) {
                 await player.destroy().catch(() => {});
                 client.shoukaku.players.delete(interaction.guildId);
                 player = null;
@@ -668,13 +525,6 @@ async function startDiscordBot() {
             }
             
             if (!player) {
-              console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
-              
-              const permissions = voiceChannel.permissionsFor(client.user);
-              if (!permissions.has(['Connect', 'Speak'])) {
-                throw new Error('Missing permissions for voice channel');
-              }
-              
               player = await client.shoukaku.joinVoiceChannel({
                 guildId: interaction.guildId,
                 channelId: voiceChannel.id,
@@ -682,49 +532,34 @@ async function startDiscordBot() {
               });
               
               await new Promise(resolve => setTimeout(resolve, 2000));
-              console.log('✅ Voice connection established');
             }
             
             await player.setGlobalVolume(DEFAULT_VOLUME);
-            console.log(`🔊 Volume set to ${DEFAULT_VOLUME}%`);
-
             await radioManager.connectToStream(player, selectedStation);
             const station = RADIO_STATIONS[selectedStation];
 
             await interaction.editReply({
-              content: `🎤 *"Now I'm singing ${station.name} just for you! I hope it makes you smile!"* ✨ *(Volume: ${DEFAULT_VOLUME}%)*`
+              content: `🎤 *"Now singing ${station.name}!"* (${DEFAULT_VOLUME}%)`
             });
 
-            // Auto-delete after 4 seconds
             setTimeout(async () => {
               try {
                 await interaction.deleteReply();
-              } catch (err) {
-                // Ignore if already deleted
-              }
+              } catch (err) {}
             }, 4000);
 
           } catch (error) {
-            console.error(`❌ Persistent play failed:`, error);
+            console.error('❌ Play failed:', error);
             await interaction.editReply({
-              content: `*"Oh dear... Something went wrong with my performance... ${error.message}"* 😔`,
+              content: `*"Something went wrong... ${error.message}"*`
             });
-
-            // Auto-delete error after 5 seconds
-            setTimeout(async () => {
-              try {
-                await interaction.deleteReply();
-              } catch (err) {
-                // Ignore if already deleted
-              }
-            }, 5000);
           }
 
         } else if (interaction.customId === 'persistent_stop') {
           const player = client.shoukaku.players.get(interaction.guildId);
           
-          const reply = await interaction.reply({
-            content: '*"Thank you for listening! That was such a wonderful time together!"* 🎭💕',
+          await interaction.reply({
+            content: '*"Thank you for listening!"* 🎭',
             ephemeral: true
           });
 
@@ -734,53 +569,37 @@ async function startDiscordBot() {
               await player.destroy();
               client.shoukaku.players.delete(interaction.guildId);
             } catch (error) {
-              console.error('⚠️ Error during player cleanup:', error.message);
               client.shoukaku.players.delete(interaction.guildId);
             }
           }
 
-          // Auto-delete after 3 seconds
           setTimeout(async () => {
             try {
               await interaction.deleteReply();
-            } catch (err) {
-              // Ignore if already deleted
-            }
+            } catch (err) {}
           }, 3000);
 
         } else if (interaction.customId === 'persistent_status') {
           const player = client.shoukaku.players.get(interaction.guildId);
-          const nodes = Array.from(client.shoukaku.nodes.values());
-          const connectedNodes = nodes.filter(node => node.state === 2);
 
           await interaction.reply({
             embeds: [new EmbedBuilder()
               .setColor('#FF6B9D')
-              .setTitle('🌟 How is Uta doing?')
+              .setTitle('🌟 Uta\'s Status')
               .addFields(
                 {
                   name: '🎤 Current Performance',
                   value: player ? 
-                    `🎵 *"I'm singing in ${interaction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'} right now!"*\n🔊 Volume: ${DEFAULT_VOLUME}%\n▶️ Singing: ${player.playing ? 'Yes! 🎶' : 'Resting ✨'}` : 
-                    '💫 *"I\'m ready to sing whenever you want to listen!"*',
+                    `🎵 Singing in ${interaction.guild.channels.cache.get(player.voiceId)?.name}\n🔊 Volume: ${DEFAULT_VOLUME}%` : 
+                    '✨ Ready to sing!',
                   inline: false
                 },
                 {
-                  name: '🎵 My Voice System',
-                  value: `${connectedNodes.length}/${nodes.length} audio connections ready\n${connectedNodes.map(n => `✅ ${n.name} is working perfectly!`).join('\n') || '❌ *"My voice system needs a moment..."*'}`,
-                  inline: false
-                },
-                {
-                  name: '💖 Uta\'s Status',
-                  value: [
-                    `Connection: ${global.discordReady ? '✅ *"I\'m here and ready!"*' : '❌ *"Still getting ready..."*'}`,
-                    `Voice System: ${global.lavalinkReady ? '✅ *"My voice is crystal clear!"*' : '❌ *"Warming up my vocals..."*'}`,
-                    `Concert Time: ${Math.floor(process.uptime())} seconds of beautiful music!`
-                  ].join('\n'),
+                  name: '💖 System Status',
+                  value: `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}`,
                   inline: false
                 }
               )
-              .setFooter({ text: 'Uta\'s Status • Always here to make music with you! 💕' })
               .setTimestamp()
             ],
             ephemeral: true
@@ -788,643 +607,28 @@ async function startDiscordBot() {
         }
 
       } catch (error) {
-        console.error(`❌ Persistent interaction error: ${error.message}`);
-        
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: `❌ Error: ${error.message}`,
-            ephemeral: true
-          }).catch(() => {});
-        }
+        console.error('❌ Interaction error:', error);
       }
     }
-
-    // Register slash commands
-    console.log('🚀 Registering slash commands...');
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    const commands = [radioCommand.data.toJSON(), utaCommand.data.toJSON()];
-    
-    try {
-      if (process.env.GUILD_ID) {
-        await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
-        console.log('✅ Guild commands registered');
-      } else {
-        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-        console.log('✅ Global commands registered');
-      }
-    } catch (error) {
-      console.error('❌ Failed to register commands:', error.message);
-    }
-
-    // Event handlers
-    client.once(Events.ClientReady, async () => {
-      console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
-      global.discordReady = true;
-      
-      // Initialize persistent radio after a delay
-      setTimeout(() => {
-        initializePersistentRadio();
-      }, 3000);
-    });
-
-    client.on(Events.InteractionCreate, async (interaction) => {
-      try {
-        if (interaction.isChatInputCommand()) {
-          const command = client.commands.get(interaction.commandName);
-          if (command) {
-            await command.execute(interaction);
-          }
-        } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
-          await handlePersistentInteraction(interaction);
-        }
-      } catch (error) {
-        console.error('❌ Interaction error:', error.message);
-      }
-    });
-
-    // Login to Discord
-    console.log('🔑 Logging into Discord...');
-    await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Discord login initiated');
-
-  } catch (error) {
-    console.error('💥 Bot startup failed:', error.message);
-    console.error('Stack:', error.stack);
-  }
-}
-
-// Start the bot after health server is ready
-setTimeout(() => {
-  startDiscordBot();
-}, 2000);
-
-console.log('🎤 Uta\'s Music Studio initialization started');
-) throw new Error('Station not found');
-
-    console.log(`🎵 Connecting to ${station.name}: ${station.url}`);
-    
-    const urlsToTry = [station.url];
-    if (station.fallback) urlsToTry.push(station.fallback);
-    
-    for (const url of urlsToTry) {
-      try {
-        console.log(`🔄 Trying URL: ${url}`);
-        const result = await player.node.rest.resolve(url);
-        
-        if (result.loadType === 'track' && result.data) {
-          await player.playTrack({ track: { encoded: result.data.encoded } });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return { success: true, station, url };
-        } else if (result.tracks && result.tracks.length > 0) {
-          await player.playTrack({ track: { encoded: result.tracks[0].encoded } });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return { success: true, station, url };
-        }
-      } catch (error) {
-        console.error(`❌ URL failed: ${url} - ${error.message}`);
-      }
-    }
-    
-    throw new Error(`All stream URLs failed for ${station.name}`);
-  }
-}
-
-// Global variables for initialization state
-global.discordReady = false;
-global.lavalinkReady = false;
-
-// Start Discord bot safely
-async function startDiscordBot() {
-  try {
-    console.log('🤖 Starting Discord bot initialization...');
-    
-    // Check required environment variables
-    if (!process.env.DISCORD_TOKEN) {
-      console.error('❌ DISCORD_TOKEN is required!');
-      return;
-    }
-    if (!process.env.CLIENT_ID) {
-      console.error('❌ CLIENT_ID is required!');
-      return;
-    }
-
-    console.log('🔄 Loading Discord.js and Shoukaku...');
-    
-    // Dynamic imports
-    const discord = await import('discord.js');
-    const shoukaku = await import('shoukaku');
-    
-    console.log('✅ Libraries loaded successfully');
-
-    const { 
-      Client, 
-      GatewayIntentBits, 
-      Collection, 
-      Events, 
-      SlashCommandBuilder, 
-      EmbedBuilder, 
-      ActionRowBuilder,
-      ButtonBuilder,
-      ButtonStyle,
-      StringSelectMenuBuilder,
-      REST, 
-      Routes 
-    } = discord;
-    
-    // Create Discord client
-    const client = new Client({
-      intents: [
-        GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildVoiceStates, 
-        GatewayIntentBits.GuildMessages
-      ]
-    });
-
-    client.commands = new Collection();
-
-    // Setup Lavalink if configured
-    if (process.env.LAVALINK_URL) {
-      console.log('🎵 Setting up Lavalink connection...');
-      
-      const nodes = [{
-        name: process.env.LAVALINK_NAME || 'railway-node',
-        url: process.env.LAVALINK_URL,
-        auth: process.env.LAVALINK_AUTH || 'UtaUtaDj',
-        secure: process.env.LAVALINK_SECURE === 'true'
-      }];
-
-      client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
-        resume: true,
-        resumeKey: 'uta-bot-persistent-radio',
-        resumeTimeout: 60,
-        reconnectTries: 10,
-        reconnectInterval: 5000,
-        restTimeout: 60000
-      });
-
-      client.shoukaku.on('ready', (name) => {
-        console.log(`✅ Lavalink "${name}" ready and operational`);
-        global.lavalinkReady = true;
-      });
-
-      client.shoukaku.on('error', (name, error) => {
-        console.error(`❌ Lavalink "${name}" error:`, error.message);
-        global.lavalinkReady = false;
-      });
-
-      client.shoukaku.on('disconnect', (name, reason) => {
-        console.warn(`⚠️ Lavalink "${name}" disconnected: ${reason}`);
-        global.lavalinkReady = false;
-      });
-
-      console.log('✅ Lavalink configured');
-    } else {
-      console.warn('⚠️ No Lavalink URL provided - music features disabled');
-    }
-
-    // Initialize radio manager
-    const radioManager = new SimpleRadioManager();
-    let persistentMessage = null;
-
-    // Persistent Radio Functions
-    async function createPersistentRadioEmbed() {
-      return new EmbedBuilder()
-        .setColor('#FF0040')
-        .setTitle('🔊 UTA\'S PERSISTENT BASS RADIO STATION')
-        .setDescription('💀 *"24/7 HARD BASS DROPS - Always ready to DESTROY your speakers!"* 🔊\n\n**Choose a category, then select your station for MAXIMUM BASS!**')
-        .addFields(
-          {
-            name: '💀 AVAILABLE CATEGORIES',
-            value: Object.values(RADIO_CATEGORIES).map(cat => 
-              `${cat.name} - ${cat.description}`
-            ).join('\n'),
-            inline: false
-          },
-          {
-            name: '🎵 HOW TO USE',
-            value: '1️⃣ Select a **category** from the first dropdown\n2️⃣ Choose your **station** from the second dropdown\n3️⃣ Hit **▶️ PLAY** to start the BASS DROP!\n4️⃣ Use **⏹️ STOP** to end the session',
-            inline: false
-          },
-          {
-            name: '⚠️ BASS WARNING',
-            value: '🔊 **HIGH VOLUME** optimized for bass heads\n💀 **SPEAKER DAMAGE** possible at maximum settings\n⚡ **BRUTAL DROPS** that will shake your house',
-            inline: false
-          }
-        )
-        .setFooter({ 
-          text: 'UTA\'S ETERNAL BASS STATION • Always On • Always HARD 💀🔊',
-          iconURL: client.user?.displayAvatarURL() 
-        })
-        .setTimestamp();
-    }
-
-    async function createPersistentRadioComponents() {
-      // Category selector
-      const categorySelect = new StringSelectMenuBuilder()
-        .setCustomId('persistent_category_select')
-        .setPlaceholder('🎯 Select a BASS category...')
-        .addOptions(
-          Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
-            label: category.name,
-            description: category.description,
-            value: key,
-            emoji: category.name.split(' ')[0]
-          }))
-        );
-
-      // Station selector (initially disabled)
-      const stationSelect = new StringSelectMenuBuilder()
-        .setCustomId('persistent_station_select')
-        .setPlaceholder('🎵 First select a category above...')
-        .addOptions([{
-          label: 'Please select a category first',
-          description: 'Choose from the dropdown above',
-          value: 'placeholder'
-        }])
-        .setDisabled(true);
-
-      // Control buttons
-      const playButton = new ButtonBuilder()
-        .setCustomId('persistent_play')
-        .setLabel('▶️ BASS DROP')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('🔊');
-
-      const stopButton = new ButtonBuilder()
-        .setCustomId('persistent_stop')
-        .setLabel('⏹️ STOP BASS')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('🛑');
-
-      const statusButton = new ButtonBuilder()
-        .setCustomId('persistent_status')
-        .setLabel('📊 STATUS')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('📡');
-
-      return [
-        new ActionRowBuilder().addComponents(categorySelect),
-        new ActionRowBuilder().addComponents(stationSelect),
-        new ActionRowBuilder().addComponents(playButton, stopButton, statusButton)
-      ];
-    }
-
-    async function initializePersistentRadio() {
-      try {
-        console.log(`🎵 Initializing persistent radio in channel ${RADIO_CHANNEL_ID}...`);
-        
-        const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(err => {
-          console.error(`❌ Could not fetch radio channel: ${err.message}`);
-          return null;
-        });
-        
-        if (!channel) {
-          console.error(`❌ Radio channel ${RADIO_CHANNEL_ID} not found!`);
-          return;
-        }
-
-        console.log(`🎵 Found radio channel: #${channel.name}`);
-
-        // Clear existing messages
-        try {
-          const messages = await channel.messages.fetch({ limit: 100 });
-          if (messages.size > 0) {
-            console.log(`🧹 Deleting ${messages.size} existing messages from radio channel`);
-            await channel.bulkDelete(messages).catch(err => {
-              console.warn(`⚠️ Could not bulk delete: ${err.message}`);
-            });
-          }
-        } catch (error) {
-          console.warn(`⚠️ Could not clear radio channel: ${error.message}`);
-        }
-
-        // Create the persistent radio embed
-        const embed = await createPersistentRadioEmbed();
-        const components = await createPersistentRadioComponents();
-
-        persistentMessage = await channel.send({
-          embeds: [embed],
-          components: components
-        });
-
-        console.log(`✅ Persistent radio embed created with ID: ${persistentMessage.id}`);
-
-      } catch (error) {
-        console.error(`❌ Failed to initialize persistent radio: ${error.message}`);
-        console.error('Stack:', error.stack);
-      }
-    }
-
-    // Setup commands
-    const radioCommand = {
-      data: new SlashCommandBuilder()
-        .setName('radio')
-        .setDescription('🔊 Stream HARD BASS DROP music'),
-      
-      async execute(interaction) {
-        await interaction.reply({
-          embeds: [new EmbedBuilder()
-            .setColor('#FF6B35')
-            .setTitle('🔊 UTA\'S RADIO COMMAND')
-            .setDescription(`💀 **Persistent Radio Available!**\n\nCheck out <#${RADIO_CHANNEL_ID}> for the **24/7 BASS STATION** with persistent controls!\n\n*This command redirects you to the persistent radio interface.*`)
-            .addFields({
-              name: '🎵 Persistent Radio Benefits',
-              value: '• Always available\n• No command cooldowns\n• Better station organization\n• Easier to use',
-              inline: false
-            })
-          ],
-          ephemeral: true
-        });
-      }
-    };
-
-    const utaCommand = {
-      data: new SlashCommandBuilder()
-        .setName('uta')
-        .setDescription('💀 Uta\'s HARD BASS music info'),
-      
-      async execute(interaction) {
-        const embed = new EmbedBuilder()
-          .setColor('#FF0040')
-          .setTitle('💀 UTA\'S BASS STUDIO - HARD DROPS ONLY')
-          .setDescription(`*"Ready to ANNIHILATE your ears with the HARDEST bass drops!"* 🔊\n\n**🎵 Persistent Radio Station: <#${RADIO_CHANNEL_ID}>**`)
-          .addFields(
-            {
-              name: '💀 PERSISTENT BASS STATION',
-              value: `Visit <#${RADIO_CHANNEL_ID}> for:\n• 24/7 availability\n• ${Object.keys(RADIO_CATEGORIES).length} categories\n• ${Object.keys(RADIO_STATIONS).length} BASS stations\n• Easy dropdown controls`,
-              inline: false
-            },
-            {
-              name: '🔊 BASS CATEGORIES',
-              value: Object.values(RADIO_CATEGORIES).map(cat => 
-                cat.name.replace(/💀|⚡|🌙|🎌|🎵/g, '').trim()
-              ).join(' • '),
-              inline: false
-            },
-            {
-              name: '💀 UTA\'S BASS PROMISE',
-              value: '• 🔊 **MAXIMUM BASS** that will shake your house\n• ⚡ **CRUSHING DROPS** and BRUTAL beats\n• 💀 **HIGH VOLUME** optimized for BASS HEADS\n• 🎭 **SPEAKER DESTRUCTION** is guaranteed',
-              inline: false
-            }
-          )
-          .setFooter({ text: 'BASS QUEEN ready to DESTROY! 💀🔊' })
-          .setTimestamp();
-
-        await interaction.reply({ embeds: [embed] });
-      }
-    };
 
     // Register commands
-    client.commands.set('radio', radioCommand);
-    client.commands.set('uta', utaCommand);
-
-    console.log('✅ Commands loaded: radio, uta');
-
-    // Persistent radio interaction handler
-    async function handlePersistentInteraction(interaction) {
-      try {
-        // Only handle interactions from the persistent radio message
-        if (!persistentMessage || interaction.message?.id !== persistentMessage.id) return;
-        
-        if (interaction.customId === 'persistent_category_select') {
-          const selectedCategory = interaction.values[0];
-          const category = RADIO_CATEGORIES[selectedCategory];
-          
-          const stationOptions = category.stations
-            .filter(stationKey => RADIO_STATIONS[stationKey])
-            .map(stationKey => {
-              const station = RADIO_STATIONS[stationKey];
-              return {
-                label: station.name,
-                description: `${station.description} (${station.genre})`,
-                value: stationKey
-              };
-            });
-
-          const newStationSelect = new StringSelectMenuBuilder()
-            .setCustomId('persistent_station_select')
-            .setPlaceholder(`🎵 Choose from ${category.name}...`)
-            .addOptions(stationOptions)
-            .setDisabled(false);
-
-          const components = interaction.message.components.map((row, index) => {
-            if (index === 1) {
-              return new ActionRowBuilder().addComponents(newStationSelect);
-            }
-            return ActionRowBuilder.from(row);
-          });
-
-          await interaction.update({ components });
-          interaction.message._selectedCategory = selectedCategory;
-
-        } else if (interaction.customId === 'persistent_station_select') {
-          const selectedStation = interaction.values[0];
-          const station = RADIO_STATIONS[selectedStation];
-          
-          interaction.message._selectedStation = selectedStation;
-          
-          await interaction.reply({
-            embeds: [new EmbedBuilder()
-              .setColor('#00FF94')
-              .setTitle('🎵 Station Selected!')
-              .setDescription(`**${station.name}** is ready to drop BASS!\n\n*${station.description}*\n\n➡️ **Click "▶️ BASS DROP" to start the mayhem!**`)
-              .addFields({
-                name: '🎶 Genre',
-                value: station.genre,
-                inline: true
-              })
-            ],
-            ephemeral: true
-          });
-
-        } else if (interaction.customId === 'persistent_play') {
-          const selectedStation = interaction.message._selectedStation;
-          if (!selectedStation) {
-            return interaction.reply({
-              content: '❌ Please select a station first using the dropdowns above!',
-              ephemeral: true
-            });
-          }
-
-          const voiceChannel = interaction.member?.voice?.channel;
-          if (!voiceChannel) {
-            return interaction.reply({
-              content: '❌ You need to be in a voice channel to experience the BASS DROP! 🔊',
-              ephemeral: true
-            });
-          }
-
-          if (!client.shoukaku || !global.lavalinkReady) {
-            return interaction.reply({
-              content: '❌ Music service is offline. Try again in a moment!',
-              ephemeral: true
-            });
-          }
-
-          await interaction.deferReply({ ephemeral: true });
-
-          try {
-            // Check for existing player and clean up if needed
-            let player = client.shoukaku.players.get(interaction.guildId);
-            
-            if (player) {
-              const currentVoiceChannel = interaction.guild.channels.cache.get(player.voiceId);
-              if (!currentVoiceChannel || !currentVoiceChannel.members.has(client.user.id)) {
-                console.log('🧹 Cleaning up disconnected player...');
-                await player.destroy().catch(() => {});
-                client.shoukaku.players.delete(interaction.guildId);
-                player = null;
-              }
-            }
-            
-            if (!player) {
-              console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
-              
-              const permissions = voiceChannel.permissionsFor(client.user);
-              if (!permissions.has(['Connect', 'Speak'])) {
-                throw new Error('Missing Connect/Speak permissions for voice channel');
-              }
-              
-              player = await client.shoukaku.joinVoiceChannel({
-                guildId: interaction.guildId,
-                channelId: voiceChannel.id,
-                shardId: interaction.guild.shardId
-              });
-              
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              console.log('✅ Voice connection established');
-            }
-            
-            await player.setGlobalVolume(85);
-
-            await radioManager.connectToStream(player, selectedStation);
-            const station = RADIO_STATIONS[selectedStation];
-
-            await interaction.editReply({
-              embeds: [new EmbedBuilder()
-                .setColor('#00FF00')
-                .setTitle('🔊 BASS DROP INITIATED!')
-                .setDescription(`💀 **${station.name}** is now DESTROYING speakers in **${voiceChannel.name}**!`)
-                .addFields(
-                  {
-                    name: '🎵 Now Playing',
-                    value: `**${station.name}**\n*${station.description}*`,
-                    inline: false
-                  },
-                  {
-                    name: '🔊 Bass Level',
-                    value: '**MAXIMUM DESTRUCTION** (Volume: 85%)',
-                    inline: true
-                  }
-                )
-                .setFooter({ text: 'BASS DROP SUCCESSFUL • Speakers may not survive 💀🔊' })
-              ]
-            });
-
-          } catch (error) {
-            console.error(`❌ Persistent play failed:`, error);
-            await interaction.editReply({
-              content: `❌ Failed to start BASS DROP: ${error.message}`,
-            });
-          }
-
-        } else if (interaction.customId === 'persistent_stop') {
-          await interaction.deferReply({ ephemeral: true });
-
-          const player = client.shoukaku.players.get(interaction.guildId);
-          if (player) {
-            try {
-              await player.stopTrack();
-              await player.destroy();
-              client.shoukaku.players.delete(interaction.guildId);
-            } catch (error) {
-              console.error('⚠️ Error during player cleanup:', error.message);
-              client.shoukaku.players.delete(interaction.guildId);
-            }
-          }
-
-          await interaction.editReply({
-            embeds: [new EmbedBuilder()
-              .setColor('#FF0000')
-              .setTitle('🛑 BASS SYSTEM SHUTDOWN!')
-              .setDescription('Uta has stopped the BASS DROP and your speakers are safe... for now! 💀')
-              .setFooter({ text: 'Until the next BASS DROP! 💀🔊' })
-            ]
-          });
-
-        } else if (interaction.customId === 'persistent_status') {
-          const player = client.shoukaku.players.get(interaction.guildId);
-          const nodes = Array.from(client.shoukaku.nodes.values());
-          const connectedNodes = nodes.filter(node => node.state === 2);
-
-          await interaction.reply({
-            embeds: [new EmbedBuilder()
-              .setColor('#0099FF')
-              .setTitle('📊 UTA BASS SYSTEM STATUS')
-              .addFields(
-                {
-                  name: '🎵 Music Player',
-                  value: player ? 
-                    `✅ **ACTIVE** in ${interaction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'}\n🔊 Volume: ${player.volume || 'Unknown'}%\n▶️ Playing: ${player.playing ? 'Yes' : 'No'}` : 
-                    '❌ **OFFLINE** - No active session',
-                  inline: false
-                },
-                {
-                  name: '📡 Lavalink Nodes',
-                  value: `${connectedNodes.length}/${nodes.length} nodes online\n${connectedNodes.map(n => `✅ ${n.name}`).join('\n') || '❌ No nodes connected'}`,
-                  inline: false
-                },
-                {
-                  name: '⚡ System Health',
-                  value: [
-                    `Discord: ${global.discordReady ? '✅ Ready' : '❌ Not Ready'}`,
-                    `Lavalink: ${global.lavalinkReady ? '✅ Connected' : '❌ Disconnected'}`,
-                    `Uptime: ${Math.floor(process.uptime())} seconds`
-                  ].join('\n'),
-                  inline: false
-                }
-              )
-              .setTimestamp()
-            ],
-            ephemeral: true
-          });
-        }
-
-      } catch (error) {
-        console.error(`❌ Persistent interaction error: ${error.message}`);
-        
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: `❌ Error: ${error.message}`,
-            ephemeral: true
-          }).catch(() => {});
-        }
-      }
-    }
-
-    // Register slash commands
-    console.log('🚀 Registering slash commands...');
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     const commands = [radioCommand.data.toJSON(), utaCommand.data.toJSON()];
     
     try {
       if (process.env.GUILD_ID) {
         await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
-        console.log('✅ Guild commands registered');
-      } else {
-        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-        console.log('✅ Global commands registered');
+        console.log('✅ Commands registered');
       }
     } catch (error) {
-      console.error('❌ Failed to register commands:', error.message);
+      console.error('❌ Command registration failed:', error.message);
     }
 
     // Event handlers
     client.once(Events.ClientReady, async () => {
-      console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
+      console.log(`🎉 Discord ready: ${client.user.tag}`);
       global.discordReady = true;
       
-      // Initialize persistent radio after a delay
       setTimeout(() => {
         initializePersistentRadio();
       }, 3000);
@@ -1445,20 +649,17 @@ async function startDiscordBot() {
       }
     });
 
-    // Login to Discord
-    console.log('🔑 Logging into Discord...');
     await client.login(process.env.DISCORD_TOKEN);
     console.log('✅ Discord login initiated');
 
   } catch (error) {
     console.error('💥 Bot startup failed:', error.message);
-    console.error('Stack:', error.stack);
   }
 }
 
-// Start the bot after health server is ready
+// Start the bot
 setTimeout(() => {
   startDiscordBot();
 }, 2000);
 
-console.log('🔊 PERSISTENT BASS radio bot initialization started');
+console.log('🎤 Uta DJ Bot initialization started');
