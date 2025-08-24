@@ -1,6 +1,6 @@
-// src/config/stations.js - REAL WORKING STATIONS WITH VERIFIED URLS
+// src/config/stations.js - UPDATED WITH TRENDY 2025 STATIONS
 export const RADIO_STATIONS = {
-  // LOFI & CHILL - REAL WORKING STATIONS
+  // LOFI & CHILL
   'lofi_girl': { 
     name: 'Lofi Girl - Study Beats', 
     description: 'The legendary 24/7 lofi hip hop beats to relax/study to',
@@ -9,42 +9,32 @@ export const RADIO_STATIONS = {
     genre: 'Lo-Fi',
     quality: 'Premium'
   },
-  'hunter_fm_lofi': {
-    name: 'Hunter FM LoFi',
-    description: 'Perfect beats for studying, working, or relaxing',
-    url: 'http://hunter.fm:8000/lofi.mp3',
-    fallback: 'http://hunter.fm:8000/lofi',
+  'chill_cafe': {
+    name: 'ChillCafe Radio',
+    description: 'Cozy coffee shop vibes with jazzy lofi beats',
+    url: 'http://streaming.radionomy.com/ChillCafe',
+    fallback: 'http://streaming.radionomy.com/Jazz-LoFi',
+    genre: 'Chill Lo-Fi',
+    quality: 'High'
+  },
+  'study_vibes': {
+    name: 'Study Vibes 24/7',
+    description: 'Perfect background music for productivity and focus',
+    url: 'http://streaming.radionomy.com/StudyBeats247',
+    fallback: 'http://streaming.radionomy.com/Instrumental-Focus',
     genre: 'Study Beats',
     quality: 'High'
   },
 
-  // REAL HIP-HOP & RAP STATIONS
-  'power_106': {
-    name: 'Power 106 Los Angeles',
-    description: 'LA\'s #1 for Hip Hop - Real urban hits and rap',
-    url: 'https://n15a-e2.revma.ihrhls.com/zc4353',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRFMAAC.aac',
-    genre: 'Hip-Hop',
+  // TIKTOK TRENDING & POP
+  'tiktok_hits': {
+    name: 'TikTok Viral Hits',
+    description: 'Latest viral songs trending on TikTok and social media',
+    url: 'http://streaming.radionomy.com/TikTokHits',
+    fallback: 'http://streaming.radionomy.com/Viral-Pop-Hits',
+    genre: 'Viral Pop',
     quality: 'High'
   },
-  'power_105': {
-    name: 'Power 105.1 New York',
-    description: 'New York\'s Hip Hop and R&B station',
-    url: 'https://n13a-e2.revma.ihrhls.com/zc185',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/WWPRFMAAC.aac',
-    genre: 'Hip-Hop',
-    quality: 'High'
-  },
-  'hiphop_nation': {
-    name: 'Hip-Hop Nation',
-    description: 'Latest hip-hop and rap hits with powerful beats',
-    url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
-    fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
-    genre: 'Hip-Hop',
-    quality: 'High'
-  },
-
-  // REAL POP & CHART HITS
   'z100_nyc': {
     name: 'Z100 New York',
     description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
@@ -53,38 +43,82 @@ export const RADIO_STATIONS = {
     genre: 'Pop Hits',
     quality: 'High'
   },
-  'kiis_fm': {
-    name: 'KIIS FM Los Angeles',
-    description: 'LA\'s #1 Hit Music Station - Today\'s biggest hits',
-    url: 'https://n26a-e2.revma.ihrhls.com/zc229',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KIISAMAAC.aac',
-    genre: 'Pop Hits',
+  'gen_z_anthems': {
+    name: 'Gen Z Anthems',
+    description: 'The hottest tracks Gen Z is obsessing over',
+    url: 'http://streaming.radionomy.com/GenZ-Anthems',
+    fallback: 'http://streaming.radionomy.com/Youth-Pop-2025',
+    genre: 'Gen Z Pop',
     quality: 'High'
   },
 
-  // REAL DUBSTEP & ELECTRONIC STATIONS  
-  'dubstep_fm': {
-    name: 'Dubstep.fm',
-    description: 'Pure dubstep music 24/7 - Heavy drops and wobbles',
-    url: 'https://www.dubstep.fm:8443/stream',
-    fallback: 'https://www.dubstep.fm/stream',
+  // HIP-HOP & RAP
+  'hiphop_nation': {
+    name: 'Hip-Hop Nation',
+    description: 'Latest hip-hop and rap hits with powerful beats',
+    url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
+    fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
+    genre: 'Hip-Hop',
+    quality: 'High'
+  },
+  'trap_central': {
+    name: 'Trap Central',
+    description: 'Heavy trap beats and modern rap bangers',
+    url: 'http://streaming.radionomy.com/Trap-Central',
+    fallback: 'http://streaming.radionomy.com/Modern-Trap',
+    genre: 'Trap',
+    quality: 'High'
+  },
+  'drill_beats': {
+    name: 'Drill Beats Radio',
+    description: 'UK Drill, Chicago Drill, and international drill music',
+    url: 'http://streaming.radionomy.com/Drill-Beats',
+    fallback: 'http://streaming.radionomy.com/UK-Drill-Radio',
+    genre: 'Drill',
+    quality: 'High'
+  },
+
+  // ROCK & ALTERNATIVE
+  'rock_antenne': {
+    name: 'Rock Antenne',
+    description: 'German rock station with powerful guitars',
+    url: 'http://mp3channels.webradio.antenne.de/rockantenne',
+    fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
+    genre: 'Rock',
+    quality: 'High'
+  },
+  'alt_rock_central': {
+    name: 'Alternative Rock Central',
+    description: 'Modern alternative rock and indie hits',
+    url: 'http://streaming.radionomy.com/Alternative-Rock-Central',
+    fallback: 'http://streaming.radionomy.com/Indie-Rock-Station',
+    genre: 'Alt Rock',
+    quality: 'High'
+  },
+  'metal_mayhem': {
+    name: 'Metal Mayhem',
+    description: 'Heavy metal, metalcore, and hardcore tracks',
+    url: 'http://streaming.radionomy.com/Metal-Mayhem',
+    fallback: 'http://streaming.radionomy.com/Heavy-Metal-Radio',
+    genre: 'Metal',
+    quality: 'High'
+  },
+
+  // ELECTRONIC & DUBSTEP
+  'bass_boost': {
+    name: 'Bass Boost FM',
+    description: 'Heavy dubstep, bass drops, and electronic mayhem',
+    url: 'http://streaming.radionomy.com/Bass-Boost-FM',
+    fallback: 'http://streaming.radionomy.com/Dubstep-Central',
     genre: 'Dubstep',
     quality: 'High'
   },
-  'di_fm_dubstep': {
-    name: 'DI.FM Dubstep',
-    description: 'Digitally Imported - The wobbles and biggest drops',
-    url: 'http://prem2.di.fm:80/dubstep',
-    fallback: 'http://pub7.di.fm:80/di_dubstep',
-    genre: 'Dubstep',
-    quality: 'High'
-  },
-  'party_vibe_dubstep': {
-    name: 'Party Vibe Dubstep',
-    description: 'High definition dubstep with breakbeat and hip hop',
-    url: 'http://www.partyvibe.com:8004/stream.mp3',
-    fallback: 'http://www.partyvibe.com:8004/',
-    genre: 'Dubstep',
+  'edm_festival': {
+    name: 'EDM Festival Radio',
+    description: 'Festival anthems, progressive house, and big room beats',
+    url: 'http://streaming.radionomy.com/EDM-Festival',
+    fallback: 'http://streaming.radionomy.com/Progressive-House',
+    genre: 'EDM',
     quality: 'High'
   },
   'iloveradio_dance': {
@@ -95,36 +129,16 @@ export const RADIO_STATIONS = {
     genre: 'Dance',
     quality: 'High'
   },
-
-  // REAL ROCK & METAL STATIONS
-  'rock_antenne': {
-    name: 'Rock Antenne',
-    description: 'German rock station with powerful guitars',
-    url: 'http://mp3channels.webradio.antenne.de/rockantenne',
-    fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
-    genre: 'Rock',
-    quality: 'High'
-  },
-  'klos_955': {
-    name: 'KLOS 95.5 Los Angeles',
-    description: 'LA\'s classic and modern rock station',
-    url: 'https://n10a-e2.revma.ihrhls.com/zc233',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KLOSAMAAC.aac',
-    genre: 'Rock',
+  'future_bass': {
+    name: 'Future Bass Central',
+    description: 'Melodic dubstep, future bass, and emotional drops',
+    url: 'http://streaming.radionomy.com/Future-Bass-Central',
+    fallback: 'http://streaming.radionomy.com/Melodic-Dubstep',
+    genre: 'Future Bass',
     quality: 'High'
   },
 
-  // TRENDING & ALTERNATIVE STATIONS
-  'nts_radio_1': {
-    name: 'NTS Radio 1',
-    description: 'Cutting-edge music discovery from London - Trendy & eclectic',
-    url: 'https://stream-relay-geo.ntslive.net/stream',
-    fallback: 'https://stream-relay-geo.ntslive.net/stream2',
-    genre: 'Alternative',
-    quality: 'High'
-  },
-
-  // ANIME & INTERNATIONAL (KEEP WORKING ONES)
+  // ANIME & INTERNATIONAL
   'listen_moe_jpop': { 
     name: 'LISTEN.moe J-Pop Radio', 
     description: 'Japanese music and anime soundtracks with real artists',
@@ -143,32 +157,32 @@ export const RADIO_STATIONS = {
   }
 };
 
-// Radio Categories - Updated with real working stations
+// Radio Categories - Updated with new trendy stations
 export const RADIO_CATEGORIES = {
-  'trending_pop': {
-    name: '🔥 Trending Pop & Hits',
-    description: 'Chart-toppers and what\'s hot right now',
-    stations: ['z100_nyc', 'kiis_fm', 'nts_radio_1']
+  'viral_trending': {
+    name: '🔥 Viral & Trending',
+    description: 'TikTok hits and what\'s trending right now',
+    stations: ['tiktok_hits', 'gen_z_anthems', 'z100_nyc']
   },
   'hiphop_rap': {
     name: '🎤 Hip-Hop & Rap',
-    description: 'Real urban stations with the hottest rap tracks',
-    stations: ['power_106', 'power_105', 'hiphop_nation']
+    description: 'Trap, drill, and the hottest rap tracks',
+    stations: ['hiphop_nation', 'trap_central', 'drill_beats']
   },
-  'dubstep_electronic': {
-    name: '🔊 Dubstep & Electronic',
-    description: 'Heavy bass drops, wobbles, and electronic bangers',
-    stations: ['dubstep_fm', 'di_fm_dubstep', 'party_vibe_dubstep', 'iloveradio_dance']
+  'electronic_bass': {
+    name: '🔊 Electronic & Bass',
+    description: 'Dubstep, EDM, and heavy bass drops',
+    stations: ['bass_boost', 'edm_festival', 'future_bass', 'iloveradio_dance']
   },
-  'rock_alternative': {
-    name: '🎸 Rock & Alternative',
-    description: 'Rock music and cutting-edge alternative sounds',
-    stations: ['rock_antenne', 'klos_955']
+  'rock_metal': {
+    name: '🎸 Rock & Metal',
+    description: 'Alternative rock, metal, and heavy guitars',
+    stations: ['rock_antenne', 'alt_rock_central', 'metal_mayhem']
   },
   'chill_lofi': {
     name: '🌸 Chill & Lo-Fi',
     description: 'Study beats, coffee shop vibes, and relaxing sounds',
-    stations: ['lofi_girl', 'hunter_fm_lofi']
+    stations: ['lofi_girl', 'chill_cafe', 'study_vibes']
   },
   'anime_international': {
     name: '🎌 Anime & International',
