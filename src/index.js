@@ -112,7 +112,7 @@ const server = http.createServer((req, res) => {
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
       defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.3'
+      version: '2.0.4'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -162,10 +162,11 @@ const RADIO_CATEGORIES = {
   }
 };
 
-// FIXED Radio Manager - Only fixes connection switching, keeps everything else the same
+// COMPLETELY REWRITTEN Radio Manager with proper connection handling
 class SimpleRadioManager {
   constructor(client) {
     this.client = client;
+    this.switchingConnections = new Set(); // Track guilds currently switching
   }
 
   async connectToStream(player, stationKey) {
@@ -198,86 +199,248 @@ class SimpleRadioManager {
     throw new Error(`All stream URLs failed for ${station.name}`);
   }
 
-  // FIXED: Proper connection cleanup before switching
+  // COMPLETELY REWRITTEN: Proper connection management with extensive safeguards
   async switchToStation(guildId, stationKey, voiceChannelId) {
-    console.log(`🔄 Switching to station: ${stationKey} for guild ${guildId}`);
+    console.log(`🔄 Starting station switch: ${stationKey} for guild ${guildId}`);
     
-    // Step 1: Clean up existing connection PROPERLY
-    const existingPlayer = this.client.shoukaku.players.get(guildId);
-    if (existingPlayer) {
-      console.log('🧹 Cleaning up existing connection...');
+    // Prevent concurrent switches for the same guild
+    if (this.switchingConnections.has(guildId)) {
+      console.log(`⚠️ Already switching connection for guild ${guildId}, waiting...`);
       
-      try {
-        // Stop the track first
-        await existingPlayer.stopTrack();
-        console.log('⏹️ Track stopped');
+      // Wait for existing switch to complete
+      let waitAttempts = 0;
+      while (this.switchingConnections.has(guildId) && waitAttempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        waitAttempts++;
+      }
+      
+      if (this.switchingConnections.has(guildId)) {
+        throw new Error('Another connection switch is already in progress for this server');
+      }
+    }
+    
+    // Mark this guild as switching
+    this.switchingConnections.add(guildId);
+    
+    try {
+      // Step 1: Get guild and voice channel info first
+      const guild = this.client.guilds.cache.get(guildId);
+      const voiceChannel = guild?.channels.cache.get(voiceChannelId);
+      
+      if (!guild || !voiceChannel) {
+        throw new Error('Guild or voice channel not found');
+      }
+
+      console.log(`🔧 Guild: ${guild.name}, Voice Channel: ${voiceChannel.name}`);
+
+      // Step 2: THOROUGH connection cleanup with multiple fallback methods
+      const existingPlayer = this.client.shoukaku.players.get(guildId);
+      if (existingPlayer) {
+        console.log('🧹 Found existing connection, performing thorough cleanup...');
         
-        // Destroy the player
-        await existingPlayer.destroy();
-        console.log('💀 Player destroyed');
+        try {
+          // Method 1: Standard cleanup sequence
+          console.log('🔄 Method 1: Standard cleanup...');
+          
+          if (existingPlayer.track) {
+            await existingPlayer.stopTrack();
+            console.log('⏹️ Track stopped');
+          }
+          
+          // Wait for track stop to process
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Disconnect from voice channel
+          if (existingPlayer.voiceId) {
+            console.log('🔌 Disconnecting from voice...');
+            await existingPlayer.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          // Destroy the player
+          await existingPlayer.destroy();
+          console.log('💀 Player destroyed via standard method');
+          
+        } catch (standardError) {
+          console.warn('⚠️ Standard cleanup failed, trying alternative methods:', standardError.message);
+          
+          try {
+            // Method 2: Force destroy
+            console.log('🔄 Method 2: Force destroy...');
+            await existingPlayer.destroy();
+            console.log('💀 Player force destroyed');
+            
+          } catch (forceError) {
+            console.warn('⚠️ Force destroy failed, using manual cleanup:', forceError.message);
+            
+            // Method 3: Manual cleanup
+            console.log('🔄 Method 3: Manual cleanup...');
+            
+            // Manually trigger disconnect event if needed
+            if (existingPlayer.voiceId) {
+              try {
+                // Send voice state update to disconnect
+                guild.shard.send({
+                  op: 4,
+                  d: {
+                    guild_id: guildId,
+                    channel_id: null,
+                    self_mute: false,
+                    self_deaf: false
+                  }
+                });
+                console.log('🔌 Manual voice disconnect sent');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } catch (manualError) {
+                console.warn('⚠️ Manual voice disconnect failed:', manualError.message);
+              }
+            }
+          }
+        }
         
-        // Remove from the map
+        // Always remove from player map regardless of cleanup success
         this.client.shoukaku.players.delete(guildId);
         console.log('🗑️ Player removed from map');
         
-        // Wait for cleanup to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('✅ Cleanup wait completed');
-        
-      } catch (cleanupError) {
-        console.warn('⚠️ Error during cleanup:', cleanupError.message);
-        // Force remove even if cleanup fails
-        this.client.shoukaku.players.delete(guildId);
-      }
-    }
-    
-    // Step 2: Get guild and voice channel
-    const guild = this.client.guilds.cache.get(guildId);
-    const voiceChannel = guild.channels.cache.get(voiceChannelId);
-    
-    if (!voiceChannel) {
-      throw new Error('Voice channel not found');
-    }
-
-    // Step 3: Create NEW connection
-    console.log('🔊 Creating new voice connection...');
-    
-    let newPlayer;
-    try {
-      newPlayer = await this.client.shoukaku.joinVoiceChannel({
-        guildId: guildId,
-        channelId: voiceChannelId,
-        shardId: guild.shardId
-      });
-      console.log('✅ New voice connection created');
-    } catch (connectionError) {
-      if (connectionError.message.includes('existing connection')) {
-        // If we still get this error, force cleanup again
-        console.warn('⚠️ Still getting existing connection error, forcing cleanup...');
-        this.client.shoukaku.players.delete(guildId);
-        
-        // Wait longer and try again
+        // Extended wait for cleanup to fully process
+        console.log('⏳ Waiting for cleanup to fully process...');
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        newPlayer = await this.client.shoukaku.joinVoiceChannel({
-          guildId: guildId,
-          channelId: voiceChannelId,
-          shardId: guild.shardId
-        });
-        console.log('✅ New voice connection created after force cleanup');
-      } else {
-        throw connectionError;
+        // Verify cleanup worked
+        const stillExists = this.client.shoukaku.players.get(guildId);
+        if (stillExists) {
+          console.warn('⚠️ Player still exists after cleanup, force removing...');
+          this.client.shoukaku.players.delete(guildId);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        console.log('✅ Cleanup verification completed');
       }
+
+      // Step 3: Additional safeguards before creating new connection
+      console.log('🔧 Running pre-connection checks...');
+      
+      // Check if Lavalink nodes are healthy
+      const nodes = Array.from(this.client.shoukaku.nodes.values()).filter(n => n.state === 2);
+      if (nodes.length === 0) {
+        throw new Error('No healthy Lavalink nodes available');
+      }
+      
+      // Double-check no player exists for this guild
+      if (this.client.shoukaku.players.has(guildId)) {
+        console.warn('⚠️ Player still detected, performing emergency cleanup...');
+        this.client.shoukaku.players.delete(guildId);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+      // Step 4: Create new connection with retry logic
+      console.log('🔊 Creating new voice connection...');
+      
+      let newPlayer;
+      let connectionAttempts = 0;
+      const maxConnectionAttempts = 3;
+      
+      while (connectionAttempts < maxConnectionAttempts) {
+        try {
+          console.log(`🔄 Connection attempt ${connectionAttempts + 1}/${maxConnectionAttempts}`);
+          
+          newPlayer = await this.client.shoukaku.joinVoiceChannel({
+            guildId: guildId,
+            channelId: voiceChannelId,
+            shardId: guild.shardId
+          });
+          
+          console.log('✅ New voice connection established successfully');
+          break;
+          
+        } catch (connectionError) {
+          connectionAttempts++;
+          console.error(`❌ Connection attempt ${connectionAttempts} failed:`, connectionError.message);
+          
+          if (connectionError.message.includes('existing connection')) {
+            console.log('🧹 "Existing connection" error detected, performing emergency cleanup...');
+            
+            // Emergency cleanup - force remove any traces
+            this.client.shoukaku.players.delete(guildId);
+            
+            // Send manual disconnect
+            try {
+              guild.shard.send({
+                op: 4,
+                d: {
+                  guild_id: guildId,
+                  channel_id: null,
+                  self_mute: false,
+                  self_deaf: false
+                }
+              });
+              console.log('🔌 Emergency manual disconnect sent');
+            } catch (emergencyError) {
+              console.warn('⚠️ Emergency disconnect failed:', emergencyError.message);
+            }
+            
+            // Wait longer before retry
+            const waitTime = 2000 * connectionAttempts;
+            console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            
+          } else if (connectionAttempts >= maxConnectionAttempts) {
+            throw new Error(`Failed to create voice connection after ${maxConnectionAttempts} attempts: ${connectionError.message}`);
+          } else {
+            // Wait before retry for other errors
+            await new Promise(resolve => setTimeout(resolve, 1000 * connectionAttempts));
+          }
+        }
+      }
+      
+      if (!newPlayer) {
+        throw new Error('Failed to create voice connection after all attempts');
+      }
+
+      // Step 5: Configure new player
+      console.log('🔧 Configuring new player...');
+      await newPlayer.setGlobalVolume(DEFAULT_VOLUME);
+      console.log(`🔊 Volume set to ${DEFAULT_VOLUME}%`);
+      
+      // Wait a moment for player to stabilize
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Step 6: Connect to radio stream
+      console.log('🎵 Connecting to radio stream...');
+      const result = await this.connectToStream(newPlayer, stationKey);
+      
+      console.log('✅ Successfully switched to new station:', result.station.name);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Station switch failed:', error.message);
+      
+      // Emergency cleanup on failure
+      try {
+        this.client.shoukaku.players.delete(guildId);
+        const guild = this.client.guilds.cache.get(guildId);
+        if (guild) {
+          guild.shard.send({
+            op: 4,
+            d: {
+              guild_id: guildId,
+              channel_id: null,
+              self_mute: false,
+              self_deaf: false
+            }
+          });
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Emergency cleanup failed:', cleanupError.message);
+      }
+      
+      throw error;
+      
+    } finally {
+      // Always remove the switching lock
+      this.switchingConnections.delete(guildId);
+      console.log(`🔓 Released switching lock for guild ${guildId}`);
     }
-    
-    // Step 4: Set volume and connect to stream
-    await newPlayer.setGlobalVolume(DEFAULT_VOLUME);
-    console.log(`🔊 Volume set to ${DEFAULT_VOLUME}%`);
-    
-    const result = await this.connectToStream(newPlayer, stationKey);
-    console.log('✅ Successfully switched to new station');
-    
-    return result;
   }
 }
 
@@ -326,7 +489,7 @@ async function startDiscordBot() {
 
     client.commands = new Collection();
 
-    // Setup Lavalink
+    // Setup Lavalink with enhanced connection handling
     if (process.env.LAVALINK_URL) {
       const nodes = [{
         name: process.env.LAVALINK_NAME || 'railway-node',
@@ -337,11 +500,13 @@ async function startDiscordBot() {
 
       client.shoukaku = new shoukaku.Shoukaku(new shoukaku.Connectors.DiscordJS(client), nodes, {
         resume: true,
-        resumeKey: 'uta-bot-persistent-radio',
+        resumeKey: 'uta-bot-persistent-radio-v2',
         resumeTimeout: 60,
         reconnectTries: 10,
         reconnectInterval: 5000,
-        restTimeout: 60000
+        restTimeout: 60000,
+        moveOnDisconnect: false, // Important: Don't auto-move on disconnect
+        userAgent: 'UTA-DJ-BOT/2.0.4 (Enhanced Connection Handling)'
       });
 
       client.shoukaku.on('ready', (name) => {
@@ -354,7 +519,39 @@ async function startDiscordBot() {
         global.lavalinkReady = false;
       });
 
-      console.log('✅ Lavalink configured');
+      client.shoukaku.on('disconnect', (name, reason) => {
+        console.warn(`⚠️ Lavalink "${name}" disconnected:`, reason);
+        global.lavalinkReady = false;
+      });
+
+      // Enhanced player cleanup on node disconnect
+      client.shoukaku.on('raw', (name, json) => {
+        try {
+          const data = JSON.parse(json);
+          
+          if (data.op === 'event' && data.type === 'WebSocketClosedEvent') {
+            console.log(`🔌 Voice connection closed for guild ${data.guildId}: ${data.reason} (code: ${data.code})`);
+            
+            // Clean up player on unexpected voice disconnection
+            if (data.code === 4014 || data.code === 4009) { // Disconnected/Session timeout
+              console.log(`🧹 Auto-cleaning player for guild ${data.guildId} due to voice disconnect`);
+              const player = client.shoukaku.players.get(data.guildId);
+              if (player) {
+                try {
+                  client.shoukaku.players.delete(data.guildId);
+                  console.log(`✅ Auto-cleaned player for guild ${data.guildId}`);
+                } catch (cleanupError) {
+                  console.warn(`⚠️ Auto-cleanup failed for guild ${data.guildId}:`, cleanupError.message);
+                }
+              }
+            }
+          }
+        } catch (parseError) {
+          // Ignore JSON parse errors
+        }
+      });
+
+      console.log('✅ Lavalink configured with enhanced connection handling');
     }
 
     const radioManager = new SimpleRadioManager(client);
@@ -391,7 +588,7 @@ async function startDiscordBot() {
           }
         )
         .setFooter({ 
-          text: 'Uta\'s Radio Studio • Auto-Play Enabled ✨',
+          text: 'Uta\'s Radio Studio • Enhanced Connection Handling ✨',
           iconURL: client.user?.displayAvatarURL() 
         })
         .setTimestamp();
@@ -420,19 +617,21 @@ async function startDiscordBot() {
         .setDisabled(true);
 
       const isPlaying = currentlyPlaying.has(guildId);
+      const isSwitching = radioManager.switchingConnections.has(guildId);
 
       const stopButton = new ButtonBuilder()
         .setCustomId('persistent_stop')
         .setLabel('⏸️ Stop Radio')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🛑')
-        .setDisabled(!isPlaying);
+        .setDisabled(!isPlaying || isSwitching);
 
       const statusButton = new ButtonBuilder()
         .setCustomId('persistent_status')
-        .setLabel('📊 Status')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🎭');
+        .setLabel(isSwitching ? '🔄 Switching...' : '📊 Status')
+        .setStyle(isSwitching ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        .setEmoji(isSwitching ? '🔄' : '🎭')
+        .setDisabled(isSwitching);
 
       return [
         new ActionRowBuilder().addComponents(categorySelect),
@@ -524,7 +723,7 @@ async function startDiscordBot() {
             },
             {
               name: '🎵 My Radio Studio Features',
-              value: `• ${Object.keys(RADIO_CATEGORIES).length} music styles\n• ${Object.keys(RADIO_STATIONS).length} radio stations\n• Instant auto-play when you select a station!\n• Easy station switching anytime`,
+              value: `• ${Object.keys(RADIO_CATEGORIES).length} music styles\n• ${Object.keys(RADIO_STATIONS).length} radio stations\n• Instant auto-play when you select a station!\n• Easy station switching with enhanced connection handling`,
               inline: false
             }
           )
@@ -538,7 +737,7 @@ async function startDiscordBot() {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    // Enhanced interaction handler with FIXED station switching
+    // Enhanced interaction handler with improved error handling and status updates
     async function handlePersistentInteraction(interaction) {
       try {
         if (!persistentMessage || interaction.message?.id !== persistentMessage.id) return;
@@ -593,15 +792,25 @@ async function startDiscordBot() {
             });
           }
 
+          // Check if already switching
+          if (radioManager.switchingConnections.has(interaction.guildId)) {
+            return interaction.reply({
+              content: '*"I\'m already switching stations! Please wait a moment..."* 🔄',
+              ephemeral: true
+            });
+          }
+
           await interaction.reply({
-            content: `🎵 *"Switching to ${station.name}..."*`,
+            content: `🔄 *"Switching to ${station.name}... This might take a few seconds!"*`,
             ephemeral: true
           });
+
+          // Update UI to show switching state
+          await updatePersistentMessage();
 
           try {
             console.log(`🎵 Auto-playing ${selectedStation} for guild ${interaction.guildId}`);
             
-            // FIXED: Use the new switchToStation method
             const result = await radioManager.switchToStation(
               interaction.guildId, 
               selectedStation, 
@@ -617,18 +826,18 @@ async function startDiscordBot() {
             });
 
             await interaction.editReply({
-              content: `🎵 *"Now playing ${station.name}!"* (Volume: ${DEFAULT_VOLUME}%)\n🎧 Playing in **${voiceChannel.name}**`
+              content: `🎵 *"Now playing ${station.name}!"* (Volume: ${DEFAULT_VOLUME}%)\n🎧 Playing in **${voiceChannel.name}**\n✨ *"Enjoy the music!"*`
             });
 
             // Update the main message to show current status
             await updatePersistentMessage();
 
-            // Auto-delete success message after 4 seconds
+            // Auto-delete success message after 5 seconds
             setTimeout(async () => {
               try {
                 await interaction.deleteReply();
               } catch (err) {}
-            }, 4000);
+            }, 5000);
 
           } catch (error) {
             console.error('❌ Auto-play failed:', error);
@@ -636,16 +845,31 @@ async function startDiscordBot() {
             // Remove from tracking if failed
             currentlyPlaying.delete(interaction.guildId);
             
+            let errorMessage = `*"Sorry, I couldn't play ${station.name}."*`;
+            
+            if (error.message.includes('existing connection')) {
+              errorMessage += '\n🔧 *"There was a connection conflict. Please try again!"*';
+            } else if (error.message.includes('in progress')) {
+              errorMessage += '\n⏳ *"Another switch is happening. Please wait!"*';
+            } else if (error.message.includes('nodes')) {
+              errorMessage += '\n🎧 *"Audio system is having issues. Try again soon!"*';
+            } else {
+              errorMessage += `\n🔍 *"Technical issue: ${error.message.substring(0, 100)}..."*`;
+            }
+            
             await interaction.editReply({
-              content: `*"Sorry, I couldn't play ${station.name}. ${error.message}"*`
+              content: errorMessage
             });
             
-            // Auto-delete error after 6 seconds
+            // Update UI to remove switching state
+            await updatePersistentMessage();
+            
+            // Auto-delete error after 8 seconds
             setTimeout(async () => {
               try {
                 await interaction.deleteReply();
               } catch (err) {}
-            }, 6000);
+            }, 8000);
           }
 
         } else if (interaction.customId === 'persistent_stop') {
@@ -661,7 +885,10 @@ async function startDiscordBot() {
               await player.stopTrack();
               await player.destroy();
               client.shoukaku.players.delete(interaction.guildId);
+              console.log(`✅ Successfully stopped radio for guild ${interaction.guildId}`);
             } catch (error) {
+              console.warn(`⚠️ Error stopping radio for guild ${interaction.guildId}:`, error.message);
+              // Force cleanup even if stop fails
               client.shoukaku.players.delete(interaction.guildId);
             }
           }
@@ -678,27 +905,30 @@ async function startDiscordBot() {
         } else if (interaction.customId === 'persistent_status') {
           const playingInfo = currentlyPlaying.get(interaction.guildId);
           const player = client.shoukaku.players.get(interaction.guildId);
+          const isSwitching = radioManager.switchingConnections.has(interaction.guildId);
 
           await interaction.reply({
             embeds: [new EmbedBuilder()
-              .setColor('#FF6B9D')
-              .setTitle('🌟 Radio Status')
+              .setColor(isSwitching ? '#FFA500' : '#FF6B9D')
+              .setTitle(isSwitching ? '🔄 Station Switching in Progress' : '🌟 Radio Status')
               .addFields(
                 {
                   name: '🎵 Currently Playing',
-                  value: playingInfo ? 
-                    `🎧 **${playingInfo.stationName}**\n📍 ${interaction.guild.channels.cache.get(playingInfo.voiceChannelId)?.name}\n🔊 Volume: ${DEFAULT_VOLUME}%\n⏰ Started: <t:${Math.floor(playingInfo.startedAt / 1000)}:R>` : 
-                    '✨ Ready to play music!',
+                  value: isSwitching ? 
+                    '🔄 *Switching to new station...*' :
+                    playingInfo ? 
+                      `🎧 **${playingInfo.stationName}**\n📍 ${interaction.guild.channels.cache.get(playingInfo.voiceChannelId)?.name}\n🔊 Volume: ${DEFAULT_VOLUME}%\n⏰ Started: <t:${Math.floor(playingInfo.startedAt / 1000)}:R>` : 
+                      '✨ Ready to play music!',
                   inline: false
                 },
                 {
                   name: '💖 System Status',
-                  value: `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}`,
+                  value: `Discord: ${global.discordReady ? '✅ Ready' : '❌ Loading'}\nAudio: ${global.lavalinkReady ? '✅ Ready' : '❌ Loading'}\nPlayer: ${player ? '✅ Connected' : '❌ Disconnected'}\nConnection Handler: ✅ Enhanced`,
                   inline: false
                 },
                 {
-                  name: '🎪 Available Stations',
-                  value: `${Object.keys(RADIO_STATIONS).length} stations across ${Object.keys(RADIO_CATEGORIES).length} categories`,
+                  name: '🎪 Available Content',
+                  value: `${Object.keys(RADIO_STATIONS).length} stations across ${Object.keys(RADIO_CATEGORIES).length} categories\nConnection switching: ${isSwitching ? '🔄 Active' : '✅ Ready'}`,
                   inline: false
                 }
               )
@@ -710,6 +940,17 @@ async function startDiscordBot() {
 
       } catch (error) {
         console.error('❌ Interaction error:', error);
+        
+        if (!interaction.replied && !interaction.deferred) {
+          try {
+            await interaction.reply({
+              content: '*"Something went wrong! Please try again."* 😅',
+              ephemeral: true
+            });
+          } catch (replyError) {
+            console.error('❌ Failed to send error reply:', replyError.message);
+          }
+        }
       }
     }
 
@@ -764,14 +1005,16 @@ async function startDiscordBot() {
             try {
               await player.destroy();
               client.shoukaku.players.delete(oldState.guild.id);
+              console.log(`✅ Cleaned up player for guild ${oldState.guild.id}`);
             } catch (error) {
-              console.warn('⚠️ Error cleaning up disconnected player:', error.message);
+              console.warn(`⚠️ Error cleaning up disconnected player for guild ${oldState.guild.id}:`, error.message);
               client.shoukaku.players.delete(oldState.guild.id);
             }
           }
           
-          // Remove from tracking
+          // Remove from tracking and switching connections
           currentlyPlaying.delete(oldState.guild.id);
+          radioManager.switchingConnections.delete(oldState.guild.id);
           
           // Update persistent message
           await updatePersistentMessage();
@@ -780,6 +1023,56 @@ async function startDiscordBot() {
         console.error('❌ Voice state update error:', error.message);
       }
     });
+
+    // Periodic cleanup to handle orphaned connections
+    setInterval(async () => {
+      try {
+        // Clean up any stuck switching states that might have failed
+        for (const guildId of radioManager.switchingConnections) {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) {
+            console.log(`🧹 Removing switching lock for non-existent guild: ${guildId}`);
+            radioManager.switchingConnections.delete(guildId);
+            continue;
+          }
+          
+          // Check if there's actually a voice connection
+          const voiceConnection = guild.members.me?.voice?.channelId;
+          if (!voiceConnection) {
+            console.log(`🧹 Removing switching lock for guild with no voice connection: ${guildId}`);
+            radioManager.switchingConnections.delete(guildId);
+            currentlyPlaying.delete(guildId);
+          }
+        }
+        
+        // Clean up players that don't have voice connections
+        for (const [guildId, player] of client.shoukaku.players) {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) {
+            console.log(`🧹 Removing player for non-existent guild: ${guildId}`);
+            try {
+              await player.destroy();
+            } catch (error) {}
+            client.shoukaku.players.delete(guildId);
+            currentlyPlaying.delete(guildId);
+            continue;
+          }
+          
+          const voiceConnection = guild.members.me?.voice?.channelId;
+          if (!voiceConnection && !radioManager.switchingConnections.has(guildId)) {
+            console.log(`🧹 Removing orphaned player for guild: ${guildId}`);
+            try {
+              await player.destroy();
+            } catch (error) {}
+            client.shoukaku.players.delete(guildId);
+            currentlyPlaying.delete(guildId);
+          }
+        }
+        
+      } catch (error) {
+        console.error('❌ Cleanup interval error:', error.message);
+      }
+    }, 60000); // Run every minute
 
     await client.login(process.env.DISCORD_TOKEN);
     console.log('✅ Discord login initiated');
