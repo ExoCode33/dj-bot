@@ -1,4 +1,4 @@
-// src/features/radio/manager.js - OPTIMIZED FOR RAPID SWITCHING
+// src/features/radio/manager.js - FINAL ROBUST VERSION
 import { RADIO_STATIONS } from '../../config/stations.js';
 
 export class SimpleRadioManager {
@@ -7,7 +7,6 @@ export class SimpleRadioManager {
     this.defaultVolume = parseInt(process.env.DEFAULT_VOLUME) || 35;
     this.switchingStations = new Set();
     this.connectionAttempts = new Map();
-    this.lastSwitchTime = new Map(); // Track last switch per guild
   }
 
   async connectToStream(player, stationKey) {
@@ -25,11 +24,11 @@ export class SimpleRadioManager {
         
         if (result.loadType === 'track' && result.data) {
           await player.playTrack({ track: { encoded: result.data.encoded } });
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced wait time
+          await new Promise(resolve => setTimeout(resolve, 1500));
           return { success: true, station, url };
         } else if (result.tracks && result.tracks.length > 0) {
           await player.playTrack({ track: { encoded: result.tracks[0].encoded } });
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced wait time
+          await new Promise(resolve => setTimeout(resolve, 1500));
           return { success: true, station, url };
         }
       } catch (error) {
@@ -40,30 +39,21 @@ export class SimpleRadioManager {
     throw new Error(`All stream URLs failed for ${station.name}`);
   }
 
-  // IMPROVED: Better rapid switching handling
+  // FINAL FIX: Simplified and more reliable approach
   async switchToStation(guildId, stationKey, voiceChannelId) {
     console.log(`🔄 Switching to station: ${stationKey} for guild ${guildId}`);
     
-    // Enhanced rate limiting
-    const now = Date.now();
-    const lastSwitch = this.lastSwitchTime.get(guildId);
-    if (lastSwitch && (now - lastSwitch) < 2000) { // 2 second minimum between switches
-      const waitTime = Math.ceil((2000 - (now - lastSwitch)) / 1000);
-      throw new Error(`Please wait ${waitTime} more seconds before switching stations`);
-    }
-
     if (this.switchingStations.has(guildId)) {
       throw new Error('Already switching stations, please wait...');
     }
     
     this.switchingStations.add(guildId);
-    this.lastSwitchTime.set(guildId, now);
     
     try {
       // Check recent failed attempts
       const attempts = this.connectionAttempts.get(guildId) || 0;
-      if (attempts >= 3) {
-        throw new Error('Too many connection attempts. Please wait 1 minute and try again.');
+      if (attempts >= 2) {
+        throw new Error('Too many connection attempts. Please wait 30 seconds and try again.');
       }
 
       const guild = this.client.guilds.cache.get(guildId);
@@ -73,18 +63,17 @@ export class SimpleRadioManager {
         throw new Error('Voice channel not found');
       }
 
-      // STRATEGY 1: Try existing player first (IMPROVED)
+      // STRATEGY 1: Try existing player first
       const existingPlayer = this.client.shoukaku.players.get(guildId);
-      if (existingPlayer && this.isPlayerHealthy(existingPlayer)) {
-        console.log('🎵 Using existing healthy player...');
+      if (existingPlayer) {
+        console.log('🎵 Trying to use existing player...');
         try {
-          // Quick switch - just stop and play new stream
+          // Just stop and play new stream
           if (existingPlayer.track) {
             await existingPlayer.stopTrack();
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
           
-          // Shorter wait for existing player
-          await new Promise(resolve => setTimeout(resolve, 500));
           await existingPlayer.setGlobalVolume(this.defaultVolume);
           const result = await this.connectToStream(existingPlayer, stationKey);
           
@@ -94,16 +83,17 @@ export class SimpleRadioManager {
           return result;
           
         } catch (existingError) {
-          console.warn('⚠️ Existing player failed, will recreate:', existingError.message);
+          console.warn('⚠️ Existing player failed, creating new connection:', existingError.message);
+          // Continue to create new connection
         }
       }
 
-      // STRATEGY 2: Smart cleanup and recreate
-      console.log('🔄 Recreating connection...');
-      await this.smartCleanup(guildId);
+      // STRATEGY 2: Clean disconnect and create fresh
+      console.log('🔄 Creating fresh connection...');
+      await this.cleanDisconnect(guildId);
       
-      // STRATEGY 3: Create new player with better error handling
-      const newPlayer = await this.createStableConnection(guildId, voiceChannelId, guild);
+      // STRATEGY 3: Create new player with relaxed verification
+      const newPlayer = await this.createReliableConnection(guildId, voiceChannelId, guild);
       
       // STRATEGY 4: Set volume and connect
       await newPlayer.setGlobalVolume(this.defaultVolume);
@@ -115,15 +105,14 @@ export class SimpleRadioManager {
       return result;
       
     } catch (error) {
-      // Track failed attempts with exponential backoff
+      // Track failed attempts
       const attempts = (this.connectionAttempts.get(guildId) || 0) + 1;
       this.connectionAttempts.set(guildId, attempts);
       
-      // Auto-clear attempts after delay
-      const clearDelay = attempts * 15000; // 15s, 30s, 45s...
+      // Auto-clear attempts after 30 seconds
       setTimeout(() => {
         this.connectionAttempts.delete(guildId);
-      }, clearDelay);
+      }, 30000);
       
       console.error('❌ Station switch failed:', error.message);
       throw error;
@@ -133,11 +122,11 @@ export class SimpleRadioManager {
     }
   }
 
-  // IMPROVED: Smarter cleanup that's less aggressive
-  async smartCleanup(guildId) {
-    console.log('🧹 Smart cleanup starting...');
+  // Simplified clean disconnect
+  async cleanDisconnect(guildId) {
+    console.log('🧹 Clean disconnect starting...');
     
-    // Step 1: Stop and destroy existing player gracefully
+    // Step 1: Stop and destroy existing player
     const existingPlayer = this.client.shoukaku.players.get(guildId);
     if (existingPlayer) {
       try {
@@ -145,7 +134,7 @@ export class SimpleRadioManager {
           await existingPlayer.stopTrack();
         }
         await existingPlayer.destroy();
-        console.log('💀 Player destroyed gracefully');
+        console.log('💀 Player destroyed');
       } catch (error) {
         console.warn('⚠️ Error destroying player:', error.message);
       }
@@ -154,22 +143,36 @@ export class SimpleRadioManager {
     // Step 2: Clear from maps
     this.client.shoukaku.players.delete(guildId);
     
-    // Step 3: Brief wait for cleanup
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('✅ Smart cleanup completed');
+    // Step 3: Disconnect from Discord voice
+    try {
+      const guild = this.client.guilds.cache.get(guildId);
+      if (guild) {
+        const botMember = guild.members.cache.get(this.client.user.id);
+        if (botMember?.voice?.channel) {
+          await botMember.voice.disconnect();
+          console.log('🔌 Discord voice disconnected');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Discord disconnect error:', error.message);
+    }
+    
+    // Step 4: Wait for state to clear
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('✅ Clean disconnect completed');
   }
 
-  // IMPROVED: More reliable connection creation with better retry logic
-  async createStableConnection(guildId, voiceChannelId, guild) {
-    console.log('🔊 Creating stable connection...');
+  // More reliable connection creation
+  async createReliableConnection(guildId, voiceChannelId, guild) {
+    console.log('🔊 Creating reliable connection...');
     
     let player;
     let lastError;
     
-    // Try up to 2 times with smart delays
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // Try up to 3 times with increasing delays
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`🔄 Connection attempt ${attempt}/2`);
+        console.log(`🔄 Connection attempt ${attempt}/3`);
         
         player = await this.client.shoukaku.joinVoiceChannel({
           guildId: guildId,
@@ -180,11 +183,12 @@ export class SimpleRadioManager {
         if (player) {
           console.log(`✅ Player created on attempt ${attempt}`);
           
-          // Quick stability check
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Wait a bit for connection to stabilize, but don't verify too strictly
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          if (player.node && player.guildId && !player.destroyed) {
-            console.log('✅ Connection is stable');
+          // Basic check - if player exists and has a node, we're probably good
+          if (player.node && player.guildId) {
+            console.log('✅ Connection appears stable');
             return player;
           }
         }
@@ -195,54 +199,78 @@ export class SimpleRadioManager {
         lastError = error;
         console.warn(`⚠️ Attempt ${attempt} failed: ${error.message}`);
         
-        if (error.message.includes('existing connection') && attempt < 2) {
-          console.log('🧹 Existing connection detected, deeper cleanup...');
-          await this.forceCleanup(guildId);
+        if (error.message.includes('existing connection') && attempt < 3) {
+          console.log('🧹 Existing connection detected, extra cleanup...');
           
-          // Wait before retry
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // More aggressive cleanup for existing connection errors
+          await this.deepCleanup(guildId);
+          
+          // Wait longer before retry
+          const waitTime = attempt * 3000; // 3s, 6s, 9s
+          console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else if (attempt >= 3) {
+          break; // Don't retry on last attempt
         }
       }
     }
     
-    throw new Error(`Failed to create connection: ${lastError?.message || 'Unknown error'}`);
+    // If we get here, all attempts failed
+    throw new Error(`Failed to create connection after 3 attempts. Last error: ${lastError?.message || 'Unknown error'}`);
   }
 
-  // Force cleanup for stubborn connections
-  async forceCleanup(guildId) {
-    console.log('🔥 Force cleanup for stubborn connection...');
+  // Deep cleanup for stubborn connections
+  async deepCleanup(guildId) {
+    console.log('🔥 Deep cleanup for stubborn connection...');
     
-    // Clear from Shoukaku
+    // Clear from Shoukaku tracking
     this.client.shoukaku.players.delete(guildId);
     
-    // Force Discord disconnect
+    // Clear from nodes
+    const nodes = this.client.shoukaku.nodes;
+    for (const [nodeName, node] of nodes) {
+      if (node.connections?.has(guildId)) {
+        node.connections.delete(guildId);
+        console.log(`🧹 Cleared from node ${nodeName}`);
+      }
+    }
+    
+    // Force Discord disconnect multiple ways
     try {
       const guild = this.client.guilds.cache.get(guildId);
       if (guild) {
         const botMember = guild.members.me;
         if (botMember?.voice?.channel) {
+          // Method 1: Standard disconnect
           await botMember.voice.disconnect();
+          
+          // Method 2: Set channel to null
           await botMember.voice.setChannel(null);
         }
       }
     } catch (error) {
-      console.warn('⚠️ Discord force cleanup error:', error.message);
+      console.warn('⚠️ Discord cleanup error:', error.message);
     }
     
-    console.log('🔥 Force cleanup completed');
+    // Clear connector state
+    try {
+      const connector = this.client.shoukaku.connector;
+      if (connector?.connections) {
+        connector.connections.delete(guildId);
+      }
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+    
+    console.log('🔥 Deep cleanup completed');
   }
 
-  // Better player health check
+  // Check if player is healthy (simplified)
   isPlayerHealthy(player) {
-    return player && 
-           player.node && 
-           player.guildId && 
-           !player.destroyed && 
-           player.voiceConnection && 
-           player.voiceConnection.state !== undefined;
+    return player && player.node && player.guildId && !player.destroyed;
   }
 
-  // Get connection status with more details
+  // Get connection status
   async getConnectionStatus(guildId) {
     const player = this.client.shoukaku.players.get(guildId);
     const guild = this.client.guilds.cache.get(guildId);
@@ -255,11 +283,7 @@ export class SimpleRadioManager {
       inVoiceChannel: !!botMember?.voice.channel,
       voiceChannelName: botMember?.voice.channel?.name,
       isSwitching: this.switchingStations.has(guildId),
-      recentAttempts: this.connectionAttempts.get(guildId) || 0,
-      lastSwitch: this.lastSwitchTime.get(guildId),
-      canSwitch: !this.switchingStations.has(guildId) && 
-                 (!this.lastSwitchTime.get(guildId) || 
-                  (Date.now() - this.lastSwitchTime.get(guildId)) > 2000)
+      recentAttempts: this.connectionAttempts.get(guildId) || 0
     };
   }
 }
