@@ -80,7 +80,7 @@ const RADIO_STATIONS = {
   },
   'hiphop_nation': {
     name: 'Hip-Hop Nation',
-    description: 'Latest hip-hop and rap hits with heavy bass',
+    description: 'Latest hip-hop and rap hits with powerful beats',
     url: 'http://streaming.radionomy.com/Hip-Hop-Nation',
     fallback: 'http://streaming.radionomy.com/Rap-And-RnB-Hits',
     genre: 'Hip-Hop',
@@ -88,10 +88,50 @@ const RADIO_STATIONS = {
   },
   'rock_antenne': {
     name: 'Rock Antenne',
-    description: 'German rock station with heavy guitars',
+    description: 'German rock station with powerful guitars',
     url: 'http://mp3channels.webradio.antenne.de/rockantenne',
     fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
     genre: 'Rock',
+    quality: 'High'
+  },
+  'iloveradio_hardstyle': {
+    name: 'ILoveRadio Hardstyle',
+    description: 'German hardstyle with energetic drops',
+    url: 'https://streams.ilovemusic.de/iloveradio21.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio21.aac',
+    genre: 'Hardstyle',
+    quality: 'High'
+  },
+  'bigfm_electro': {
+    name: 'BigFM Electro',
+    description: 'German electronic music with energetic beats',
+    url: 'http://streams.bigfm.de/bigfm-nitroxparty-128-mp3',
+    fallback: 'http://streams.bigfm.de/bigfm-deutschland-128-mp3',
+    genre: 'Electronic',
+    quality: 'High'
+  },
+  'iloveradio_clubsounds': {
+    name: 'ILoveRadio Club Sounds',
+    description: 'Club music and house beats',
+    url: 'https://streams.ilovemusic.de/iloveradio16.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio16.aac',
+    genre: 'Club Music',
+    quality: 'High'
+  },
+  'electronic_pioneer': {
+    name: 'Electronic Pioneer',
+    description: 'Underground electronic with dynamic drops',
+    url: 'http://streaming.radionomy.com/Electronic-Pioneer',
+    fallback: 'http://streaming.radionomy.com/ElectronicBeats',
+    genre: 'Electronic',
+    quality: 'High'
+  },
+  'poolsuite_fm': {
+    name: 'Poolsuite FM',
+    description: 'Summer vibes and yacht rock for chill sessions',
+    url: 'https://streams.ilovemusic.de/iloveradio104.mp3',
+    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
+    genre: 'Chill',
     quality: 'High'
   }
 };
@@ -200,7 +240,7 @@ const RADIO_CATEGORIES = {
   'rock_alternative': {
     name: '🎸 Rock & Alternative',
     description: 'Rock music for Uta\'s powerful performances',
-    stations: ['rock_antenne', 'iloveradio_hardstyle', 'bass_radio_1']
+    stations: ['rock_antenne', 'iloveradio_hardstyle']
   }
 };
 
@@ -339,29 +379,29 @@ async function startDiscordBot() {
     async function createPersistentRadioEmbed() {
       return new EmbedBuilder()
         .setColor('#FF6B9D')
-        .setTitle('🎤 Uta\'s Music Studio')
-        .setDescription('*"Welcome to my concert hall! I\'m the world\'s greatest diva, ready to fill this place with beautiful music!"*\n\n✨ Choose a music style and station for Uta to perform!')
+        .setTitle('🎤 Uta\'s Concert Hall')
+        .setDescription('*"Welcome to my world! I\'m so happy you\'re here to listen to music with me! Music has the power to make everyone smile and bring us all together!"* 💕\n\n🎵 What kind of music should we enjoy together today?')
         .addFields(
           {
-            name: '🎵 Available Music Styles',
+            name: '🎶 My Musical Collection',
             value: Object.values(RADIO_CATEGORIES).map(cat => 
-              `${cat.name} - ${cat.description}`
+              `${cat.name} - *${cat.description}*`
             ).join('\n'),
             inline: false
           },
           {
-            name: '🎭 How to Request a Performance',
-            value: '1️⃣ Select a **music style** from the first menu\n2️⃣ Choose your **station** from the second menu\n3️⃣ Press **▶️ Play** to start Uta\'s performance\n4️⃣ Use **⏸️ Stop** when the show ends',
+            name: '✨ How to Request a Song',
+            value: '1️⃣ Pick a **music style** that speaks to your heart\n2️⃣ Choose your favorite **station** from my collection\n3️⃣ Press **▶️ Play** and I\'ll perform for you!\n4️⃣ Use **⏸️ Stop** when you\'re ready to rest',
             inline: false
           },
           {
-            name: '✨ About Uta',
-            value: 'The world\'s most beloved diva with the power of the Uta Uta no Mi. Her voice can captivate anyone and create the most beautiful musical experiences!',
+            name: '💖 Uta\'s Promise',
+            value: 'I promise to fill this space with the most beautiful melodies! Every song I sing is filled with love and hope for a better world where music unites everyone! 🌟',
             inline: false
           }
         )
         .setFooter({ 
-          text: 'Uta\'s Music Studio • World\'s Greatest Diva • Red Hair Pirates Legacy ✨',
+          text: 'With love, Uta ♪ World\'s Greatest Diva ♪ Let\'s make beautiful music together! 💕',
           iconURL: client.user?.displayAvatarURL() 
         })
         .setTimestamp();
@@ -371,7 +411,7 @@ async function startDiscordBot() {
       // Category selector
       const categorySelect = new StringSelectMenuBuilder()
         .setCustomId('persistent_category_select')
-        .setPlaceholder('🎵 Choose a music style for Uta...')
+        .setPlaceholder('🎵 What kind of music speaks to your heart today?')
         .addOptions(
           Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
             label: category.name,
@@ -384,10 +424,10 @@ async function startDiscordBot() {
       // Station selector (initially disabled)
       const stationSelect = new StringSelectMenuBuilder()
         .setCustomId('persistent_station_select')
-        .setPlaceholder('🎤 First select a music style above...')
+        .setPlaceholder('🎤 Choose a music style first, and I\'ll show you my favorites!')
         .addOptions([{
-          label: 'Please select a music style first',
-          description: 'Choose from the menu above',
+          label: 'Pick a music style above first!',
+          description: 'I\'m excited to share my collection with you!',
           value: 'placeholder'
         }])
         .setDisabled(true);
@@ -395,19 +435,19 @@ async function startDiscordBot() {
       // Control buttons
       const playButton = new ButtonBuilder()
         .setCustomId('persistent_play')
-        .setLabel('▶️ Start Performance')
+        .setLabel('▶️ Play')
         .setStyle(ButtonStyle.Success)
         .setEmoji('🎤');
 
       const stopButton = new ButtonBuilder()
         .setCustomId('persistent_stop')
-        .setLabel('⏸️ End Performance')
+        .setLabel('⏸️ Stop')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('✨');
 
       const statusButton = new ButtonBuilder()
         .setCustomId('persistent_status')
-        .setLabel('📊 Studio Status')
+        .setLabel('📊 Status')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🎭');
 
@@ -468,17 +508,17 @@ async function startDiscordBot() {
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🎤 Access Uta\'s Music Studio'),
+        .setDescription('🎤 Visit Uta\'s Concert Hall'),
       
       async execute(interaction) {
         await interaction.reply({
           embeds: [new EmbedBuilder()
             .setColor('#FF6B9D')
-            .setTitle('🎤 Uta\'s Music Studio')
-            .setDescription(`*"My music studio is always open for you!"*\n\nVisit <#${RADIO_CHANNEL_ID}> to request performances and enjoy my beautiful music!`)
+            .setTitle('🎤 Welcome to My Concert Hall!')
+            .setDescription(`*"I'm so excited you want to listen to music with me! My concert hall is always open, and I have so many beautiful songs to share!"*\n\nCome visit me at <#${RADIO_CHANNEL_ID}> and let's make music together! 💕`)
             .addFields({
-              name: '✨ Studio Features',
-              value: '• Always available for requests\n• Multiple music styles\n• High-quality audio streaming\n• Easy-to-use controls',
+              name: '✨ What I Can Do',
+              value: '🎵 Sing any song you request\n🌟 Share my favorite music styles\n💖 Make everyone happy through music\n🎤 Perform just for you anytime!',
               inline: false
             })
           ],
@@ -490,31 +530,31 @@ async function startDiscordBot() {
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('🎭 Learn about Uta, the world\'s greatest diva'),
+        .setDescription('💕 Get to know Uta, the world\'s greatest diva'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
           .setColor('#FF6B9D')
-          .setTitle('🎤 Uta - World\'s Greatest Diva')
-          .setDescription(`*"I want to create a world where everyone can be happy through music!"*\n\n**🎵 Visit Uta\'s Music Studio: <#${RADIO_CHANNEL_ID}>**`)
+          .setTitle('🎤 Hi there! I\'m Uta!')
+          .setDescription(`*"Music is the most wonderful thing in the world! It can bring everyone together and make us all smile! I want to create a world where everyone can be happy!"* 💕\n\n**🎵 Come listen to me sing: <#${RADIO_CHANNEL_ID}>**`)
           .addFields(
             {
-              name: '✨ About Uta',
-              value: `🎭 Daughter of Red-Haired Shanks\n🎵 User of the Uta Uta no Mi (Song-Song Fruit)\n🌟 Beloved diva known worldwide\n🎤 Voice that can captivate anyone`,
+              name: '💖 About Me',
+              value: `🌟 I'm the world's most beloved diva!\n🎭 My papa is Red-Haired Shanks of the Red Hair Pirates\n🎵 I have the power of the Uta Uta no Mi (Song-Song Fruit)\n💕 My voice can touch anyone's heart!`,
               inline: false
             },
             {
-              name: '🎵 Music Studio',
-              value: `Visit <#${RADIO_CHANNEL_ID}> for:\n• ${Object.keys(RADIO_CATEGORIES).length} music styles\n• ${Object.keys(RADIO_STATIONS).length} radio stations\n• Beautiful performances by Uta`,
+              name: '🎶 My Concert Hall',
+              value: `Visit <#${RADIO_CHANNEL_ID}> where I can:\n• Sing ${Object.keys(RADIO_CATEGORIES).length} different styles of music\n• Play from ${Object.keys(RADIO_STATIONS).length} amazing radio stations\n• Perform beautiful songs just for you!\n• Make every day brighter with music! ✨`,
               inline: false
             },
             {
-              name: '🎭 Uta\'s Dream',
-              value: 'Creating a world where everyone can be happy and united through the power of beautiful music and songs.',
+              name: '🌟 My Dream',
+              value: '*"I want to use my music to create a world where everyone can be happy and live in harmony! Every song I sing carries my love and hope for a better tomorrow!"* 💫',
               inline: false
             }
           )
-          .setFooter({ text: 'World\'s Greatest Diva • Red Hair Pirates Legacy ✨' })
+          .setFooter({ text: 'With all my love, Uta ♪ Let\'s make the world better with music! 💕' })
           .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
@@ -571,7 +611,7 @@ async function startDiscordBot() {
           interaction.message._selectedStation = selectedStation;
           
           const reply = await interaction.reply({
-            content: `🎵 **${station.name}** ready!`,
+            content: `🎵 *"I love this one! ${station.name} has such beautiful melodies!"*`,
             ephemeral: true
           });
 
@@ -588,7 +628,7 @@ async function startDiscordBot() {
           const selectedStation = interaction.message._selectedStation;
           if (!selectedStation) {
             return interaction.reply({
-              content: '❌ Please select a station first!',
+              content: '*"Please choose a song for me to sing first! I want to perform something you\'ll love!"* 💕',
               ephemeral: true
             });
           }
@@ -596,20 +636,20 @@ async function startDiscordBot() {
           const voiceChannel = interaction.member?.voice?.channel;
           if (!voiceChannel) {
             return interaction.reply({
-              content: '❌ Please join a voice channel so I can perform for you! 🎤',
+              content: '*"Come join me in a voice channel so I can sing for you! Music is always better when we\'re together!"* 🎤💕',
               ephemeral: true
             });
           }
 
           if (!client.shoukaku || !global.lavalinkReady) {
             return interaction.reply({
-              content: '❌ My sound system isn\'t ready yet. Please try again in a moment!',
+              content: '*"Oh no! My voice isn\'t ready yet... Give me just a moment to warm up!"* ✨',
               ephemeral: true
             });
           }
 
           const reply = await interaction.reply({
-            content: '🎤 *Starting performance...*',
+            content: '*"Here we go! Let me sing this beautiful song for you!"* 🎵',
             ephemeral: true
           });
 
@@ -652,7 +692,7 @@ async function startDiscordBot() {
             const station = RADIO_STATIONS[selectedStation];
 
             await interaction.editReply({
-              content: `🎤 *Now performing ${station.name} at ${DEFAULT_VOLUME}% volume*`
+              content: `🎤 *"Now I'm singing ${station.name} just for you! I hope it makes you smile!"* ✨ *(Volume: ${DEFAULT_VOLUME}%)*`
             });
 
             // Auto-delete after 4 seconds
@@ -667,7 +707,7 @@ async function startDiscordBot() {
           } catch (error) {
             console.error(`❌ Persistent play failed:`, error);
             await interaction.editReply({
-              content: `❌ Performance failed: ${error.message}`,
+              content: `*"Oh dear... Something went wrong with my performance... ${error.message}"* 😔`,
             });
 
             // Auto-delete error after 5 seconds
@@ -684,7 +724,7 @@ async function startDiscordBot() {
           const player = client.shoukaku.players.get(interaction.guildId);
           
           const reply = await interaction.reply({
-            content: '🎤 *Performance ended*',
+            content: '*"Thank you for listening! That was such a wonderful time together!"* 🎭💕',
             ephemeral: true
           });
 
@@ -716,31 +756,31 @@ async function startDiscordBot() {
           await interaction.reply({
             embeds: [new EmbedBuilder()
               .setColor('#FF6B9D')
-              .setTitle('🎭 Uta\'s Studio Status')
+              .setTitle('🌟 How is Uta doing?')
               .addFields(
                 {
                   name: '🎤 Current Performance',
                   value: player ? 
-                    `🎵 **Active** in ${interaction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'}\n🔊 Volume: ${DEFAULT_VOLUME}%\n▶️ Playing: ${player.playing ? 'Yes' : 'No'}` : 
-                    '✨ **Ready** - No active performance',
+                    `🎵 *"I'm singing in ${interaction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'} right now!"*\n🔊 Volume: ${DEFAULT_VOLUME}%\n▶️ Singing: ${player.playing ? 'Yes! 🎶' : 'Resting ✨'}` : 
+                    '💫 *"I\'m ready to sing whenever you want to listen!"*',
                   inline: false
                 },
                 {
-                  name: '🎵 Audio System',
-                  value: `${connectedNodes.length}/${nodes.length} audio nodes online\n${connectedNodes.map(n => `✅ ${n.name}`).join('\n') || '❌ No nodes connected'}`,
+                  name: '🎵 My Voice System',
+                  value: `${connectedNodes.length}/${nodes.length} audio connections ready\n${connectedNodes.map(n => `✅ ${n.name} is working perfectly!`).join('\n') || '❌ *"My voice system needs a moment..."*'}`,
                   inline: false
                 },
                 {
-                  name: '✨ Studio Health',
+                  name: '💖 Uta\'s Status',
                   value: [
-                    `Discord: ${global.discordReady ? '✅ Ready' : '❌ Not Ready'}`,
-                    `Audio System: ${global.lavalinkReady ? '✅ Connected' : '❌ Disconnected'}`,
-                    `Uptime: ${Math.floor(process.uptime())} seconds`
+                    `Connection: ${global.discordReady ? '✅ *"I\'m here and ready!"*' : '❌ *"Still getting ready..."*'}`,
+                    `Voice System: ${global.lavalinkReady ? '✅ *"My voice is crystal clear!"*' : '❌ *"Warming up my vocals..."*'}`,
+                    `Concert Time: ${Math.floor(process.uptime())} seconds of beautiful music!`
                   ].join('\n'),
                   inline: false
                 }
               )
-              .setFooter({ text: 'Studio Status • World\'s Greatest Diva ✨' })
+              .setFooter({ text: 'Uta\'s Status • Always here to make music with you! 💕' })
               .setTimestamp()
             ],
             ephemeral: true
