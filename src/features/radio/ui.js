@@ -18,7 +18,7 @@ export class RadioUI {
       .setColor('#FF6B9D')
       .setTitle('🎤 Uta\'s Radio Studio')
       .setDescription('*"Welcome to my radio studio! Pick any station and I\'ll start playing it immediately!"*\n\n🎵 Choose a music style and station below!')
-      .setImage('attachment://images/Uta-banner.png')
+      .setImage('attachment://images/uta-banner.gif')
       .addFields(
         {
           name: '📻 Current Status',
