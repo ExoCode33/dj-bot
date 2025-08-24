@@ -1,4 +1,4 @@
-=// src/features/radio/ui.js - UPDATED VERSION WITH BANNER AND NO MUSIC STYLES LIST
+// src/features/radio/ui.js - UPDATED VERSION WITH BANNER AND NO MUSIC STYLES LIST
 import { 
   EmbedBuilder, 
   ActionRowBuilder,
