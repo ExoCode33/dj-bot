@@ -255,30 +255,17 @@ async function startDiscordBot() {
         const embed = await RadioUI.createPersistentRadioEmbed(client, currentlyPlaying);
         const components = await RadioUI.createPersistentRadioComponents(channel.guildId, currentlyPlaying);
 
-        // Create banner attachment - Try multiple possible locations
-        let bannerPath = path.join(process.cwd(), 'images', 'Uta-banner.gif');
-        if (!fs.existsSync(bannerPath)) {
-          bannerPath = path.join(process.cwd(), 'Uta-banner.gif');
-        }
-        if (!fs.existsSync(bannerPath)) {
-          bannerPath = path.join(__dirname, '..', 'images', 'Uta-banner.gif');
-        }
-        if (!fs.existsSync(bannerPath)) {
-          bannerPath = path.join(__dirname, '..', '..', 'images', 'Uta-banner.gif');
-        }
-        
+        // Create banner attachment
+        const bannerPath = path.join(process.cwd(), 'images', 'uta-banner.gif');
         let files = [];
         
         if (fs.existsSync(bannerPath)) {
-          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.gif' });
+          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'uta-banner.gif' });
           files.push(bannerAttachment);
-          console.log('✅ Banner attachment created from:', bannerPath);
+          console.log('✅ Banner attachment created');
         } else {
-          console.warn('⚠️ Banner not found. Tried locations:');
-          console.warn('  - ', path.join(process.cwd(), 'images', 'Uta-banner.gif'));
-          console.warn('  - ', path.join(process.cwd(), 'Uta-banner.gif'));
-          console.warn('  - ', path.join(__dirname, '..', 'images', 'Uta-banner.gif'));
-          console.warn('  - ', path.join(__dirname, '..', '..', 'images', 'Uta-banner.gif'));
+          console.warn('⚠️ Banner file not found at:', bannerPath);
+          console.warn('⚠️ Expected location: images/uta-banner.gif');
           console.warn('⚠️ Banner will not be displayed');
         }
 
