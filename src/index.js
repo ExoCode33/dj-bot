@@ -3,11 +3,12 @@ import http from 'node:http';
 import { RADIO_STATIONS } from './config/stations.js';
 
 // PRIORITY: Start health server immediately
-console.log('🚀 STARTING UTA DJ BOT - HARD BASS EDITION');
+console.log('🚀 STARTING UTA DJ BOT - HARD BASS EDITION WITH PERSISTENT RADIO');
 console.log('📅 Time:', new Date().toISOString());
 console.log('🎯 PORT:', process.env.PORT || 3000);
 
 const port = process.env.PORT || 3000;
+const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 
 // Health server
 const server = http.createServer((req, res) => {
@@ -19,7 +20,8 @@ const server = http.createServer((req, res) => {
       uptime: process.uptime(),
       service: 'uta-dj-bot',
       discord: global.discordReady || false,
-      lavalink: global.lavalinkReady || false
+      lavalink: global.lavalinkReady || false,
+      radioChannel: RADIO_CHANNEL_ID
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -39,6 +41,35 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
+
+// Radio Categories for organized selection
+const RADIO_CATEGORIES = {
+  'hard_bass': {
+    name: '💀 HARD BASS & DROPS',
+    description: 'BRUTAL drops and CRUSHING bass',
+    stations: ['iloveradio_hardstyle', 'bass_radio_1', 'dubstep_beyond', 'hardstyle_fm', 'electronic_pioneer']
+  },
+  'electronic': {
+    name: '⚡ ELECTRONIC & TECHNO',
+    description: 'Electronic beats and techno vibes',
+    stations: ['somafm_beatblender', 'somafm_groovesalad', 'bigfm_electro', 'iloveradio_dance', 'iloveradio_clubsounds']
+  },
+  'ambient_chill': {
+    name: '🌙 AMBIENT & CHILL',
+    description: 'Relaxing and atmospheric sounds',
+    stations: ['somafm_dronezone', 'somafm_deepspaceone', 'lofi_girl', 'poolsuite_fm']
+  },
+  'anime_jpop': {
+    name: '🎌 ANIME & J-POP',
+    description: 'Japanese music and anime soundtracks',
+    stations: ['listen_moe_jpop', 'listen_moe_kpop']
+  },
+  'hits_popular': {
+    name: '🎵 HITS & POPULAR',
+    description: 'Chart toppers and popular music',
+    stations: ['z100_nyc', 'hiphop_nation', 'rock_antenne']
+  }
+};
 
 // Simple Radio Manager with fallback support
 class SimpleRadioManager {
@@ -122,6 +153,390 @@ class SimpleRadioManager {
   }
 }
 
+// Persistent Radio Embed Manager
+class PersistentRadioManager {
+  constructor(client) {
+    this.client = client;
+    this.radioChannelId = RADIO_CHANNEL_ID;
+    this.persistentMessage = null;
+  }
+
+  async initializePersistentRadio() {
+    try {
+      const channel = await this.client.channels.fetch(this.radioChannelId);
+      if (!channel) {
+        console.error(`❌ Radio channel ${this.radioChannelId} not found!`);
+        return;
+      }
+
+      console.log(`🎵 Initializing persistent radio in #${channel.name}`);
+
+      // Clear existing messages in the radio channel
+      try {
+        const messages = await channel.messages.fetch({ limit: 100 });
+        if (messages.size > 0) {
+          console.log(`🧹 Deleting ${messages.size} existing messages from radio channel`);
+          await channel.bulkDelete(messages);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Could not clear radio channel: ${error.message}`);
+      }
+
+      // Create the persistent radio embed
+      const embed = this.createPersistentRadioEmbed();
+      const components = this.createPersistentRadioComponents();
+
+      this.persistentMessage = await channel.send({
+        embeds: [embed],
+        components: components
+      });
+
+      console.log(`✅ Persistent radio embed created with ID: ${this.persistentMessage.id}`);
+
+      // Set up persistent event listener
+      this.setupPersistentInteractionHandler();
+
+    } catch (error) {
+      console.error(`❌ Failed to initialize persistent radio: ${error.message}`);
+    }
+  }
+
+  createPersistentRadioEmbed() {
+    const { EmbedBuilder } = require('discord.js');
+    
+    return new EmbedBuilder()
+      .setColor('#FF0040')
+      .setTitle('🔊 UTA\'S PERSISTENT BASS RADIO STATION')
+      .setDescription('💀 *"24/7 HARD BASS DROPS - Always ready to DESTROY your speakers!"* 🔊\n\n**Choose a category, then select your station for MAXIMUM BASS!**')
+      .addFields(
+        {
+          name: '💀 AVAILABLE CATEGORIES',
+          value: Object.values(RADIO_CATEGORIES).map(cat => 
+            `${cat.name} - ${cat.description}`
+          ).join('\n'),
+          inline: false
+        },
+        {
+          name: '🎵 HOW TO USE',
+          value: '1️⃣ Select a **category** from the first dropdown\n2️⃣ Choose your **station** from the second dropdown\n3️⃣ Hit **▶️ PLAY** to start the BASS DROP!\n4️⃣ Use **⏹️ STOP** to end the session',
+          inline: false
+        },
+        {
+          name: '⚠️ BASS WARNING',
+          value: '🔊 **HIGH VOLUME** optimized for bass heads\n💀 **SPEAKER DAMAGE** possible at maximum settings\n⚡ **BRUTAL DROPS** that will shake your house',
+          inline: false
+        }
+      )
+      .setFooter({ 
+        text: 'UTA\'S ETERNAL BASS STATION • Always On • Always HARD 💀🔊',
+        iconURL: this.client.user?.displayAvatarURL() 
+      })
+      .setTimestamp();
+  }
+
+  createPersistentRadioComponents() {
+    const { ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
+    // Category selector
+    const categorySelect = new StringSelectMenuBuilder()
+      .setCustomId('persistent_category_select')
+      .setPlaceholder('🎯 Select a BASS category...')
+      .addOptions(
+        Object.entries(RADIO_CATEGORIES).map(([key, category]) => ({
+          label: category.name,
+          description: category.description,
+          value: key,
+          emoji: category.name.split(' ')[0] // Get the emoji
+        }))
+      );
+
+    // Station selector (initially disabled)
+    const stationSelect = new StringSelectMenuBuilder()
+      .setCustomId('persistent_station_select')
+      .setPlaceholder('🎵 First select a category above...')
+      .addOptions([
+        {
+          label: 'Please select a category first',
+          description: 'Choose from the dropdown above',
+          value: 'placeholder'
+        }
+      ])
+      .setDisabled(true);
+
+    // Control buttons
+    const playButton = new ButtonBuilder()
+      .setCustomId('persistent_play')
+      .setLabel('▶️ BASS DROP')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('🔊');
+
+    const stopButton = new ButtonBuilder()
+      .setCustomId('persistent_stop')
+      .setLabel('⏹️ STOP BASS')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🛑');
+
+    const statusButton = new ButtonBuilder()
+      .setCustomId('persistent_status')
+      .setLabel('📊 STATUS')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('📡');
+
+    return [
+      new ActionRowBuilder().addComponents(categorySelect),
+      new ActionRowBuilder().addComponents(stationSelect),
+      new ActionRowBuilder().addComponents(playButton, stopButton, statusButton)
+    ];
+  }
+
+  setupPersistentInteractionHandler() {
+    this.client.on('interactionCreate', async (interaction) => {
+      // Only handle interactions from the persistent radio message
+      if (interaction.message?.id !== this.persistentMessage?.id) return;
+      
+      try {
+        await this.handlePersistentInteraction(interaction);
+      } catch (error) {
+        console.error(`❌ Persistent radio interaction error: ${error.message}`);
+        
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: `❌ Error: ${error.message}`,
+            ephemeral: true
+          }).catch(() => {});
+        }
+      }
+    });
+  }
+
+  async handlePersistentInteraction(interaction) {
+    const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+
+    if (interaction.customId === 'persistent_category_select') {
+      const selectedCategory = interaction.values[0];
+      const category = RADIO_CATEGORIES[selectedCategory];
+      
+      // Update station selector with category stations
+      const stationOptions = category.stations
+        .filter(stationKey => RADIO_STATIONS[stationKey]) // Ensure station exists
+        .map(stationKey => {
+          const station = RADIO_STATIONS[stationKey];
+          return {
+            label: station.name,
+            description: `${station.description} (${station.genre})`,
+            value: stationKey
+          };
+        });
+
+      if (stationOptions.length === 0) {
+        return interaction.reply({
+          content: `❌ No stations available for ${category.name}`,
+          ephemeral: true
+        });
+      }
+
+      const newStationSelect = new StringSelectMenuBuilder()
+        .setCustomId('persistent_station_select')
+        .setPlaceholder(`🎵 Choose from ${category.name}...`)
+        .addOptions(stationOptions)
+        .setDisabled(false);
+
+      // Update the message with new station options
+      const components = interaction.message.components.map((row, index) => {
+        if (index === 1) { // Station selector row
+          return new ActionRowBuilder().addComponents(newStationSelect);
+        }
+        return ActionRowBuilder.from(row);
+      });
+
+      await interaction.update({ components });
+
+      // Store selected category for later use
+      interaction.message._selectedCategory = selectedCategory;
+
+    } else if (interaction.customId === 'persistent_station_select') {
+      const selectedStation = interaction.values[0];
+      const station = RADIO_STATIONS[selectedStation];
+      
+      // Store selected station for play button
+      interaction.message._selectedStation = selectedStation;
+      
+      await interaction.reply({
+        embeds: [new EmbedBuilder()
+          .setColor('#00FF94')
+          .setTitle('🎵 Station Selected!')
+          .setDescription(`**${station.name}** is ready to drop BASS!\n\n*${station.description}*\n\n➡️ **Click "▶️ BASS DROP" to start the mayhem!**`)
+          .addFields({
+            name: '🎶 Genre',
+            value: station.genre,
+            inline: true
+          })
+        ],
+        ephemeral: true
+      });
+
+    } else if (interaction.customId === 'persistent_play') {
+      await this.handlePersistentPlay(interaction);
+
+    } else if (interaction.customId === 'persistent_stop') {
+      await this.handlePersistentStop(interaction);
+
+    } else if (interaction.customId === 'persistent_status') {
+      await this.handlePersistentStatus(interaction);
+    }
+  }
+
+  async handlePersistentPlay(interaction) {
+    const selectedStation = interaction.message._selectedStation;
+    if (!selectedStation) {
+      return interaction.reply({
+        content: '❌ Please select a station first using the dropdowns above!',
+        ephemeral: true
+      });
+    }
+
+    const voiceChannel = interaction.member?.voice?.channel;
+    if (!voiceChannel) {
+      return interaction.reply({
+        content: '❌ You need to be in a voice channel to experience the BASS DROP! 🔊',
+        ephemeral: true
+      });
+    }
+
+    if (!this.client.shoukaku || !global.lavalinkReady) {
+      return interaction.reply({
+        content: '❌ Music service is offline. Try again in a moment!',
+        ephemeral: true
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      // Get or create player
+      let player = this.client.shoukaku.players.get(interaction.guildId);
+      
+      if (!player) {
+        console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
+        
+        player = await this.client.shoukaku.joinVoiceChannel({
+          guildId: interaction.guildId,
+          channelId: voiceChannel.id,
+          shardId: interaction.guild.shardId
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await player.setGlobalVolume(85); // High volume for BASS
+      }
+
+      const radioManager = new SimpleRadioManager();
+      const result = await radioManager.connectToStream(player, selectedStation);
+      const station = RADIO_STATIONS[selectedStation];
+
+      await interaction.editReply({
+        embeds: [new (require('discord.js')).EmbedBuilder()
+          .setColor('#00FF00')
+          .setTitle('🔊 BASS DROP INITIATED!')
+          .setDescription(`💀 **${station.name}** is now DESTROYING speakers in **${voiceChannel.name}**!`)
+          .addFields(
+            {
+              name: '🎵 Now Playing',
+              value: `**${station.name}**\n*${station.description}*`,
+              inline: false
+            },
+            {
+              name: '🔊 Bass Level',
+              value: '**MAXIMUM DESTRUCTION** (Volume: 85%)',
+              inline: true
+            },
+            {
+              name: '📡 Stream Quality',
+              value: station.quality || 'High',
+              inline: true
+            }
+          )
+          .setFooter({ text: 'BASS DROP SUCCESSFUL • Speakers may not survive 💀🔊' })
+        ]
+      });
+
+    } catch (error) {
+      console.error(`❌ Persistent play failed:`, error);
+      await interaction.editReply({
+        content: `❌ Failed to start BASS DROP: ${error.message}`,
+      });
+    }
+  }
+
+  async handlePersistentStop(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    const player = this.client.shoukaku.players.get(interaction.guildId);
+    if (player) {
+      await player.stopTrack();
+      await player.destroy();
+      this.client.shoukaku.players.delete(interaction.guildId);
+    }
+
+    await interaction.editReply({
+      embeds: [new (require('discord.js')).EmbedBuilder()
+        .setColor('#FF0000')
+        .setTitle('🛑 BASS SYSTEM SHUTDOWN!')
+        .setDescription('Uta has stopped the BASS DROP and your speakers are safe... for now! 💀')
+        .addFields({
+          name: '🎵 Session Complete',
+          value: 'The HARD BASS adventure has ended. Ready for the next BASS DROP whenever you are!',
+          inline: false
+        })
+        .setFooter({ text: 'Until the next BASS DROP! 💀🔊' })
+      ]
+    });
+  }
+
+  async handlePersistentStatus(interaction) {
+    const player = this.client.shoukaku.players.get(interaction.guildId);
+    const nodes = Array.from(this.client.shoukaku.nodes.values());
+    const connectedNodes = nodes.filter(node => node.state === 2);
+
+    await interaction.reply({
+      embeds: [new (require('discord.js')).EmbedBuilder()
+        .setColor('#0099FF')
+        .setTitle('📊 UTA BASS SYSTEM STATUS')
+        .addFields(
+          {
+            name: '🎵 Music Player',
+            value: player ? 
+              `✅ **ACTIVE** in ${interaction.guild.channels.cache.get(player.voiceId)?.name || 'Unknown Channel'}\n🔊 Volume: ${player.volume || 'Unknown'}%\n▶️ Playing: ${player.playing ? 'Yes' : 'No'}` : 
+              '❌ **OFFLINE** - No active session',
+            inline: false
+          },
+          {
+            name: '📡 Lavalink Nodes',
+            value: `${connectedNodes.length}/${nodes.length} nodes online\n${connectedNodes.map(n => `✅ ${n.name}`).join('\n') || '❌ No nodes connected'}`,
+            inline: false
+          },
+          {
+            name: '🎛️ Available Stations',
+            value: `${Object.keys(RADIO_STATIONS).length} BASS stations loaded\n${Object.keys(RADIO_CATEGORIES).length} categories available`,
+            inline: false
+          },
+          {
+            name: '⚡ System Health',
+            value: [
+              `Discord: ${global.discordReady ? '✅ Ready' : '❌ Not Ready'}`,
+              `Lavalink: ${global.lavalinkReady ? '✅ Connected' : '❌ Disconnected'}`,
+              `Uptime: ${Math.floor(process.uptime())} seconds`
+            ].join('\n'),
+            inline: false
+          }
+        )
+        .setFooter({ text: 'System Status • Refreshed Now' })
+        .setTimestamp()
+      ],
+      ephemeral: true
+    });
+  }
+}
+
 // Start Discord bot
 setTimeout(async () => {
   try {
@@ -153,7 +568,7 @@ setTimeout(async () => {
     } = discord;
     
     const client = new Client({
-      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
     });
 
     client.commands = new Collection();
@@ -189,219 +604,56 @@ setTimeout(async () => {
       console.log('✅ Lavalink configured');
     }
 
+    // Initialize Persistent Radio Manager
+    const persistentRadio = new PersistentRadioManager(client);
+
     const radioManager = new SimpleRadioManager();
 
-    // Updated radio command with HARD BASS focus
+    // Updated radio command (still available for non-persistent use)
     const radioCommand = {
       data: new SlashCommandBuilder()
         .setName('radio')
-        .setDescription('🔊 Stream HARD BASS DROP music and electronic beats'),
+        .setDescription('🔊 Stream HARD BASS DROP music (temporary session)'),
       
       async execute(interaction) {
-        console.log('🎵 Radio command executed');
-        
-        const voiceChannel = interaction.member?.voice?.channel;
-        if (!voiceChannel) {
-          return interaction.reply({
-            embeds: [new EmbedBuilder()
-              .setColor('#FF0000')
-              .setTitle('❌ Voice Channel Required')
-              .setDescription('Join a voice channel first to experience the BASS DROP! 🔊')
-            ],
-            ephemeral: true
-          });
-        }
-
-        if (!client.shoukaku || !global.lavalinkReady) {
-          return interaction.reply({
-            embeds: [new EmbedBuilder()
-              .setColor('#FF0000')
-              .setTitle('❌ Music Service Offline')
-              .setDescription('The BASS system is down. Try again in a moment! ⚡')
-            ],
-            ephemeral: true
-          });
-        }
-
-        const stationOptions = Object.entries(RADIO_STATIONS).map(([key, station]) => ({
-          label: station.name,
-          description: `${station.description} (${station.genre})`,
-          value: key
-        }));
-
-        const selectMenu = new StringSelectMenuBuilder()
-          .setCustomId('radio_select')
-          .setPlaceholder('Choose your BASS ADVENTURE...')
-          .addOptions(stationOptions);
-
-        const stopButton = new ButtonBuilder()
-          .setCustomId('radio_stop')
-          .setLabel('STOP BASS')
-          .setStyle(ButtonStyle.Danger)
-          .setEmoji('🔊');
-
-        const embed = new EmbedBuilder()
-          .setColor('#FF0040')
-          .setTitle('🔊 UTA\'S HARD BASS DROP COLLECTION')
-          .setDescription('💀 *"Ready to DESTROY your speakers with the HARDEST drops!"* 💀\n\nFrom BRUTAL dubstep to CRUSHING hardstyle - feel the BASS!')
-          .addFields(
-            {
-              name: '💀 HARD BASS GENRES',
-              value: '🔥 **DUBSTEP** • ⚡ **HARDSTYLE** • 💣 **D&B** • 🌀 **TRAP** • 🔊 **TECHNO** • 💀 **HARDCORE** • 🎌 **ANIME** • 🎧 **LO-FI**',
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor('#FF6B35')
+            .setTitle('🔊 UTA\'S RADIO COMMAND')
+            .setDescription(`💀 **Persistent Radio Available!**\n\nCheck out <#${RADIO_CHANNEL_ID}> for the **24/7 BASS STATION** with persistent controls!\n\n*This command still works for temporary sessions, but the persistent radio offers a better experience!*`)
+            .addFields({
+              name: '🎵 Persistent Radio Benefits',
+              value: '• Always available\n• No command cooldowns\n• Better station organization\n• Easier to use',
               inline: false
-            },
-            {
-              name: '🎭 BASS DROP ARSENAL',
-              value: `**${Object.keys(RADIO_STATIONS).length} stations** loaded with BRUTAL drops and CRUSHING bass!`,
-              inline: false
-            },
-            {
-              name: '🔊 WARNING: HEAVY BASS',
-              value: '• 💀 **HARD DROPS** that will shake your soul\n• ⚡ **HIGH ENERGY** electronic mayhem\n• 🔊 **BRUTAL BASS** that hits HARD\n• 💣 **CRUSHING BEATS** for true bass heads',
-              inline: false
-            }
-          )
-          .setFooter({ text: 'Uta\'s BASS ARSENAL • PREPARE FOR IMPACT! 💀🔊' })
-          .setTimestamp();
-
-        const message = await interaction.reply({
-          embeds: [embed],
-          components: [
-            new ActionRowBuilder().addComponents(selectMenu),
-            new ActionRowBuilder().addComponents(stopButton)
-          ]
-        });
-
-        const collector = message.createMessageComponentCollector({ time: 300000 });
-
-        collector.on('collect', async (componentInteraction) => {
-          try {
-            if (componentInteraction.customId === 'radio_select') {
-              const selectedStation = componentInteraction.values[0];
-              const stationInfo = RADIO_STATIONS[selectedStation];
-              
-              await componentInteraction.deferReply({ ephemeral: true });
-
-              // Get or create player with better error handling
-              let player = client.shoukaku.players.get(interaction.guildId);
-              
-              if (!player) {
-                console.log(`🔊 Uta joining voice channel: ${voiceChannel.name}`);
-                
-                // Check bot permissions first
-                const permissions = voiceChannel.permissionsFor(interaction.client.user);
-                if (!permissions.has(['Connect', 'Speak'])) {
-                  throw new Error('Uta needs Connect/Speak permissions for the BASS DROP!');
-                }
-                
-                player = await client.shoukaku.joinVoiceChannel({
-                  guildId: interaction.guildId,
-                  channelId: voiceChannel.id,
-                  shardId: interaction.guild.shardId
-                });
-                
-                // Wait a moment for connection to stabilize
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                await player.setGlobalVolume(85); // Higher volume for BASS
-                console.log('✅ Uta connected and BASS volume set to 85');
-              } else {
-                console.log('🔊 Uta already DROPPING BASS');
-                await player.setGlobalVolume(85); // Ensure high volume for bass
-              }
-
-              try {
-                const result = await radioManager.connectToStream(player, selectedStation);
-                
-                // SUCCESS: Show BASS success message then auto-dismiss
-                await componentInteraction.editReply({
-                  content: `🔊 BASS DROP INITIATED! Playing ${stationInfo.name}`,
-                  ephemeral: true
-                });
-                
-                // Auto-dismiss after 3 seconds
-                setTimeout(async () => {
-                  try {
-                    await componentInteraction.deleteReply();
-                  } catch (err) {
-                    // Ignore errors if already dismissed
-                  }
-                }, 3000);
-                
-              } catch (error) {
-                console.error(`❌ BASS DROP FAILED:`, error);
-                await componentInteraction.editReply({
-                  embeds: [new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('💀 BASS DROP FAILED!')
-                    .setDescription(`Couldn't connect to ${stationInfo.name} - BASS system malfunction!`)
-                    .addFields(
-                      {
-                        name: '🔧 Error Details',
-                        value: error.message,
-                        inline: false
-                      },
-                      {
-                        name: '💡 Try Another BASS Station',
-                        value: 'Some radio streams may have temporary issues. Try another station for your BASS FIX!',
-                        inline: false
-                      }
-                    )
-                  ]
-                });
-              }
-
-            } else if (componentInteraction.customId === 'radio_stop') {
-              await componentInteraction.deferReply({ ephemeral: true });
-
-              const player = client.shoukaku.players.get(interaction.guildId);
-              if (player) {
-                await player.stopTrack();
-                await player.destroy();
-                client.shoukaku.players.delete(interaction.guildId);
-              }
-
-              await componentInteraction.editReply({
-                embeds: [new EmbedBuilder()
-                  .setColor('#00FF00')
-                  .setTitle('🔊 BASS SYSTEM SHUTDOWN!')
-                  .setDescription('Uta has stopped the BASS DROP and the speakers are safe... for now! 💀')
-                  .addFields({
-                    name: '🎵 BASS SESSION COMPLETE',
-                    value: 'The HARD BASS adventure is paused. Ready to DROP more BASS whenever you are!',
-                    inline: false
-                  })
-                  .setFooter({ text: 'Until the next BASS DROP! 💀🔊' })
-                ]
-              });
-            }
-          } catch (error) {
-            console.error('❌ Radio interaction error:', error);
-          }
+            })
+          ],
+          ephemeral: true
         });
       }
     };
 
-    // Updated Uta command with BASS focus
+    // Updated Uta command
     const utaCommand = {
       data: new SlashCommandBuilder()
         .setName('uta')
-        .setDescription('💀 Uta\'s HARD BASS music panel'),
+        .setDescription('💀 Uta\'s HARD BASS music info'),
       
       async execute(interaction) {
         const embed = new EmbedBuilder()
           .setColor('#FF0040')
           .setTitle('💀 UTA\'S BASS STUDIO - HARD DROPS ONLY')
-          .setDescription('*"Ready to ANNIHILATE your ears with the HARDEST bass drops!"* 🔊\n\nUse `/radio` to access the ULTIMATE BASS collection with BRUTAL drops!')
+          .setDescription(`*"Ready to ANNIHILATE your ears with the HARDEST bass drops!"* 🔊\n\n**🎵 Persistent Radio Station: <#${RADIO_CHANNEL_ID}>**`)
           .addFields(
             {
-              name: '💀 HARD BASS ARSENAL',
-              value: '🔥 **DUBSTEP** - BRUTAL drops that crush souls\n⚡ **HARDSTYLE** - Epic vocals with CRUSHING drops\n💣 **D&B/NEUROFUNK** - HIGH-ENERGY with BRUTAL bass',
+              name: '💀 PERSISTENT BASS STATION',
+              value: `Visit <#${RADIO_CHANNEL_ID}> for:\n• 24/7 availability\n• ${Object.keys(RADIO_CATEGORIES).length} categories\n• ${Object.keys(RADIO_STATIONS).length} BASS stations\n• Easy dropdown controls`,
               inline: false
             },
             {
-              name: '🌍 GLOBAL BASS DOMINATION',
-              value: '🇷🇺 **Radio Record** - Russian BASS powerhouse\n💀 **HARDCORE/GABBER** - BRUTAL European bass\n🎌 **J-POP/K-POP** - For recovery between BASS sessions',
+              name: '🔊 BASS CATEGORIES',
+              value: Object.values(RADIO_CATEGORIES).map(cat => 
+                cat.name.replace(/💀|⚡|🌙|🎌|🎵/g, '').trim()
+              ).join(' • '),
               inline: false
             },
             {
@@ -421,7 +673,8 @@ setTimeout(async () => {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    console.log(`✅ Commands loaded: radio (HARD BASS with ${Object.keys(RADIO_STATIONS).length} stations), uta`);
+    console.log(`✅ Commands loaded: radio, uta`);
+    console.log(`📡 Persistent radio will be created in channel: ${RADIO_CHANNEL_ID}`);
 
     // Register slash commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -433,33 +686,27 @@ setTimeout(async () => {
     }
 
     // Event handlers
-    client.once(Events.ClientReady, () => {
+    client.once(Events.ClientReady, async () => {
       console.log(`🎉 Discord ready! Logged in as ${client.user.tag}`);
       global.discordReady = true;
+      
+      // Initialize persistent radio after bot is ready
+      setTimeout(() => {
+        persistentRadio.initializePersistentRadio();
+      }, 2000);
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
-      console.log(`📨 Interaction received: ${interaction.type}`);
-      
       if (!interaction.isChatInputCommand()) return;
       
-      console.log(`🎯 Slash command: /${interaction.commandName}`);
-      
       const command = client.commands.get(interaction.commandName);
-      if (!command) {
-        console.error(`❌ Command not found: ${interaction.commandName}`);
-        return;
-      }
+      if (!command) return;
 
       try {
-        console.log(`⚡ Executing command: /${interaction.commandName}`);
         await command.execute(interaction);
-        console.log(`✅ Command /${interaction.commandName} executed successfully`);
       } catch (error) {
         console.error(`❌ Command error for /${interaction.commandName}:`, error.message);
-        console.error(`❌ Full error:`, error);
         
-        // Try to respond if we haven't already
         try {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
@@ -485,4 +732,40 @@ setTimeout(async () => {
   }
 }, 1000);
 
-console.log('🔊 HARD BASS radio bot initialization started');
+console.log('🔊 PERSISTENT BASS radio bot initialization started');
+
+// MULTI-GUILD/MULTI-CHANNEL SUPPORT ANSWER:
+// 
+// YES, you can play music in multiple channels simultaneously with ONE bot using ONE token:
+// 
+// 1. **Single Bot, Multiple Guilds**: ✅ WORKS
+//    - One bot can join multiple servers and play different music in each
+//    - Each guild gets its own player instance (client.shoukaku.players.get(guildId))
+//    - No issues with this approach
+// 
+// 2. **Single Bot, Multiple Channels in SAME Guild**: ❌ LIMITATION
+//    - Discord bots can only be in ONE voice channel per guild at a time
+//    - This is a Discord API limitation, not a Lavalink limitation
+//    - You CANNOT have the same bot play in two channels of the same server
+// 
+// 3. **Solutions for Same-Guild Multi-Channel**:
+//    - Use TWO separate bots with different tokens
+//    - Each bot can join one voice channel in the same guild
+//    - Both bots can share the same Lavalink server
+// 
+// 4. **Code Implementation for Multi-Bot**:
+//    - Create two separate .env files or use different environment variables
+//    - Deploy two instances of this same code with different DISCORD_TOKEN
+//    - Set different RADIO_CHANNEL_ID for each bot
+//    - Both can connect to the same LAVALINK_URL
+// 
+// Example multi-bot setup:
+// Bot 1: DISCORD_TOKEN=token1, RADIO_CHANNEL_ID=channel1, CLIENT_ID=app1
+// Bot 2: DISCORD_TOKEN=token2, RADIO_CHANNEL_ID=channel2, CLIENT_ID=app2
+// Both: LAVALINK_URL=same-lavalink-server
+// 
+// This allows:
+// - Bot 1 plays in Voice Channel A with persistent controls in Text Channel 1  
+// - Bot 2 plays in Voice Channel B with persistent controls in Text Channel 2
+// - Same guild, different voice channels, simultaneous playback
+// - Each bot maintains its own player state and controls
