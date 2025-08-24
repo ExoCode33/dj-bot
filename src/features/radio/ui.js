@@ -16,7 +16,7 @@ export class RadioUI {
 
     return new EmbedBuilder()
       .setColor('#FF6B9D')
-      .setImage('attachment://Uta-banner.gif')
+      .setImage('attachment://uta-banner.gif')
       .setTitle('🎤 Uta\'s Radio Studio')
       .setDescription('*"Welcome to my radio studio! Pick any station and I\'ll start playing it immediately!"*\n\n🎵 Choose a music style and station below!')
       .addFields(
