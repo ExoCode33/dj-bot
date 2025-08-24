@@ -75,7 +75,15 @@ export const RADIO_STATIONS = {
     category: 'kpop',
     quality: 'High'
   },
-
+  'hallyu_pop': {
+    name: 'Hallyu K-Pop Radio',
+    description: 'Korean Wave hits with BLACKPINK, (G)I-DLE, ITZY style',
+    url: 'http://streaming.radionomy.com/Hallyu-Kpop',
+    fallback: 'http://streaming.radionomy.com/KPOP-STARZ',
+    genre: 'Hallyu',
+    category: 'kpop',
+    quality: 'High'
+  },
 
   // ✅ ELECTRONIC & BASS DROP
   'iloveradio_hardstyle': {
