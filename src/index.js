@@ -11,8 +11,12 @@ const port = process.env.PORT || 3000;
 const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
+console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
+
 // Health server - MUST start first
 const server = http.createServer((req, res) => {
+  console.log(`📡 Health check requested: ${req.url}`);
+  
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -23,6 +27,7 @@ const server = http.createServer((req, res) => {
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
       radioChannel: RADIO_CHANNEL_ID,
+      defaultVolume: DEFAULT_VOLUME,
       version: '2.0.0'
     }));
   } else {
@@ -31,7 +36,11 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
+server.listen(port, '0.0.0.0', (err) => {
+  if (err) {
+    console.error('❌ Failed to start health server:', err);
+    process.exit(1);
+  }
   console.log(`✅ Health server running on 0.0.0.0:${port}`);
   console.log(`🔗 Health check: http://0.0.0.0:${port}/health`);
 });
