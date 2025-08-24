@@ -62,7 +62,7 @@ process.on('unhandledRejection', (reason) => {
 async function loadSlashCommands(client) {
   console.log('📂 Loading slash commands...');
   
-  const commandsDir = path.join(__dirname, 'src', 'commands');
+  const commandsDir = path.join(__dirname, 'commands');
   console.log(`📁 Commands directory: ${commandsDir}`);
   
   if (!fs.existsSync(commandsDir)) {
