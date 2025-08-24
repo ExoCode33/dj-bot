@@ -13,7 +13,13 @@ const port = process.env.PORT || 3000;
 const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
+// NEW: Auto-connect and auto-play variables
+const AUTO_CONNECT_CHANNEL_ID = process.env.AUTO_CONNECT_CHANNEL_ID || false;
+const AUTO_START_STATION = process.env.AUTO_START_STATION || false;
+
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
+console.log(`📻 Auto-connect channel: ${AUTO_CONNECT_CHANNEL_ID || 'Disabled'}`);
+console.log(`🎵 Auto-start station: ${AUTO_START_STATION || 'Disabled'}`);
 
 // Get current directory for loading commands
 const __filename = fileURLToPath(import.meta.url);
@@ -306,9 +312,17 @@ async function startDiscordBot() {
       console.log(`🎉 Discord ready: ${client.user.tag}`);
       global.discordReady = true;
       
-      setTimeout(() => {
-        initializePersistentRadio();
-      }, 3000);
+      // NEW: Check for auto-connect and auto-play
+      if (AUTO_CONNECT_CHANNEL_ID && AUTO_START_STATION) {
+        console.log('🚀 Auto-connect and auto-play enabled - skipping radio channel setup');
+        setTimeout(() => {
+          initializeAutoPlay();
+        }, 3000);
+      } else {
+        setTimeout(() => {
+          initializePersistentRadio();
+        }, 3000);
+      }
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
