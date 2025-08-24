@@ -1,5 +1,20 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { UI } from '../../constants/ui.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Get current directory and setup paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const IMAGES_DIR = path.join(__dirname, '..', '..', '..', 'images');
+const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+
+// Helper function to get image URL
+function getImageUrl(filename) {
+  const imagePath = path.join(IMAGES_DIR, filename);
+  return fs.existsSync(imagePath) ? `${BASE_URL}/images/${filename}` : null;
+}
 
 export const UtaUI = {
   panelEmbed(queueState = {}) {
@@ -9,17 +24,34 @@ export const UtaUI = {
       .setColor('#FF6B9D') // Uta's signature pink
       .setTitle('🎤 Uta\'s Music Studio')
       .setDescription('*"The world\'s greatest diva at your service!"*\n\n🟠 **SoundCloud recommended** for best results!')
-      .setThumbnail('https://i.imgur.com/placeholder.png') // Add Uta image URL here
-      .setFooter({ 
-        text: 'Uta • World\'s #1 Songstress • 🟠 SoundCloud Priority', 
-        iconURL: 'https://i.imgur.com/placeholder.png' // Add small Uta icon here
-      })
       .setTimestamp();
+
+    // Add LOCAL images if they exist
+    const bannerUrl = getImageUrl('uta-banner.png');
+    const profileUrl = getImageUrl('uta-profile.png');
+    const iconUrl = getImageUrl('uta-icon.png');
+
+    if (bannerUrl) {
+      embed.setImage(bannerUrl);
+    }
+    if (profileUrl) {
+      embed.setThumbnail(profileUrl);
+    }
+    if (iconUrl) {
+      embed.setFooter({ 
+        text: 'Uta • World\'s #1 Songstress • 🟠 SoundCloud Priority', 
+        iconURL: iconUrl
+      });
+    } else {
+      embed.setFooter({ 
+        text: 'Uta • World\'s #1 Songstress • 🟠 SoundCloud Priority'
+      });
+    }
 
     if (title) {
       embed.addFields(
         { 
-          name: '🎵 Now Performing', 
+          name: '🎵 Now Playing', 
           value: `**[${title}](${url || 'https://soundcloud.com/'})**\n*Uta\'s magical voice brings this song to life!*`,
           inline: false
         },
@@ -74,78 +106,3 @@ export const UtaUI = {
         .setLabel(hasTrack ? (isPaused ? 'Resume' : 'Pause') : 'Play')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji(hasTrack ? (isPaused ? '▶️' : '⏸️') : '▶️'),
-      new ButtonBuilder()
-        .setCustomId(UI.Buttons.Skip)
-        .setLabel('Skip')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('⏭️')
-        .setDisabled(!hasTrack)
-    );
-  },
-
-  queueModal() {
-    const modal = new ModalBuilder()
-      .setCustomId(UI.Modals.QueueModal)
-      .setTitle('🎤 Uta\'s Song Request Booth');
-      
-    const input = new TextInputBuilder()
-      .setCustomId(UI.Inputs.Query)
-      .setLabel('🟠 What would you like Uta to perform?')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('🟠 SoundCloud URL (best) or song name... ♪')
-      .setMaxLength(500)
-      .setRequired(true);
-      
-    return modal.addComponents(new ActionRowBuilder().addComponents(input));
-  },
-
-  // Enhanced success response embed with source highlighting
-  successEmbed(trackTitle, isFirstInQueue = false, source = '') {
-    const isFromSoundCloud = source.toLowerCase().includes('soundcloud');
-    const color = isFromSoundCloud ? '#FF6B35' : '#00FF94'; // Orange for SoundCloud, green for others
-    
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(isFirstInQueue ? '🎤 Uta is now performing!' : '🎵 Added to Uta\'s setlist!')
-      .setDescription(isFirstInQueue 
-        ? `✨ **${trackTitle}** ✨\n*Uta has taken the stage and begun her performance!*`
-        : `🎶 **${trackTitle}** 🎶\n*Added to the queue! Uta will perform this next.*`
-      )
-      .setTimestamp();
-
-    if (isFromSoundCloud) {
-      embed.addFields({
-        name: '🟠 Played from SoundCloud',
-        value: '*Excellent choice! SoundCloud provides reliable, high-quality audio for Uta\'s performances.*',
-        inline: false
-      });
-      embed.setFooter({ text: 'SoundCloud = Best Experience! 🟠✨' });
-    } else {
-      embed.setFooter({ text: 'Enjoy the show! ✨' });
-    }
-      
-    return embed;
-  },
-
-  // Enhanced error embed with SoundCloud suggestions
-  errorEmbed(message, showSoundCloudTip = true) {
-    const embed = new EmbedBuilder()
-      .setColor('#FF4757') // Error red
-      .setTitle('🎭 Uta encountered an issue!')
-      .setDescription(`😔 *${message}*`)
-      .setTimestamp();
-
-    if (showSoundCloudTip) {
-      embed.addFields({
-        name: '💡 Try SoundCloud Instead!',
-        value: '🟠 Go to [soundcloud.com](https://soundcloud.com)\n🔍 Search for your song\n📋 Copy the URL and paste it here\n✅ **95% success rate guaranteed!**',
-        inline: false
-      });
-      embed.setFooter({ text: 'SoundCloud works best! 🟠' });
-    } else {
-      embed.setFooter({ text: 'Uta believes in you! Try again! 💪' });
-    }
-      
-    return embed;
-  }
-};
