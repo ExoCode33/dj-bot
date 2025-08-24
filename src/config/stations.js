@@ -24,6 +24,38 @@ export const RADIO_STATIONS = {
     genre: 'K-Pop',
     quality: 'High'
   },
+  'exclusively_blackpink': {
+    name: 'Exclusively BlackPink',
+    description: 'All BlackPink all the time - dedicated BlackPink radio station',
+    url: 'https://streaming.exclusive.radio/er/blackpink/icecast.audio',
+    fallback: 'https://listen.moe/kpop/stream',
+    genre: 'K-Pop',
+    quality: 'High'
+  },
+  'exclusively_bts': {
+    name: 'Exclusively BTS',
+    description: 'Record-breaking K-pop septet - All BTS All The Time',
+    url: 'https://streaming.exclusive.radio/er/bts/icecast.audio',
+    fallback: 'https://listen.moe/kpop/stream',
+    genre: 'K-Pop',
+    quality: 'High'
+  },
+  'hotmixradio_kpop': {
+    name: 'Hotmixradio K-Pop',
+    description: 'French K-Pop station playing JENNIE, ITZY, G-Dragon, CHUNG HA',
+    url: 'https://streaming.hotmix-radio.net/hotmixradio-kpop-128.mp3',
+    fallback: 'https://listen.moe/kpop/stream',
+    genre: 'K-Pop',
+    quality: 'High'
+  },
+  'allzic_kpop': {
+    name: 'Allzic Radio K-Pop',
+    description: 'French K-Pop station with popular Korean artists',
+    url: 'https://allzic29.ice.infomaniak.ch/allzic29.mp3',
+    fallback: 'https://streaming.hotmix-radio.net/hotmixradio-kpop-128.mp3',
+    genre: 'K-Pop',
+    quality: 'High'
+  },
   'z100_nyc': {
     name: 'Z100 New York',
     description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
@@ -106,9 +138,9 @@ export const RADIO_CATEGORIES = {
     stations: ['z100_nyc', 'bbc_radio_1', 'bbc_radio_2', 'iloveradio_dance']
   },
   'anime_jpop': {
-    name: '🎌 Anime & J-Pop',
-    description: 'Japanese music collection',
-    stations: ['listen_moe_jpop', 'listen_moe_kpop']
+    name: '🎌 K-Pop & J-Pop',
+    description: 'Korean and Japanese music with BlackPink, BTS, and popular K-Pop artists',
+    stations: ['listen_moe_kpop', 'exclusively_blackpink', 'exclusively_bts', 'hotmixradio_kpop', 'allzic_kpop', 'listen_moe_jpop']
   },
   'electronic_dance': {
     name: '🎵 Electronic & Dance',
