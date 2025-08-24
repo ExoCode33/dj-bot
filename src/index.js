@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
       defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.5'
+      version: '2.0.6'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -122,8 +122,8 @@ async function startDiscordBot() {
     const { RadioInteractionHandler } = await import('./features/radio/interactions.js');
     const { RadioUI } = await import('./features/radio/ui.js');
     
-    // Import bot commands (not slash commands)
-    const { radioCommand, utaCommand } = await import('./bot/commands.js');
+    // Import bot commands (not slash commands) - FIXED: Only radioCommand
+    const { radioCommand } = await import('./bot/commands.js');
     
     console.log('✅ Libraries and modules loaded');
 
@@ -149,15 +149,13 @@ async function startDiscordBot() {
     // Load actual slash commands from /commands directory
     const slashCommands = await loadSlashCommands(client);
     
-    // Add bot-specific commands (these are registered but handled internally)
+    // Add bot-specific commands (only /radio redirect)
     client.commands.set('radio', radioCommand);
-    client.commands.set('uta', utaCommand);
     
-    // Combine all commands for registration
+    // Combine all commands for registration - FIXED: Removed utaCommand
     const allCommands = [
       ...slashCommands,
-      radioCommand.data.toJSON(),
-      utaCommand.data.toJSON()
+      radioCommand.data.toJSON()
     ];
 
     // Setup Lavalink
