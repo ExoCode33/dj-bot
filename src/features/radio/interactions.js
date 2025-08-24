@@ -116,12 +116,20 @@ export class RadioInteractionHandler {
       this.currentlyPlaying.delete(interaction.guildId);
       
       let errorMessage = `*"Sorry, I couldn't play ${station.name}.*`;
+      let deleteAfter = 5000;
       
-      // Provide helpful error messages
-      if (error.message.includes('wait 10 seconds')) {
-        errorMessage += ` Please wait a moment and try again!"* ⏳`;
+      // Provide helpful error messages based on error type
+      if (error.message.includes('Too many connection attempts')) {
+        errorMessage += ` I need a short break to reset my connections. Please wait 30 seconds!"* ⏰`;
+        deleteAfter = 8000;
+      } else if (error.message.includes('wait 10 seconds') || error.message.includes('few minutes')) {
+        errorMessage += ` Discord needs a moment to reset connections. Please wait and try again!"* ⏳`;
+        deleteAfter = 7000;
       } else if (error.message.includes('Already switching')) {
         errorMessage += ` I'm still switching stations, please wait!"* ⏳`;
+      } else if (error.message.includes('Maximum connection attempts')) {
+        errorMessage += ` Connection system needs to reset. Try again in 2-3 minutes!"* 🔄`;
+        deleteAfter = 10000;
       } else {
         errorMessage += ` ${error.message}"*`;
       }
@@ -130,12 +138,12 @@ export class RadioInteractionHandler {
         content: errorMessage
       });
       
-      // Auto-delete error after 5 seconds
+      // Auto-delete error message
       setTimeout(async () => {
         try {
           await interaction.deleteReply();
         } catch (err) {}
-      }, 5000);
+      }, deleteAfter);
     }
   }
 
