@@ -1,40 +1,32 @@
-// src/config/stations.js - UPDATED GEN Z TRENDY STATIONS
+// src/config/stations.js - PROPERLY CATEGORIZED STATIONS
 export const RADIO_STATIONS = {
-  // === GEN Z TRENDY POP & VIRAL HITS ===
-  'power_106_la': { 
-    name: 'Power 106 LA - Hip Hop & R&B', 
-    description: 'LA\'s #1 for hip hop hits and viral TikTok music',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRFMAAC.aac',
-    fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
-    genre: 'Hip-Hop/R&B',
-    quality: 'High'
-  },
+  // === POP HITS ===
   'z100_nyc': {
-    name: 'Z100 New York - Pop Hits',
-    description: 'NYC\'s #1 hit music - Pop, dance, and viral chart toppers',
+    name: 'Z100 New York',
+    description: 'NYC\'s #1 pop hits station with latest chart toppers',
     url: 'https://n35a-e2.revma.ihrhls.com/zc181',
     fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/Z100AAC.aac',
-    genre: 'Pop Hits',
+    genre: 'Pop',
     quality: 'High'
   },
   'kiis_fm_la': {
-    name: 'KIIS FM Los Angeles - Pop',
-    description: 'Ryan Seacrest\'s station with latest pop and trending hits',
+    name: 'KIIS FM Los Angeles',
+    description: 'Ryan Seacrest\'s pop station with mainstream hits',
     url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KIISFMAAC.aac',
     fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
     genre: 'Pop',
     quality: 'High'
   },
-
-  // === K-POP & ASIAN HITS ===
-  'listen_moe_jpop': { 
-    name: 'LISTEN.moe J-Pop Radio', 
-    description: 'Japanese music, anime OSTs, and J-Pop hits',
-    url: 'https://listen.moe/stream',
-    fallback: 'https://listen.moe/fallback',
-    genre: 'J-Pop/Anime',
+  'virgin_radio_uk': {
+    name: 'Virgin Radio UK',
+    description: 'British pop and contemporary hits',
+    url: 'https://radio.virginradio.co.uk/stream',
+    fallback: 'http://icy-e-bab-04-gos.sharp-stream.com/virgin_mp3',
+    genre: 'Pop',
     quality: 'High'
   },
+
+  // === K-POP & J-POP ===
   'listen_moe_kpop': { 
     name: 'LISTEN.moe K-Pop Radio', 
     description: 'Korean pop with BlackPink, BTS, NewJeans, and trending K-Pop',
@@ -43,21 +35,29 @@ export const RADIO_STATIONS = {
     genre: 'K-Pop',
     quality: 'High'
   },
-  'kpop_starz': {
-    name: 'K-Pop Starz Radio',
-    description: 'Latest K-Pop hits including BlackPink, ITZY, aespa, and more',
-    url: 'http://streaming.radionomy.com/KPOP-Starz',
+  'listen_moe_jpop': { 
+    name: 'LISTEN.moe J-Pop Radio', 
+    description: 'Japanese music, anime OSTs, and J-Pop hits',
+    url: 'https://listen.moe/stream',
+    fallback: 'https://listen.moe/fallback',
+    genre: 'J-Pop',
+    quality: 'High'
+  },
+  'kpop_way_radio': {
+    name: 'K-Pop Way Radio',
+    description: 'Dedicated K-Pop station with latest Korean hits',
+    url: 'http://streaming.radionomy.com/K-Pop-Way-Radio',
     fallback: 'http://streaming.radionomy.com/Korea-Radio',
     genre: 'K-Pop',
     quality: 'High'
   },
 
-  // === DUBSTEP & ELECTRONIC DANCE ===
+  // === DUBSTEP & ELECTRONIC BASS ===
   'dubstep_fm': {
     name: 'Dubstep.fm',
     description: 'Heavy dubstep drops, riddim, and electronic bass music',
     url: 'http://hi5.dubstep.fm:8000/dubstep',
-    fallback: 'https://streams.ilovemusic.de/iloveradio8.mp3',
+    fallback: 'http://streaming.radionomy.com/Dubstep-Music',
     genre: 'Dubstep',
     quality: 'High'
   },
@@ -69,72 +69,90 @@ export const RADIO_STATIONS = {
     genre: 'Bass/Dubstep',
     quality: 'High'
   },
+  'electro_swing': {
+    name: 'Electro Swing Radio',
+    description: 'Electronic music with swing and jazz influences',
+    url: 'http://streaming.radionomy.com/Electro-Swing-Revolution',
+    fallback: 'http://streaming.radionomy.com/ElectroSwing',
+    genre: 'Electronic',
+    quality: 'High'
+  },
+
+  // === EDM & DANCE ===
   'iloveradio_dance': {
     name: 'ILoveRadio Dance',
     description: 'EDM, house, techno, and festival electronic hits',
     url: 'https://streams.ilovemusic.de/iloveradio2.mp3',
     fallback: 'https://streams.ilovemusic.de/iloveradio2.aac',
-    genre: 'EDM/Dance',
+    genre: 'EDM',
     quality: 'High'
   },
-  'di_fm_dubstep': {
-    name: 'DI.FM Dubstep',
-    description: 'Premium dubstep channel with heavy drops and wobbles',
-    url: 'https://prem2.di.fm:443/dubstep?5739cfabf2445ca8b6dee8e9',
-    fallback: 'http://hi5.dubstep.fm:8000/dubstep',
-    genre: 'Dubstep',
-    quality: 'Premium'
+  'dance_uk': {
+    name: 'Dance UK Radio',
+    description: 'UK dance music, house, and electronic dance hits',
+    url: 'http://uk2.internet-radio.com:8024/live',
+    fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
+    genre: 'Dance',
+    quality: 'High'
+  },
+  'ibiza_global_radio': {
+    name: 'Ibiza Global Radio',
+    description: 'Electronic dance music from the party island of Ibiza',
+    url: 'http://37.59.32.115:6080/stream',
+    fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
+    genre: 'EDM',
+    quality: 'High'
   },
 
   // === HIP-HOP & RAP ===
   'hot_97_nyc': {
-    name: 'Hot 97 New York - Hip Hop',
+    name: 'Hot 97 New York',
     description: 'NYC\'s original hip-hop station with latest rap and R&B',
     url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/HOT97AAC.aac',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRFMAAC.aac',
+    fallback: 'http://streaming.radionomy.com/Hip-Hop-Nation',
     genre: 'Hip-Hop',
     quality: 'High'
   },
-  'real_92_3_la': {
-    name: 'Real 92.3 Los Angeles',
-    description: 'LA\'s hip-hop and R&B with latest rap hits and throwbacks',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KRRLAAAAC.aac',
-    fallback: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRFMAAC.aac',
-    genre: 'Hip-Hop/R&B',
+  'power_106_la': { 
+    name: 'Power 106 LA', 
+    description: 'LA\'s #1 for hip hop hits and West Coast rap',
+    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KPWRFMAAC.aac',
+    fallback: 'http://streaming.radionomy.com/Hip-Hop-Nation',
+    genre: 'Hip-Hop',
     quality: 'High'
   },
-  'shade_45': {
-    name: 'Shade 45 - Eminem\'s Channel',
-    description: 'Eminem\'s uncensored hip-hop channel with hardcore rap',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/SIRIUSXMSHADE45AAC.aac',
+  'rap_fr': {
+    name: 'Rap FR Radio',
+    description: 'French rap and international hip-hop music',
+    url: 'http://streaming.radionomy.com/Rap-FR',
     fallback: 'http://streaming.radionomy.com/Hip-Hop-Nation',
-    genre: 'Hardcore Rap',
+    genre: 'Rap',
     quality: 'High'
   },
 
-  // === ROCK & ALTERNATIVE ===
+  // === ROCK & METAL ===
   'kroq_la': {
-    name: 'KROQ Los Angeles - Alternative Rock',
-    description: 'LA\'s legendary alternative rock station with indie and modern rock',
+    name: 'KROQ Los Angeles',
+    description: 'LA\'s legendary alternative rock station',
     url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/KROQFMAAC.aac',
     fallback: 'http://mp3channels.webradio.antenne.de/alternative',
     genre: 'Alternative Rock',
     quality: 'High'
   },
-  'alt_nation': {
-    name: 'Alt Nation - Alternative',
-    description: 'Alternative rock, indie, and modern rock hits',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/SIRIUSXMALTNATIONAAC.aac',
+  'planet_rock': {
+    name: 'Planet Rock UK',
+    description: 'Classic and modern rock hits',
+    url: 'http://tx.planetradio.co.uk/icecast.php?i=planetrock.mp3',
     fallback: 'http://mp3channels.webradio.antenne.de/rockantenne',
-    genre: 'Alternative',
+    genre: 'Rock',
     quality: 'High'
   },
-  'octane_rock': {
-    name: 'Octane - Hard Rock',
-    description: 'Hard rock and heavy metal with powerful guitar riffs',
-    url: 'http://playerservices.streamtheworld.com/api/livestream-redirect/SIRIUSXMOCTANEAAC.aac',
+  'metal_radio': {
+    name: 'Metal Radio',
+    description: 'Heavy metal, death metal, and hardcore rock',
+    url: 'http://streaming.radionomy.com/Metal-Radio',
     fallback: 'http://mp3channels.webradio.antenne.de/rockantenne-heavy-metal',
-    genre: 'Hard Rock',
+    genre: 'Metal',
     quality: 'High'
   },
 
@@ -154,44 +172,52 @@ export const RADIO_STATIONS = {
     fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
     genre: 'Chillhop',
     quality: 'High'
+  },
+  'ambient_sleeping_pill': {
+    name: 'Ambient Sleeping Pill',
+    description: 'Dark ambient and drone music for relaxation',
+    url: 'http://radio.stereoscenic.com/asp-s',
+    fallback: 'http://streaming.radionomy.com/Chillhop-Radio',
+    genre: 'Ambient',
+    quality: 'High'
   }
 };
 
-// Radio Categories - Updated for Gen Z trends
+// Radio Categories - Properly organized by actual music genres
 export const RADIO_CATEGORIES = {
-  'viral_hits': {
-    name: '🔥 Viral Hits & Trending',
-    description: 'TikTok viral music, chart toppers, and trending pop hits',
-    stations: ['z100_nyc', 'kiis_fm_la', 'power_106_la']
+  'pop_hits': {
+    name: '🎤 Pop Hits',
+    description: 'Mainstream pop music and chart toppers',
+    stations: ['z100_nyc', 'kiis_fm_la', 'virgin_radio_uk']
   },
-  'kpop_asian': {
-    name: '🎌 K-Pop & Asian Hits',
-    description: 'BlackPink, BTS, NewJeans, and trending Asian pop music',
-    stations: ['listen_moe_kpop', 'kpop_starz', 'listen_moe_jpop']
+  'kpop_jpop': {
+    name: '🎌 K-Pop & J-Pop',
+    description: 'Korean and Japanese pop music',
+    stations: ['listen_moe_kpop', 'kpop_way_radio', 'listen_moe_jpop']
   },
   'dubstep_bass': {
     name: '🔊 Dubstep & Bass',
-    description: 'Heavy drops, riddim, and electronic bass music',
-    stations: ['dubstep_fm', 'bassport_fm', 'di_fm_dubstep']
+    description: 'Heavy dubstep drops and electronic bass music',
+    stations: ['dubstep_fm', 'bassport_fm', 'electro_swing']
+  },
+  'edm_dance': {
+    name: '💃 EDM & Dance',
+    description: 'Electronic dance music, house, and techno',
+    stations: ['iloveradio_dance', 'dance_uk', 'ibiza_global_radio']
   },
   'hiphop_rap': {
-    name: '🎤 Hip-Hop & Rap',
-    description: 'Latest rap hits, hardcore hip-hop, and R&B bangers',
-    stations: ['hot_97_nyc', 'real_92_3_la', 'shade_45']
+    name: '🎵 Hip-Hop & Rap',
+    description: 'Hip-hop, rap, and urban music',
+    stations: ['hot_97_nyc', 'power_106_la', 'rap_fr']
   },
-  'rock_alternative': {
-    name: '🎸 Rock & Alternative',
-    description: 'Alternative rock, indie, and modern rock hits',
-    stations: ['kroq_la', 'alt_nation', 'octane_rock']
+  'rock_metal': {
+    name: '🎸 Rock & Metal',
+    description: 'Rock, alternative, and metal music',
+    stations: ['kroq_la', 'planet_rock', 'metal_radio']
   },
-  'electronic_dance': {
-    name: '💃 Electronic & Dance',
-    description: 'EDM, house, techno, and festival electronic music',
-    stations: ['iloveradio_dance', 'dubstep_fm', 'bassport_fm']
-  },
-  'chill_lofi': {
-    name: '🌸 Chill & Lo-Fi',
-    description: 'Study beats, chill hop, and relaxing background music',
-    stations: ['lofi_girl', 'chillhop_radio']
+  'chill_ambient': {
+    name: '🌸 Chill & Ambient',
+    description: 'Lo-fi, chill hop, and ambient relaxation music',
+    stations: ['lofi_girl', 'chillhop_radio', 'ambient_sleeping_pill']
   }
 };
