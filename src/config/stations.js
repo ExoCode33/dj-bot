@@ -96,20 +96,28 @@ export const RADIO_STATIONS = {
     genre: 'Hip-Hop/R&B',
     quality: 'High'
   },
-  'iloveradio_dance': {
-    name: 'ILoveRadio Dance',
-    description: 'Electronic dance music and house beats',
-    url: 'https://streams.ilovemusic.de/iloveradio2.mp3',
-    fallback: 'https://streams.ilovemusic.de/iloveradio2.aac',
-    genre: 'Electronic/Dance',
-    quality: 'High'
-  },
   'radio_fx_dance': {
     name: 'Radio FX Dance',
     description: 'Non-stop electronic dance music with EDM and house',
     url: 'https://radiofx.live/dance.mp3',
     fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
     genre: 'Electronic/Dance',
+    quality: 'High'
+  },
+  'nightcore_radio': {
+    name: 'Nightcore Radio',
+    description: 'High-energy anime and electronic remixes popular on social media',
+    url: 'https://streaming.live365.com/a89234',
+    fallback: 'https://listen.moe/stream',
+    genre: 'Nightcore/Electronic',
+    quality: 'High'
+  },
+  'phonk_radio': {
+    name: 'Phonk Radio',
+    description: 'Underground phonk beats and dark electronic music',
+    url: 'https://streaming.live365.com/a45789',
+    fallback: 'https://n3ba-e2.revma.ihrhls.com/zc5805',
+    genre: 'Phonk/Electronic',
     quality: 'High'
   },
   'nrj_france': {
@@ -120,44 +128,28 @@ export const RADIO_STATIONS = {
     genre: 'Pop Hits',
     quality: 'High'
   },
-  'alternative_rock_radio': {
-    name: 'Alternative Rock Radio',
-    description: 'Modern alternative and indie rock music',
-    url: 'https://streaming.live365.com/a73197',
-    fallback: 'https://radio.virginradio.co.uk/stream',
-    genre: 'Alternative Rock',
+  'gaming_beats': {
+    name: 'Gaming Beats Radio',
+    description: 'High-energy electronic music perfect for gaming sessions',
+    url: 'https://streaming.live365.com/a67234',
+    fallback: 'https://radiofx.live/dance.mp3',
+    genre: 'Gaming/Electronic',
     quality: 'High'
   },
-  'chill_hop_radio': {
-    name: 'ChillHop Radio',
-    description: '24/7 chill hop beats for studying and relaxing',
-    url: 'https://streams.fluxfm.de/chillhop/mp3-320',
-    fallback: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-    genre: 'Chill/Lo-Fi',
-    quality: 'High'
-  },
-  'indie_pop_rocks': {
-    name: 'Indie Pop Rocks',
-    description: 'Indie pop and alternative music with Arctic Monkeys, Tame Impala',
-    url: 'https://streaming.live365.com/a05765',
-    fallback: 'https://streaming.live365.com/a73197',
-    genre: 'Indie Pop',
-    quality: 'High'
-  },
-  'trap_nation_radio': {
-    name: 'Trap Nation Radio',
-    description: 'Trap beats and modern hip-hop with heavy bass',
-    url: 'https://streaming.live365.com/a89577',
-    fallback: 'https://n3ba-e2.revma.ihrhls.com/zc5805',
-    genre: 'Trap/Hip-Hop',
-    quality: 'High'
-  },
-  'latin_hits_radio': {
-    name: 'Latin Hits Radio',
-    description: 'Reggaeton and Latin pop with Bad Bunny, Rosalía, Karol G',
-    url: 'https://streaming.live365.com/a36251',
+  'viral_hits_radio': {
+    name: 'Viral Hits Radio',
+    description: 'Songs that are blowing up on social media platforms',
+    url: 'https://streaming.live365.com/a23456',
     fallback: 'https://n35a-e2.revma.ihrhls.com/zc181',
-    genre: 'Latin/Reggaeton',
+    genre: 'Viral Hits',
+    quality: 'High'
+  },
+  'anime_remix_station': {
+    name: 'Anime Remix Station',
+    description: 'Anime openings and electronic remixes popular in gaming',
+    url: 'https://streaming.live365.com/a78901',
+    fallback: 'https://listen.moe/stream',
+    genre: 'Anime/Electronic',
     quality: 'High'
   }
 };
@@ -177,26 +169,26 @@ export const RADIO_CATEGORIES = {
   'hiphop_rnb': {
     name: '🎤 Hip-Hop & R&B',
     description: 'Latest rap, hip-hop, and R&B with Drake, Kendrick, SZA',
-    stations: ['power_106_la', 'hot97_nyc', 'trap_nation_radio']
+    stations: ['power_106_la', 'hot97_nyc']
   },
   'electronic_dance': {
     name: '🎵 Electronic & Dance',
-    description: 'EDM, house, and electronic beats for the party',
-    stations: ['iloveradio_dance', 'radio_fx_dance']
+    description: 'EDM, house, and high-energy beats',
+    stations: ['radio_fx_dance', 'gaming_beats', 'nightcore_radio', 'phonk_radio']
   },
   'alternative_indie': {
-    name: '🎸 Alternative & Indie',
-    description: 'Alternative rock, indie pop, and modern rock',
-    stations: ['virgin_radio_uk', 'alternative_rock_radio', 'indie_pop_rocks']
+    name: '🎸 Alternative & Rock',
+    description: 'Alternative rock and modern rock hits',
+    stations: ['virgin_radio_uk']
   },
   'chill_ambient': {
     name: '🌸 Chill & Lo-Fi',
     description: 'Relaxing beats for studying and chilling',
-    stations: ['lofi_girl', 'chill_hop_radio']
+    stations: ['lofi_girl']
   },
-  'latin_reggaeton': {
-    name: '🌶️ Latin & Reggaeton',
-    description: 'Latin hits and reggaeton with Bad Bunny and Rosalía',
-    stations: ['latin_hits_radio']
+  'viral_social': {
+    name: '📱 Viral & Social Media',
+    description: 'Songs popular on social platforms and gaming',
+    stations: ['viral_hits_radio', 'anime_remix_station']
   }
 };
