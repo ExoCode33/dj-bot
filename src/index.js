@@ -183,8 +183,8 @@ class PersistentRadioManager {
       }
 
       // Create the persistent radio embed
-      const embed = this.createPersistentRadioEmbed();
-      const components = this.createPersistentRadioComponents();
+      const embed = await this.createPersistentRadioEmbed();
+      const components = await this.createPersistentRadioComponents();
 
       this.persistentMessage = await channel.send({
         embeds: [embed],
@@ -201,8 +201,9 @@ class PersistentRadioManager {
     }
   }
 
-  createPersistentRadioEmbed() {
-    const { EmbedBuilder } = require('discord.js');
+  async createPersistentRadioEmbed() {
+    const discord = await import('discord.js');
+    const { EmbedBuilder } = discord;
     
     return new EmbedBuilder()
       .setColor('#FF0040')
@@ -234,8 +235,9 @@ class PersistentRadioManager {
       .setTimestamp();
   }
 
-  createPersistentRadioComponents() {
-    const { ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  async createPersistentRadioComponents() {
+    const discord = await import('discord.js');
+    const { ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = discord;
 
     // Category selector
     const categorySelect = new StringSelectMenuBuilder()
@@ -310,7 +312,8 @@ class PersistentRadioManager {
   }
 
   async handlePersistentInteraction(interaction) {
-    const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
+    const discord = await import('discord.js');
+    const { StringSelectMenuBuilder, ActionRowBuilder, EmbedBuilder } = discord;
 
     if (interaction.customId === 'persistent_category_select') {
       const selectedCategory = interaction.values[0];
@@ -478,7 +481,7 @@ class PersistentRadioManager {
     }
 
     await interaction.editReply({
-      embeds: [new (require('discord.js')).EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor('#FF0000')
         .setTitle('🛑 BASS SYSTEM SHUTDOWN!')
         .setDescription('Uta has stopped the BASS DROP and your speakers are safe... for now! 💀')
@@ -498,7 +501,7 @@ class PersistentRadioManager {
     const connectedNodes = nodes.filter(node => node.state === 2);
 
     await interaction.reply({
-      embeds: [new (require('discord.js')).EmbedBuilder()
+      embeds: [new EmbedBuilder()
         .setColor('#0099FF')
         .setTitle('📊 UTA BASS SYSTEM STATUS')
         .addFields(
