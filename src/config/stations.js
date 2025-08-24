@@ -24,30 +24,6 @@ export const RADIO_STATIONS = {
     genre: 'K-Pop',
     quality: 'High'
   },
-  'onlyhit_kpop': {
-    name: 'OnlyHit K-Pop',
-    description: 'BTS, EXO, NCT, TXT, BlackPink, TWICE, GOT7, Stray Kids and more',
-    url: 'http://onlyhit.us/play/kpop',
-    fallback: 'https://listen.moe/kpop/stream',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
-  'big_b_kpop': {
-    name: 'Big B Radio K-Pop',
-    description: 'Korean pop music with latest idol groups and comebacks',
-    url: 'http://streams.bigbradio.com/bigb-kpop-64',
-    fallback: 'https://listen.moe/kpop/stream',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
-  'kpop_highway': {
-    name: 'K-Pop Highway Radio',
-    description: 'Free 24/7 K-Pop with BlackPink, BTS, StayC, Jin, Yena and more',
-    url: 'https://kpophighwayradio.com/stream',
-    fallback: 'http://onlyhit.us/play/kpop',
-    genre: 'K-Pop',
-    quality: 'High'
-  },
   'z100_nyc': {
     name: 'Z100 New York',
     description: 'NYC\'s #1 hit music station - Pop, dance, and chart toppers',
@@ -80,20 +56,44 @@ export const RADIO_STATIONS = {
     genre: 'Rock',
     quality: 'High'
   },
-  'dubstep_fm': {
-    name: 'Dubstep.fm',
-    description: 'Heavy dubstep drops, riddim, and electronic bass music',
-    url: 'http://hi5.dubstep.fm:8000/dubstep',
-    fallback: 'https://streams.ilovemusic.de/iloveradio8.mp3',
-    genre: 'Dubstep',
+  'bbc_radio_1': {
+    name: 'BBC Radio 1',
+    description: 'UK\'s leading pop and dance music station with live DJs',
+    url: 'http://lstn.lv/bbcradio.m3u8?station=bbc_radio_one&bitrate=320000',
+    fallback: 'https://streams.ilovemusic.de/iloveradio2.mp3',
+    genre: 'Pop/Dance',
     quality: 'High'
   },
-  'bassport_fm': {
-    name: 'Bassport FM',
-    description: 'UK dubstep, drum & bass, and heavy electronic music',
-    url: 'https://bassport.org:8000/stream',
-    fallback: 'http://hi5.dubstep.fm:8000/dubstep',
-    genre: 'Bass/Dubstep',
+  'bbc_radio_2': {
+    name: 'BBC Radio 2',
+    description: 'Adult contemporary hits and classic songs from the UK',
+    url: 'http://lstn.lv/bbcradio.m3u8?station=bbc_radio_two&bitrate=320000',
+    fallback: 'https://n35a-e2.revma.ihrhls.com/zc181',
+    genre: 'Adult Contemporary',
+    quality: 'High'
+  },
+  'radio_paradise': {
+    name: 'Radio Paradise',
+    description: 'Eclectic mix of rock, world, and electronic music',
+    url: 'http://stream.radioparadise.com/aac-320',
+    fallback: 'http://stream.radioparadise.com/mp3-192',
+    genre: 'Eclectic',
+    quality: 'High'
+  },
+  'kexp_seattle': {
+    name: 'KEXP Seattle',
+    description: 'Independent music from Seattle - alternative, indie, and world music',
+    url: 'https://kexp-mp3-128.streamguys1.com/kexp128.mp3',
+    fallback: 'https://kexp-aac-64.streamguys1.com/kexp64.aac',
+    genre: 'Alternative',
+    quality: 'High'
+  },
+  'nts_radio': {
+    name: 'NTS Radio',
+    description: 'London-based station with experimental electronic and alternative music',
+    url: 'https://stream-relay-geo.ntslive.net/stream',
+    fallback: 'https://stream-relay-geo.ntslive.net/stream2',
+    genre: 'Electronic/Alternative',
     quality: 'High'
   }
 };
@@ -103,26 +103,31 @@ export const RADIO_CATEGORIES = {
   'pop_hits': {
     name: '🎤 Pop & Chart Hits',
     description: 'Top hits perfect for Uta\'s performances',
-    stations: ['z100_nyc', 'iloveradio_dance', 'hiphop_nation']
+    stations: ['z100_nyc', 'bbc_radio_1', 'bbc_radio_2', 'iloveradio_dance']
   },
-  'kpop_jpop': {
-    name: '🎌 K-Pop & J-Pop Collection',
-    description: 'Korean and Japanese music including BlackPink, BTS, and anime OSTs',
-    stations: ['listen_moe_kpop', 'onlyhit_kpop', 'big_b_kpop', 'kpop_highway', 'listen_moe_jpop']
+  'anime_jpop': {
+    name: '🎌 Anime & J-Pop',
+    description: 'Japanese music collection',
+    stations: ['listen_moe_jpop', 'listen_moe_kpop']
   },
   'electronic_dance': {
     name: '🎵 Electronic & Dance',
     description: 'Electronic beats for energetic shows',
-    stations: ['iloveradio_dance', 'dubstep_fm', 'bassport_fm']
+    stations: ['iloveradio_dance', 'nts_radio']
   },
   'chill_ambient': {
     name: '🌸 Chill & Ambient',
     description: 'Relaxing sounds for quieter moments',
-    stations: ['lofi_girl']
+    stations: ['lofi_girl', 'radio_paradise']
   },
   'rock_alternative': {
     name: '🎸 Rock & Alternative',
     description: 'Rock music for powerful performances',
-    stations: ['rock_antenne']
+    stations: ['rock_antenne', 'kexp_seattle']
+  },
+  'hiphop_urban': {
+    name: '🎤 Hip-Hop & Urban',
+    description: 'Hip-hop and rap music',
+    stations: ['hiphop_nation']
   }
 };
