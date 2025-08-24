@@ -162,7 +162,7 @@ const RADIO_CATEGORIES = {
   }
 };
 
-// FIXED Radio Manager - Only fixes connection switching, keeps everything else the same
+// MINIMAL FIX: Only change the switchToStation method
 class SimpleRadioManager {
   constructor(client) {
     this.client = client;
@@ -198,44 +198,41 @@ class SimpleRadioManager {
     throw new Error(`All stream URLs failed for ${station.name}`);
   }
 
-  // FIXED: Proper connection cleanup before switching
+  // ONLY CHANGE: Improved connection switching with proper cleanup
   async switchToStation(guildId, stationKey, voiceChannelId) {
     console.log(`🔄 Switching to station: ${stationKey} for guild ${guildId}`);
     
-    // Step 1: Clean up existing connection PROPERLY
+    // Step 1: Clean up existing connection PROPERLY - FIXED VERSION
     const existingPlayer = this.client.shoukaku.players.get(guildId);
     if (existingPlayer) {
       console.log('🧹 Cleaning up existing connection...');
       
       try {
-        // Stop the track first
-        await existingPlayer.stopTrack();
-        console.log('⏹️ Track stopped');
-        
-        // FIXED: Properly disconnect before destroying
+        // Stop track and disconnect properly
+        if (existingPlayer.track) {
+          await existingPlayer.stopTrack();
+        }
+        // Use disconnect instead of destroy to properly clean up voice connection
         await existingPlayer.disconnect();
-        console.log('🔌 Player disconnected from voice');
+        console.log('🔌 Player disconnected');
         
-        // Wait for disconnect to process
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Small wait for disconnect to process
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Destroy the player
+        // Now destroy the player
         await existingPlayer.destroy();
         console.log('💀 Player destroyed');
         
-        // Remove from the map
-        this.client.shoukaku.players.delete(guildId);
-        console.log('🗑️ Player removed from map');
-        
-        // Wait for cleanup to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log('✅ Cleanup wait completed');
-        
       } catch (cleanupError) {
         console.warn('⚠️ Error during cleanup:', cleanupError.message);
-        // Force remove even if cleanup fails
-        this.client.shoukaku.players.delete(guildId);
       }
+      
+      // Always remove from map
+      this.client.shoukaku.players.delete(guildId);
+      console.log('🗑️ Player removed from map');
+      
+      // Wait for cleanup to fully complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     // Step 2: Get guild and voice channel
@@ -258,23 +255,8 @@ class SimpleRadioManager {
       });
       console.log('✅ New voice connection created');
     } catch (connectionError) {
-      if (connectionError.message.includes('existing connection')) {
-        // If we still get this error, force cleanup again
-        console.warn('⚠️ Still getting existing connection error, forcing cleanup...');
-        this.client.shoukaku.players.delete(guildId);
-        
-        // Wait longer and try again
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        newPlayer = await this.client.shoukaku.joinVoiceChannel({
-          guildId: guildId,
-          channelId: voiceChannelId,
-          shardId: guild.shardId
-        });
-        console.log('✅ New voice connection created after force cleanup');
-      } else {
-        throw connectionError;
-      }
+      console.error('❌ Connection error:', connectionError.message);
+      throw connectionError;
     }
     
     // Step 4: Set volume and connect to stream
@@ -545,7 +527,7 @@ async function startDiscordBot() {
     client.commands.set('radio', radioCommand);
     client.commands.set('uta', utaCommand);
 
-    // Enhanced interaction handler with FIXED station switching
+    // Enhanced interaction handler - MINIMAL CHANGE
     async function handlePersistentInteraction(interaction) {
       try {
         if (!persistentMessage || interaction.message?.id !== persistentMessage.id) return;
@@ -606,47 +588,9 @@ async function startDiscordBot() {
           });
 
           try {
-            console.log(`🔌 Bot disconnected from voice channel in guild ${oldState.guild.id}`);
-          
-          // Clean up player and tracking
-          const player = client.shoukaku.players.get(oldState.guild.id);
-          if (player) {
-            try {
-              await player.destroy();
-              client.shoukaku.players.delete(oldState.guild.id);
-            } catch (error) {
-              console.warn('⚠️ Error cleaning up disconnected player:', error.message);
-              client.shoukaku.players.delete(oldState.guild.id);
-            }
-          }
-          
-          // Remove from tracking
-          currentlyPlaying.delete(oldState.guild.id);
-          
-          // Update persistent message
-          await updatePersistentMessage();
-        }
-      } catch (error) {
-        console.error('❌ Voice state update error:', error.message);
-      }
-    });
-
-    await client.login(process.env.DISCORD_TOKEN);
-    console.log('✅ Discord login initiated');
-
-  } catch (error) {
-    console.error('💥 Bot startup failed:', error.message);
-  }
-}
-
-// Start the bot
-setTimeout(() => {
-  startDiscordBot();
-}, 2000);
-
-console.log('🎤 Uta DJ Bot initialization started');🎵 Auto-playing ${selectedStation} for guild ${interaction.guildId}`);
+            console.log(`🎵 Auto-playing ${selectedStation} for guild ${interaction.guildId}`);
             
-            // FIXED: Use the new switchToStation method
+            // FIXED: Use the improved switchToStation method
             const result = await radioManager.switchToStation(
               interaction.guildId, 
               selectedStation, 
@@ -676,7 +620,24 @@ console.log('🎤 Uta DJ Bot initialization started');🎵 Auto-playing ${select
             }, 4000);
 
           } catch (error) {
-            console.error('❌ Auto-play failed:', error);
+            console.error('❌ Voice state update error:', error.message);
+      }
+    });
+
+    await client.login(process.env.DISCORD_TOKEN);
+    console.log('✅ Discord login initiated');
+
+  } catch (error) {
+    console.error('💥 Bot startup failed:', error.message);
+  }
+}
+
+// Start the bot
+setTimeout(() => {
+  startDiscordBot();
+}, 2000);
+
+console.log('🎤 Uta DJ Bot initialization started'); Auto-play failed:', error);
             
             // Remove from tracking if failed
             currentlyPlaying.delete(interaction.guildId);
@@ -801,4 +762,25 @@ console.log('🎤 Uta DJ Bot initialization started');🎵 Auto-playing ${select
       try {
         // Check if the bot was disconnected from a voice channel
         if (oldState.member?.id === client.user.id && oldState.channelId && !newState.channelId) {
-          console.log(`
+          console.log(`🔌 Bot disconnected from voice channel in guild ${oldState.guild.id}`);
+          
+          // Clean up player and tracking
+          const player = client.shoukaku.players.get(oldState.guild.id);
+          if (player) {
+            try {
+              await player.destroy();
+              client.shoukaku.players.delete(oldState.guild.id);
+            } catch (error) {
+              console.warn('⚠️ Error cleaning up disconnected player:', error.message);
+              client.shoukaku.players.delete(oldState.guild.id);
+            }
+          }
+          
+          // Remove from tracking
+          currentlyPlaying.delete(oldState.guild.id);
+          
+          // Update persistent message
+          await updatePersistentMessage();
+        }
+      } catch (error) {
+        console.error('❌
