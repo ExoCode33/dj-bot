@@ -236,7 +236,67 @@ async function startDiscordBot() {
       updatePersistentMessage
     );
 
-    // Initialize persistent radio function - WITH BANNER SUPPORT
+    // Initialize auto-play function - NEW FEATURE
+    async function initializeAutoPlay() {
+      try {
+        console.log('🤖 Initializing auto-connect and auto-play...');
+        
+        // Import stations to find the station key
+        const { RADIO_STATIONS } = await import('./config/stations.js');
+        
+        // Find station by name
+        let stationKey = null;
+        for (const [key, station] of Object.entries(RADIO_STATIONS)) {
+          if (station.name === AUTO_START_STATION) {
+            stationKey = key;
+            break;
+          }
+        }
+        
+        if (!stationKey) {
+          console.error(`❌ Auto-start station not found: "${AUTO_START_STATION}"`);
+          console.log('Available stations:', Object.values(RADIO_STATIONS).map(s => s.name).join(', '));
+          return;
+        }
+        
+        // Get the voice channel
+        const voiceChannel = await client.channels.fetch(AUTO_CONNECT_CHANNEL_ID);
+        if (!voiceChannel || voiceChannel.type !== 2) { // 2 = GUILD_VOICE
+          console.error(`❌ Auto-connect voice channel not found or invalid: ${AUTO_CONNECT_CHANNEL_ID}`);
+          return;
+        }
+        
+        console.log(`🎤 Auto-connecting to voice channel: #${voiceChannel.name}`);
+        console.log(`🎵 Auto-starting station: ${RADIO_STATIONS[stationKey].name}`);
+        
+        // Use radio manager to start playing
+        const result = await radioManager.switchToStation(
+          voiceChannel.guild.id,
+          stationKey,
+          voiceChannel.id
+        );
+        
+        // Track what's playing
+        currentlyPlaying.set(voiceChannel.guild.id, {
+          stationKey: stationKey,
+          stationName: RADIO_STATIONS[stationKey].name,
+          voiceChannelId: voiceChannel.id,
+          startedAt: Date.now()
+        });
+        
+        console.log(`✅ Auto-play started successfully!`);
+        console.log(`🎧 Playing "${RADIO_STATIONS[stationKey].name}" in #${voiceChannel.name}`);
+        
+      } catch (error) {
+        console.error('❌ Auto-play initialization failed:', error.message);
+        console.log('💡 Falling back to regular radio channel setup...');
+        
+        // Fall back to regular radio setup
+        setTimeout(() => {
+          initializePersistentRadio();
+        }, 2000);
+      }
+    }
     async function initializePersistentRadio() {
       try {
         const channel = await client.channels.fetch(RADIO_CHANNEL_ID);
