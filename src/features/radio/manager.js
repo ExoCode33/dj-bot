@@ -122,9 +122,9 @@ export class SimpleRadioManager {
     }
   }
 
-  // FIXED: More aggressive cleanup that handles ghost connections
+  // NUCLEAR: Ultimate cleanup that forces complete reset
   async aggressiveCleanup(guildId) {
-    console.log('🧹 Aggressive cleanup starting...');
+    console.log('🧹 Nuclear cleanup starting...');
     
     // Step 1: Stop and destroy existing player
     const existingPlayer = this.client.shoukaku.players.get(guildId);
@@ -140,94 +140,131 @@ export class SimpleRadioManager {
       }
     }
     
-    // Step 2: Clear from all Shoukaku maps
+    // Step 2: Force clear from ALL Shoukaku maps
     this.client.shoukaku.players.delete(guildId);
     
-    // Step 3: Clear from nodes (FIXED: More thorough)
+    // Step 3: NUCLEAR - Clear from all nodes and their internal state
     const nodes = this.client.shoukaku.nodes;
     for (const [nodeName, node] of nodes) {
-      if (node.connections && node.connections.has(guildId)) {
-        try {
+      try {
+        // Clear connections
+        if (node.connections) {
           const connection = node.connections.get(guildId);
-          if (connection && typeof connection.destroy === 'function') {
-            await connection.destroy();
+          if (connection) {
+            try {
+              if (connection.destroy) await connection.destroy();
+              if (connection.disconnect) await connection.disconnect();
+            } catch (e) {}
           }
           node.connections.delete(guildId);
-          console.log(`🧹 Cleared connection from node ${nodeName}`);
-        } catch (error) {
-          console.warn(`⚠️ Error clearing node ${nodeName}:`, error.message);
-          // Force delete anyway
-          node.connections.delete(guildId);
         }
-      }
-      
-      // FIXED: Also clear from players map on node
-      if (node.players && node.players.has(guildId)) {
-        node.players.delete(guildId);
-        console.log(`🧹 Cleared player from node ${nodeName}`);
+        
+        // Clear players
+        if (node.players) {
+          node.players.delete(guildId);
+        }
+        
+        // Clear any other guild-related state
+        if (node.stats) {
+          delete node.stats[guildId];
+        }
+        
+        console.log(`🧹 Nuclear cleared node ${nodeName}`);
+      } catch (error) {
+        console.warn(`⚠️ Error in nuclear node cleanup:`, error.message);
       }
     }
     
-    // Step 4: Disconnect from Discord voice (multiple methods)
+    // Step 4: NUCLEAR - Multiple Discord voice disconnect methods
     try {
       const guild = this.client.guilds.cache.get(guildId);
       if (guild) {
         const botMember = guild.members.me;
-        if (botMember && botMember.voice && botMember.voice.channel) {
-          // Method 1: Standard disconnect
-          await botMember.voice.disconnect();
-          
-          // Method 2: Set channel to null
-          await botMember.voice.setChannel(null);
-          
-          console.log('🔌 Discord voice disconnected');
+        
+        // Method 1: Direct voice state manipulation
+        if (botMember && botMember.voice) {
+          try {
+            // Force set voice state to null
+            botMember.voice.channelId = null;
+            botMember.voice.sessionId = null;
+            await botMember.voice.setChannel(null);
+            console.log('🔌 Force cleared voice state');
+          } catch (e) {}
         }
+        
+        // Method 2: Raw WebSocket disconnect
+        try {
+          if (this.client.ws && this.client.ws.shards) {
+            const shard = this.client.ws.shards.get(guild.shardId);
+            if (shard && shard.connection && shard.connection.readyState === 1) {
+              shard.send({
+                op: 4,
+                d: {
+                  guild_id: guildId,
+                  channel_id: null,
+                  self_mute: false,
+                  self_deaf: false
+                }
+              });
+              console.log('🔌 Sent raw voice disconnect');
+            }
+          }
+        } catch (e) {}
       }
     } catch (error) {
       console.warn('⚠️ Discord disconnect error:', error.message);
     }
     
-    // Step 5: Clear connector state (FIXED: More thorough)
+    // Step 5: NUCLEAR - Connector complete reset
     try {
       const connector = this.client.shoukaku.connector;
       if (connector) {
-        // Clear from connections map
-        if (connector.connections && connector.connections.has(guildId)) {
-          connector.connections.delete(guildId);
-          console.log('🧹 Cleared from connector connections');
-        }
-        
-        // FIXED: Also clear from any other connector maps
-        if (connector.players && connector.players.has(guildId)) {
-          connector.players.delete(guildId);
-          console.log('🧹 Cleared from connector players');
-        }
-        
-        // Force disconnect voice state
-        if (connector.sendWS && typeof connector.sendWS === 'function') {
-          try {
-            connector.sendWS(guildId, {
-              op: 4,
-              d: {
-                guild_id: guildId,
-                channel_id: null,
-                self_mute: false,
-                self_deaf: false
-              }
-            }, false);
-            console.log('🧹 Sent voice disconnect via connector');
-          } catch (wsError) {
-            // Ignore WebSocket errors during cleanup
+        // Clear all guild references
+        ['connections', 'players', 'pending'].forEach(mapName => {
+          if (connector[mapName] && connector[mapName].has && connector[mapName].delete) {
+            connector[mapName].delete(guildId);
           }
+        });
+        
+        // Force WebSocket voice disconnect (multiple attempts)
+        for (let i = 0; i < 3; i++) {
+          try {
+            if (connector.sendWS) {
+              connector.sendWS(guildId, {
+                op: 4,
+                d: {
+                  guild_id: guildId,
+                  channel_id: null,
+                  self_mute: false,
+                  self_deaf: false
+                }
+              }, false);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (e) {}
         }
+        
+        console.log('🧹 Nuclear connector cleanup completed');
       }
     } catch (error) {
       console.warn('⚠️ Connector cleanup error:', error.message);
     }
     
-    // Step 6: Wait for state to clear
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Increased wait time
-    console.log('✅ Aggressive cleanup completed');
+    // Step 6: WAIT LONGER - Discord needs time to process
+    console.log('⏳ Waiting 10 seconds for Discord to reset...');
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Extended wait
+    
+    // Step 7: Final verification and cleanup
+    try {
+      // One more check and clear
+      this.client.shoukaku.players.delete(guildId);
+      for (const [nodeName, node] of this.client.shoukaku.nodes) {
+        if (node.connections) node.connections.delete(guildId);
+        if (node.players) node.players.delete(guildId);
+      }
+    } catch (e) {}
+    
+    console.log('☢️ Nuclear cleanup completed');
   }
 
   // FIXED: Simplified connection creation that handles ghost connections
@@ -256,6 +293,27 @@ export class SimpleRadioManager {
           if (this.client.shoukaku.connector?.connections) {
             this.client.shoukaku.connector.connections.delete(guildId);
           }
+          
+          // NUCLEAR: Direct shard voice reset
+          try {
+            const guild = this.client.guilds.cache.get(guildId);
+            if (guild && this.client.ws?.shards) {
+              const shard = this.client.ws.shards.get(guild.shardId);
+              if (shard?.connection?.readyState === 1) {
+                shard.send({
+                  op: 4,
+                  d: {
+                    guild_id: guildId,
+                    channel_id: null,
+                    self_mute: false,
+                    self_deaf: false
+                  }
+                });
+                console.log('🔌 Sent pre-attempt voice reset');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+          } catch (e) {}
         }
         
         const player = await this.client.shoukaku.joinVoiceChannel({
