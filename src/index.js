@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // PRIORITY: Start health server immediately
 console.log('🚀 STARTING UTA DJ BOT - World\'s Greatest Diva Edition');
@@ -11,6 +14,10 @@ const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
+
+// Get current directory for loading commands
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Global variables
 global.discordReady = false;
@@ -30,7 +37,7 @@ const server = http.createServer((req, res) => {
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
       defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.4'
+      version: '2.0.5'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -51,6 +58,51 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
+// Command loader function - only loads actual slash commands
+async function loadSlashCommands(client) {
+  console.log('📂 Loading slash commands...');
+  
+  const commandsDir = path.join(__dirname, 'src', 'commands');
+  console.log(`📁 Commands directory: ${commandsDir}`);
+  
+  if (!fs.existsSync(commandsDir)) {
+    console.warn('⚠️ Commands directory does not exist - no slash commands will be loaded');
+    return [];
+  }
+
+  const files = fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js'));
+  console.log(`📄 Found ${files.length} command files:`, files);
+
+  const commands = [];
+  for (const file of files) {
+    try {
+      console.log(`⚡ Loading command file: ${file}`);
+      const filePath = path.join(commandsDir, file);
+      const command = await import(filePath);
+      
+      if (!command?.data || !command?.execute) {
+        console.error(`❌ Invalid command file ${file}: missing data or execute`);
+        continue;
+      }
+      
+      const commandName = command.data.name;
+      console.log(`✅ Loaded slash command: ${commandName}`);
+      
+      client.commands.set(commandName, command);
+      commands.push(command.data.toJSON());
+    } catch (error) {
+      console.error(`❌ Error loading command file ${file}:`, error);
+    }
+  }
+
+  console.log(`📋 Total slash commands loaded: ${commands.length}`);
+  if (commands.length > 0) {
+    console.log(`🎯 Slash command names: ${commands.map(cmd => cmd.name).join(', ')}`);
+  }
+  
+  return commands;
+}
+
 // Start Discord bot
 async function startDiscordBot() {
   try {
@@ -61,15 +113,17 @@ async function startDiscordBot() {
       return;
     }
 
-    // Dynamic imports
+    // Dynamic imports - FIXED PATHS
     const discord = await import('discord.js');
     const shoukaku = await import('shoukaku');
     
-    // Import our custom modules
-    const { SimpleRadioManager } = await import('./src/features/radio/manager.js');
-    const { RadioInteractionHandler } = await import('./src/features/radio/interactions.js');
-    const { RadioUI } = await import('./src/features/radio/ui.js');
-    const { radioCommand, utaCommand } = await import('./src/commands/index.js');
+    // Import our custom modules with correct relative paths
+    const { SimpleRadioManager } = await import('./features/radio/manager.js');
+    const { RadioInteractionHandler } = await import('./features/radio/interactions.js');
+    const { RadioUI } = await import('./features/radio/ui.js');
+    
+    // Import bot commands (not slash commands)
+    const { radioCommand, utaCommand } = await import('./bot/commands.js');
     
     console.log('✅ Libraries and modules loaded');
 
@@ -91,6 +145,20 @@ async function startDiscordBot() {
     });
 
     client.commands = new Collection();
+
+    // Load actual slash commands from /commands directory
+    const slashCommands = await loadSlashCommands(client);
+    
+    // Add bot-specific commands (these are registered but handled internally)
+    client.commands.set('radio', radioCommand);
+    client.commands.set('uta', utaCommand);
+    
+    // Combine all commands for registration
+    const allCommands = [
+      ...slashCommands,
+      radioCommand.data.toJSON(),
+      utaCommand.data.toJSON()
+    ];
 
     // Setup Lavalink
     if (process.env.LAVALINK_URL) {
@@ -189,17 +257,19 @@ async function startDiscordBot() {
       }
     }
 
-    // Register commands
-    client.commands.set('radio', radioCommand);
-    client.commands.set('uta', utaCommand);
-
+    // Register all commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    const commands = [radioCommand.data.toJSON(), utaCommand.data.toJSON()];
     
     try {
+      console.log(`📝 Registering ${allCommands.length} total commands...`);
+      console.log(`🎯 Commands: ${allCommands.map(cmd => cmd.name).join(', ')}`);
+      
       if (process.env.GUILD_ID) {
-        await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
-        console.log('✅ Commands registered');
+        await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: allCommands });
+        console.log('✅ Guild commands registered');
+      } else {
+        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: allCommands });
+        console.log('✅ Global commands registered');
       }
     } catch (error) {
       console.error('❌ Command registration failed:', error.message);
@@ -265,6 +335,7 @@ async function startDiscordBot() {
 
   } catch (error) {
     console.error('💥 Bot startup failed:', error.message);
+    console.error('Full error:', error);
   }
 }
 
