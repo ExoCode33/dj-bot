@@ -1,19 +1,14 @@
-// src/features/voice/autoLeaveHandler.js - Auto-leave when no users remain
+// src/features/voice/autoLeaveHandler.js - FIXED VERSION THAT ACTUALLY LEAVES
 export class AutoLeaveHandler {
   constructor(client, radioManager, currentlyPlaying, updatePersistentMessage) {
     this.client = client;
     this.radioManager = radioManager;
     this.currentlyPlaying = currentlyPlaying;
     this.updatePersistentMessage = updatePersistentMessage;
-    this.leaveTimers = new Map(); // Track delayed leave timers
-    this.leaveDelay = parseInt(process.env.AUTO_LEAVE_DELAY) || 30000; // 30 seconds default
+    this.leaveTimers = new Map();
+    this.leaveDelay = parseInt(process.env.AUTO_LEAVE_DELAY) || 30000;
   }
 
-  /**
-   * Checks if a voice channel has any real users (non-bots)
-   * @param {VoiceChannel} voiceChannel - The voice channel to check
-   * @returns {boolean} - True if there are real users, false if only bots
-   */
   hasRealUsers(voiceChannel) {
     if (!voiceChannel) return false;
     
@@ -23,13 +18,7 @@ export class AutoLeaveHandler {
     return realUsers.size > 0;
   }
 
-  /**
-   * Schedules the bot to leave a voice channel after a delay
-   * @param {string} guildId - Guild ID
-   * @param {VoiceChannel} voiceChannel - Voice channel to leave
-   */
   scheduleLeave(guildId, voiceChannel) {
-    // Clear any existing timer for this guild
     if (this.leaveTimers.has(guildId)) {
       console.log(`⏰ Clearing existing leave timer for guild ${guildId}`);
       clearTimeout(this.leaveTimers.get(guildId));
@@ -39,7 +28,6 @@ export class AutoLeaveHandler {
     
     const timer = setTimeout(async () => {
       try {
-        // Double-check that there are still no real users
         const currentChannel = this.client.channels.cache.get(voiceChannel.id);
         if (!currentChannel || this.hasRealUsers(currentChannel)) {
           console.log(`✅ Users returned to "${voiceChannel.name}", canceling auto-leave`);
@@ -60,10 +48,6 @@ export class AutoLeaveHandler {
     this.leaveTimers.set(guildId, timer);
   }
 
-  /**
-   * Cancels a scheduled leave for a guild
-   * @param {string} guildId - Guild ID
-   */
   cancelScheduledLeave(guildId) {
     if (this.leaveTimers.has(guildId)) {
       console.log(`❌ Canceling scheduled leave for guild ${guildId} - users joined`);
@@ -72,56 +56,120 @@ export class AutoLeaveHandler {
     }
   }
 
-  /**
-   * Leaves the voice channel and cleans up
-   * @param {string} guildId - Guild ID
-   */
+  // FIXED: Actually disconnect from Discord voice channel
   async leaveVoiceChannel(guildId) {
-    const player = this.client.shoukaku.players.get(guildId);
+    console.log(`🚪 Starting complete voice channel exit for guild ${guildId}`);
     
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      console.error(`❌ Guild ${guildId} not found for voice leave`);
+      return;
+    }
+
+    // STEP 1: Stop and destroy Lavalink player
+    const player = this.client.shoukaku.players.get(guildId);
     if (player) {
       try {
         console.log(`🎵 Stopping music for guild ${guildId}`);
         
         if (player.track) {
           await player.stopTrack();
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
+        console.log(`🔌 Destroying Lavalink player for guild ${guildId}`);
         await player.destroy();
         this.client.shoukaku.players.delete(guildId);
         
-        console.log(`✅ Successfully left voice channel for guild ${guildId}`);
+        console.log(`✅ Lavalink player cleaned up for guild ${guildId}`);
         
       } catch (error) {
-        console.error('❌ Error leaving voice channel:', error.message);
+        console.error('❌ Error cleaning up Lavalink player:', error.message);
         // Force cleanup even if there's an error
         this.client.shoukaku.players.delete(guildId);
       }
+    } else {
+      console.log(`ℹ️ No Lavalink player found for guild ${guildId}`);
     }
 
-    // Clean up tracking
-    this.currentlyPlaying.delete(guildId);
-    
-    // Update the persistent radio message
-    if (this.updatePersistentMessage) {
-      await this.updatePersistentMessage();
+    // STEP 2: CRITICAL - Actually disconnect from Discord voice channel
+    try {
+      const botMember = guild.members.me;
+      const currentVoiceChannel = botMember?.voice?.channel;
+      
+      if (currentVoiceChannel) {
+        console.log(`🔌 Disconnecting bot from Discord voice channel: "${currentVoiceChannel.name}"`);
+        
+        // Method 1: Direct disconnect (most reliable)
+        await botMember.voice.disconnect();
+        console.log(`✅ Successfully disconnected from "${currentVoiceChannel.name}"`);
+        
+        // Wait a moment for Discord to process the disconnection
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verify disconnection
+        const stillConnected = guild.members.me?.voice?.channel;
+        if (stillConnected) {
+          console.warn(`⚠️ Bot still appears connected to "${stillConnected.name}", attempting force disconnect`);
+          
+          // Method 2: Force disconnect via setChannel(null)
+          try {
+            await botMember.voice.setChannel(null);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`✅ Force disconnect completed`);
+          } catch (forceError) {
+            console.error('❌ Force disconnect failed:', forceError.message);
+          }
+        } else {
+          console.log(`✅ Verified: Bot successfully left voice channel`);
+        }
+        
+      } else {
+        console.log(`ℹ️ Bot not in any voice channel for guild ${guild.name}`);
+      }
+      
+    } catch (disconnectError) {
+      console.error('❌ Error disconnecting from Discord voice:', disconnectError.message);
+      
+      // FALLBACK: Try alternative disconnect methods
+      try {
+        console.log(`🔄 Attempting fallback disconnect method...`);
+        const botMember = guild.members.me;
+        
+        if (botMember?.voice?.channel) {
+          // Try setChannel(null) as fallback
+          await botMember.voice.setChannel(null);
+          console.log(`✅ Fallback disconnect successful`);
+        }
+      } catch (fallbackError) {
+        console.error('❌ All disconnect methods failed:', fallbackError.message);
+        console.error('⚠️ Bot may appear stuck in voice channel until restart');
+      }
     }
+
+    // STEP 3: Clean up tracking data
+    this.currentlyPlaying.delete(guildId);
+    console.log(`🗑️ Cleaned up tracking data for guild ${guildId}`);
+    
+    // STEP 4: Update persistent radio message
+    if (this.updatePersistentMessage) {
+      try {
+        await this.updatePersistentMessage();
+        console.log(`📻 Updated persistent radio message`);
+      } catch (updateError) {
+        console.warn('⚠️ Failed to update persistent message:', updateError.message);
+      }
+    }
+
+    console.log(`✅ Complete voice channel exit finished for guild ${guildId}`);
   }
 
-  /**
-   * Handles voice state updates for auto-leave logic
-   * @param {VoiceState} oldState - Previous voice state
-   * @param {VoiceState} newState - New voice state
-   */
   async handleVoiceStateUpdate(oldState, newState) {
     try {
-      // Get the bot's member object
-      const botId = this.client.user.id;
       const guild = oldState.guild || newState.guild;
       const botMember = guild.members.me;
       const botVoiceChannel = botMember?.voice?.channel;
 
-      // Only process if the bot is in a voice channel
       if (!botVoiceChannel) {
         return;
       }
@@ -137,7 +185,6 @@ export class AutoLeaveHandler {
         affectedChannels.add(botVoiceChannel);
       }
 
-      // If no relevant channels affected, ignore this update
       if (affectedChannels.size === 0) {
         return;
       }
@@ -146,10 +193,8 @@ export class AutoLeaveHandler {
 
       // Check if the bot's current channel has real users
       if (this.hasRealUsers(botVoiceChannel)) {
-        // Users present - cancel any scheduled leave
         this.cancelScheduledLeave(guild.id);
       } else {
-        // No real users - schedule leave (unless already scheduled)
         if (!this.leaveTimers.has(guild.id)) {
           console.log(`🚪 No real users in "${botVoiceChannel.name}", scheduling auto-leave`);
           this.scheduleLeave(guild.id, botVoiceChannel);
@@ -161,9 +206,6 @@ export class AutoLeaveHandler {
     }
   }
 
-  /**
-   * Performs initial check when bot starts - leaves channels with no users
-   */
   async performStartupCheck() {
     console.log('🔍 Performing startup auto-leave check...');
     
@@ -202,9 +244,6 @@ export class AutoLeaveHandler {
     }
   }
 
-  /**
-   * Gets status information for debugging
-   */
   getStatus() {
     return {
       activeTimers: this.leaveTimers.size,
