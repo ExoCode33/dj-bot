@@ -34,6 +34,15 @@ const server = http.createServer((req, res) => {
   console.log(`📡 Health check: ${req.url}`);
   
   if (req.url === '/health') {
+    const nodes = global.lavalinkReady && client?.shoukaku?.nodes ? 
+      Array.from(client.shoukaku.nodes.entries()).reduce((acc, [name, node]) => {
+        acc[name] = {
+          state: node.state,
+          stateText: ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'RECONNECTING'][node.state] || 'UNKNOWN'
+        };
+        return acc;
+      }, {}) : {};
+    
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'healthy',
@@ -42,8 +51,11 @@ const server = http.createServer((req, res) => {
       service: 'uta-dj-bot',
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
+      nodes: nodes,
       defaultVolume: DEFAULT_VOLUME,
-      version: '2.0.6'
+      autoConnect: !!AUTO_CONNECT_CHANNEL_ID,
+      autoStart: !!AUTO_START_STATION,
+      version: '2.0.7'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
