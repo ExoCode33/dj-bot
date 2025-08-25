@@ -1,4 +1,4 @@
-// src/features/radio/interactions.js - UPDATED FOR PERSISTENT CONNECTION STRATEGY
+// src/features/radio/interactions.js - UPDATED FOR DORMANT CONNECTION STRATEGY
 import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { RADIO_CATEGORIES, RADIO_STATIONS } from '../../config/stations.js';
 import { RadioUI } from './ui.js';
@@ -65,66 +65,117 @@ export class RadioInteractionHandler {
       });
     }
 
-    // Rate limiting check - prevent rapid station switching
-    const lastSwitch = this.lastStationSwitch.get(interaction.guildId);
-    const now = Date.now();
-    if (lastSwitch && (now - lastSwitch) < 3000) { // 3 second cooldown
-      const waitTime = Math.ceil((3000 - (now - lastSwitch)) / 1000);
-      return interaction.reply({
-        content: `*"Please wait ${waitTime} more seconds before switching stations!"* ⏰`,
+    // Check for dormant connection that can be reactivated
+    const connection = this.radioManager.persistentConnections.get(interaction.guildId);
+    const isDormantReactivation = connection?.dormant && connection.currentStation === selectedStation;
+
+    // Rate limiting check - but allow dormant reactivation without cooldown
+    if (!isDormantReactivation) {
+      const lastSwitch = this.lastStationSwitch.get(interaction.guildId);
+      const now = Date.now();
+      if (lastSwitch && (now - lastSwitch) < 3000) { // 3 second cooldown
+        const waitTime = Math.ceil((3000 - (now - lastSwitch)) / 1000);
+        return interaction.reply({
+          content: `*"Please wait ${waitTime} more seconds before switching stations!"* ⏰`,
+          ephemeral: true
+        });
+      }
+    }
+
+    // Update rate limiting (skip if dormant reactivation)
+    if (!isDormantReactivation) {
+      this.lastStationSwitch.set(interaction.guildId, Date.now());
+    }
+
+    // Different reply messages for dormant reactivation vs new station
+    if (isDormantReactivation) {
+      await interaction.reply({
+        content: `🚀 *"Reactivating dormant connection to ${station.name}... This will be instant!"*`,
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: `🎵 *"Switching to ${station.name}..."*`,
         ephemeral: true
       });
     }
 
-    // Update rate limiting
-    this.lastStationSwitch.set(interaction.guildId, now);
-
-    await interaction.reply({
-      content: `🎵 *"Switching to ${station.name}..."*`,
-      ephemeral: true
-    });
-
     try {
-      console.log(`🎵 Auto-playing ${selectedStation} for guild ${interaction.guildId}`);
+      const startTime = Date.now();
+      console.log(`🎵 ${isDormantReactivation ? 'Reactivating dormant' : 'Auto-playing'} ${selectedStation} for guild ${interaction.guildId}`);
       
-      // Use the enhanced radio manager to switch stations
-      const result = await this.radioManager.switchToStation(
-        interaction.guildId, 
-        selectedStation, 
-        voiceChannel.id
-      );
+      let result;
+      
+      if (isDormantReactivation) {
+        // Use dormant reactivation method
+        const reactivated = await this.radioManager.reactivateDormantConnection(
+          interaction.guildId, 
+          voiceChannel.id
+        );
+        
+        if (reactivated) {
+          result = { success: true, dormantReactivation: true };
+        } else {
+          // Fallback to normal switch if reactivation failed
+          console.log('🔄 Dormant reactivation failed, falling back to normal switch');
+          result = await this.radioManager.switchToStation(
+            interaction.guildId, 
+            selectedStation, 
+            voiceChannel.id
+          );
+        }
+      } else {
+        // Use normal station switching method
+        result = await this.radioManager.switchToStation(
+          interaction.guildId, 
+          selectedStation, 
+          voiceChannel.id
+        );
+      }
+
+      const endTime = Date.now();
+      const switchTime = endTime - startTime;
 
       // Update our tracking
       this.currentlyPlaying.set(interaction.guildId, {
         stationKey: selectedStation,
         stationName: station.name,
         voiceChannelId: voiceChannel.id,
-        startedAt: Date.now()
+        startedAt: isDormantReactivation ? connection.created : Date.now() // Preserve original start time for dormant
       });
 
+      // Create success message
+      let successMessage;
+      if (isDormantReactivation) {
+        successMessage = `🚀 *"Dormant connection reactivated instantly!"* (${switchTime}ms)\n🎧 Resumed **${station.name}** in **${voiceChannel.name}**`;
+      } else {
+        successMessage = `🎵 *"Now playing ${station.name}!"* (Volume: ${this.defaultVolume}%)\n🎧 Playing in **${voiceChannel.name}**`;
+      }
+
       await interaction.editReply({
-        content: `🎵 *"Now playing ${station.name}!"* (Volume: ${this.defaultVolume}%)\n🎧 Playing in **${voiceChannel.name}**`
+        content: successMessage
       });
 
       // Update the main message to show current status
       await this.updatePersistentMessage();
 
-      // Auto-delete success message after 3 seconds
+      // Auto-delete success message after different times
+      const deleteAfter = isDormantReactivation ? 2000 : 3000; // Shorter for instant dormant reactivation
       setTimeout(async () => {
         try {
           await interaction.deleteReply();
         } catch (err) {
           // Expected if message was already deleted
         }
-      }, 3000);
+      }, deleteAfter);
 
     } catch (error) {
-      console.error('❌ Auto-play failed:', error);
+      console.error('❌ Station switch/reactivation failed:', error);
       
       // Remove from tracking if failed
       this.currentlyPlaying.delete(interaction.guildId);
       
-      let errorMessage = `*"Sorry, I couldn't play ${station.name}.*`;
+      let errorMessage = `*"Sorry, I couldn't ${isDormantReactivation ? 'reactivate' : 'play'} ${station.name}.*`;
       let deleteAfter = 5000;
       
       // Provide helpful error messages based on error type
@@ -158,13 +209,24 @@ export class RadioInteractionHandler {
   }
 
   async handleStop(interaction) {
-    await interaction.reply({
-      content: '*"Stopping the music... Thank you for listening!"* 🎭',
-      ephemeral: true
-    });
+    // Check if connection is dormant
+    const connection = this.radioManager.persistentConnections.get(interaction.guildId);
+    const isDormant = connection?.dormant;
+    
+    if (isDormant) {
+      await interaction.reply({
+        content: '*"Destroying dormant connection... Your preserved music is being cleared!"* 💀',
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: '*"Stopping the music... Thank you for listening!"* 🎭',
+        ephemeral: true
+      });
+    }
 
     try {
-      // Use radio manager to clean up persistent connection
+      // Complete cleanup for both active and dormant connections
       await this.radioManager.cleanupPersistentConnection(interaction.guildId);
       
       // Also clean up our tracking
@@ -173,7 +235,7 @@ export class RadioInteractionHandler {
       // Update main message
       await this.updatePersistentMessage();
       
-      console.log(`✅ Successfully stopped music for guild ${interaction.guildId}`);
+      console.log(`✅ Successfully ${isDormant ? 'destroyed dormant connection' : 'stopped music'} for guild ${interaction.guildId}`);
       
     } catch (error) {
       console.error('❌ Error stopping music:', error.message);
