@@ -80,17 +80,53 @@ export class SimpleRadioManager {
       // STRATEGY 1: Always try existing player first (most reliable)
       const existingPlayer = this.client.shoukaku.players.get(guildId);
       if (existingPlayer) {
-        console.log('🎵 Using existing player (smart reuse)...');
+        console.log('🎵 Found existing player, checking location...');
         try {
           // Check if player is in the right voice channel
           const botMember = guild.members.me;
           const currentChannelId = botMember?.voice?.channelId;
           
+          console.log(`🎤 Bot in channel: ${currentChannelId}, User wants: ${voiceChannelId}`);
+          
           if (currentChannelId !== voiceChannelId) {
-            console.log(`🔄 Moving from channel ${currentChannelId} to ${voiceChannelId}`);
-            // Move to correct voice channel
-            await botMember.voice.setChannel(voiceChannelId);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log(`🚶 Moving from channel ${currentChannelId} to ${voiceChannelId}`);
+            
+            // Try to move to the new channel
+            try {
+              await botMember.voice.setChannel(voiceChannelId);
+              await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for move
+              
+              // Verify the move was successful
+              const newChannelId = guild.members.me?.voice?.channelId;
+              if (newChannelId !== voiceChannelId) {
+                console.warn('⚠️ Channel move failed, cleaning up and reconnecting...');
+                throw new Error('Channel move failed');
+              }
+              
+              console.log('✅ Successfully moved to new voice channel');
+            } catch (moveError) {
+              console.warn('⚠️ Could not move channels, will reconnect:', moveError.message);
+              
+              // Clean up the old connection and create fresh one
+              try {
+                if (existingPlayer.track) await existingPlayer.stopTrack();
+                await existingPlayer.destroy();
+                this.client.shoukaku.players.delete(guildId);
+              } catch (cleanupError) {
+                console.warn('⚠️ Cleanup error:', cleanupError.message);
+              }
+              
+              // Force create new connection
+              console.log('🆕 Creating fresh connection after failed move...');
+              const newPlayer = await this.createSmartConnection(guildId, voiceChannelId, guild);
+              await newPlayer.setGlobalVolume(this.defaultVolume);
+              const result = await this.connectToStream(newPlayer, stationKey);
+              this.connectionAttempts.delete(guildId);
+              console.log('✅ Successfully created fresh connection after move failure');
+              return result;
+            }
+          } else {
+            console.log('✅ Bot already in correct voice channel');
           }
           
           // Stop current track and play new one
@@ -109,7 +145,7 @@ export class SimpleRadioManager {
           
         } catch (existingError) {
           console.warn('⚠️ Existing player failed:', existingError.message);
-          // Don't destroy - fall through to create new only if really necessary
+          // Continue to create new connection
         }
       }
 
