@@ -13,13 +13,7 @@ const port = process.env.PORT || 3000;
 const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
-// NEW: Auto-connect and auto-play variables - FIXED
-const AUTO_CONNECT_CHANNEL_ID = process.env.AUTO_CONNECT_CHANNEL_ID && process.env.AUTO_CONNECT_CHANNEL_ID !== 'false' ? process.env.AUTO_CONNECT_CHANNEL_ID : null;
-const AUTO_START_STATION = process.env.AUTO_START_STATION && process.env.AUTO_START_STATION !== 'false' ? process.env.AUTO_START_STATION : null;
-
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
-console.log(`📻 Auto-connect channel: ${AUTO_CONNECT_CHANNEL_ID || 'Disabled'}`);
-console.log(`🎵 Auto-start station: ${AUTO_START_STATION || 'Disabled'}`);
 
 // Get current directory for loading commands
 const __filename = fileURLToPath(import.meta.url);
@@ -34,15 +28,6 @@ const server = http.createServer((req, res) => {
   console.log(`📡 Health check: ${req.url}`);
   
   if (req.url === '/health') {
-    const nodes = global.lavalinkReady && client?.shoukaku?.nodes ? 
-      Array.from(client.shoukaku.nodes.entries()).reduce((acc, [name, node]) => {
-        acc[name] = {
-          state: node.state,
-          stateText: ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'RECONNECTING'][node.state] || 'UNKNOWN'
-        };
-        return acc;
-      }, {}) : {};
-    
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'healthy',
@@ -51,11 +36,8 @@ const server = http.createServer((req, res) => {
       service: 'uta-dj-bot',
       discord: global.discordReady || false,
       lavalink: global.lavalinkReady || false,
-      nodes: nodes,
       defaultVolume: DEFAULT_VOLUME,
-      autoConnect: !!AUTO_CONNECT_CHANNEL_ID,
-      autoStart: !!AUTO_START_STATION,
-      version: '2.0.7'
+      version: '2.0.6'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -248,67 +230,7 @@ async function startDiscordBot() {
       updatePersistentMessage
     );
 
-    // Initialize auto-play function - NEW FEATURE
-    async function initializeAutoPlay() {
-      try {
-        console.log('🤖 Initializing auto-connect and auto-play...');
-        
-        // Import stations to find the station key
-        const { RADIO_STATIONS } = await import('./config/stations.js');
-        
-        // Find station by name
-        let stationKey = null;
-        for (const [key, station] of Object.entries(RADIO_STATIONS)) {
-          if (station.name === AUTO_START_STATION) {
-            stationKey = key;
-            break;
-          }
-        }
-        
-        if (!stationKey) {
-          console.error(`❌ Auto-start station not found: "${AUTO_START_STATION}"`);
-          console.log('Available stations:', Object.values(RADIO_STATIONS).map(s => s.name).join(', '));
-          return;
-        }
-        
-        // Get the voice channel
-        const voiceChannel = await client.channels.fetch(AUTO_CONNECT_CHANNEL_ID);
-        if (!voiceChannel || voiceChannel.type !== 2) { // 2 = GUILD_VOICE
-          console.error(`❌ Auto-connect voice channel not found or invalid: ${AUTO_CONNECT_CHANNEL_ID}`);
-          return;
-        }
-        
-        console.log(`🎤 Auto-connecting to voice channel: #${voiceChannel.name}`);
-        console.log(`🎵 Auto-starting station: ${RADIO_STATIONS[stationKey].name}`);
-        
-        // Use radio manager to start playing
-        const result = await radioManager.switchToStation(
-          voiceChannel.guild.id,
-          stationKey,
-          voiceChannel.id
-        );
-        
-        // Track what's playing
-        currentlyPlaying.set(voiceChannel.guild.id, {
-          stationKey: stationKey,
-          stationName: RADIO_STATIONS[stationKey].name,
-          voiceChannelId: voiceChannel.id,
-          startedAt: Date.now()
-        });
-        
-        console.log(`✅ Auto-play started successfully!`);
-        console.log(`🎧 Playing "${RADIO_STATIONS[stationKey].name}" in #${voiceChannel.name}`);
-        
-      } catch (error) {
-        console.error('❌ Auto-play initialization failed:', error.message);
-        console.log('💡 Falling back to regular radio channel setup...');
-        
-        // Fall back to regular radio setup
-        setTimeout(() => {
-          initializePersistentRadio();
-        }, 2000);
-      }
-    }
+    // Initialize persistent radio function - WITH BANNER SUPPORT
     async function initializePersistentRadio() {
       try {
         const channel = await client.channels.fetch(RADIO_CHANNEL_ID);
@@ -333,17 +255,30 @@ async function startDiscordBot() {
         const embed = await RadioUI.createPersistentRadioEmbed(client, currentlyPlaying);
         const components = await RadioUI.createPersistentRadioComponents(channel.guildId, currentlyPlaying);
 
-        // Create banner attachment
-        const bannerPath = path.join(process.cwd(), 'images', 'uta-banner.gif');
+        // Create banner attachment - Try multiple possible locations
+        let bannerPath = path.join(process.cwd(), 'images', 'Uta-banner.gif');
+        if (!fs.existsSync(bannerPath)) {
+          bannerPath = path.join(process.cwd(), 'Uta-banner.gif');
+        }
+        if (!fs.existsSync(bannerPath)) {
+          bannerPath = path.join(__dirname, '..', 'images', 'Uta-banner.gif');
+        }
+        if (!fs.existsSync(bannerPath)) {
+          bannerPath = path.join(__dirname, '..', '..', 'images', 'Uta-banner.gif');
+        }
+        
         let files = [];
         
         if (fs.existsSync(bannerPath)) {
-          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'uta-banner.gif' });
+          const bannerAttachment = new AttachmentBuilder(bannerPath, { name: 'Uta-banner.gif' });
           files.push(bannerAttachment);
-          console.log('✅ Banner attachment created');
+          console.log('✅ Banner attachment created from:', bannerPath);
         } else {
-          console.warn('⚠️ Banner file not found at:', bannerPath);
-          console.warn('⚠️ Expected location: images/uta-banner.gif');
+          console.warn('⚠️ Banner not found. Tried locations:');
+          console.warn('  - ', path.join(process.cwd(), 'images', 'Uta-banner.gif'));
+          console.warn('  - ', path.join(process.cwd(), 'Uta-banner.gif'));
+          console.warn('  - ', path.join(__dirname, '..', 'images', 'Uta-banner.gif'));
+          console.warn('  - ', path.join(__dirname, '..', '..', 'images', 'Uta-banner.gif'));
           console.warn('⚠️ Banner will not be displayed');
         }
 
@@ -384,17 +319,9 @@ async function startDiscordBot() {
       console.log(`🎉 Discord ready: ${client.user.tag}`);
       global.discordReady = true;
       
-      // NEW: Check for auto-connect and auto-play
-      if (AUTO_CONNECT_CHANNEL_ID && AUTO_START_STATION) {
-        console.log('🚀 Auto-connect and auto-play enabled - skipping radio channel setup');
-        setTimeout(() => {
-          initializeAutoPlay();
-        }, 3000);
-      } else {
-        setTimeout(() => {
-          initializePersistentRadio();
-        }, 3000);
-      }
+      setTimeout(() => {
+        initializePersistentRadio();
+      }, 3000);
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
