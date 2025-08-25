@@ -283,113 +283,161 @@ export class SimpleRadioManager {
     }
   }
 
-  // NUCLEAR OPTION: Complete state reset including Shoukaku internals
-  async performNuclearCleanup(guildId) {
-    console.log(`☢️ Performing nuclear cleanup for guild ${guildId}`);
+  // ULTIMATE SOLUTION: Deep Shoukaku state cleanup
+  async performUltimateCleanup(guildId) {
+    console.log(`🚀 Performing ULTIMATE cleanup for guild ${guildId}`);
     
     try {
       const guild = this.client.guilds.cache.get(guildId);
-      if (!guild) return;
+      if (!guild) return false;
 
-      // Step 1: Destroy any Shoukaku players (including hidden ones)
-      console.log('☢️ Step 1: Destroying all Shoukaku players...');
+      // Step 1: Comprehensive Shoukaku cleanup
+      console.log('🚀 Step 1: Deep Shoukaku state cleanup...');
       
-      // Check all players, not just the obvious one
+      // Destroy all players for this guild
       for (const [playerGuildId, player] of this.client.shoukaku.players.entries()) {
         if (playerGuildId === guildId) {
-          console.log(`☢️ Found player for guild ${guildId}, destroying...`);
+          console.log(`🚀 Destroying player for guild ${guildId}...`);
           try {
             if (player.track) await player.stopTrack();
             if (!player.destroyed) await player.destroy();
           } catch (error) {
-            console.warn(`⚠️ Error destroying player: ${error.message}`);
+            console.warn(`⚠️ Player destroy error: ${error.message}`);
           }
         }
       }
       
-      // Force remove from players map
+      // Force clear from players map
       this.client.shoukaku.players.delete(guildId);
-      console.log('✅ Shoukaku players cleared');
 
-      // Step 2: Force Discord voice disconnection with multiple methods
-      console.log('☢️ Step 2: Nuclear Discord voice disconnection...');
-      
-      const botMember = guild.members.me;
-      if (botMember?.voice) {
-        // Method 1: Direct disconnect
-        try {
-          await botMember.voice.disconnect();
-          console.log('✅ Direct disconnect completed');
-        } catch (error) {
-          console.log('ℹ️ Direct disconnect failed (expected)');
-        }
-
-        // Method 2: Set channel to null
-        try {
-          await botMember.voice.setChannel(null);
-          console.log('✅ SetChannel(null) completed');
-        } catch (error) {
-          console.log('ℹ️ SetChannel(null) failed (expected)');
-        }
-
-        // Method 3: Try to rejoin and immediately leave (force state reset)
-        try {
-          const anyVoiceChannel = guild.channels.cache.find(ch => ch.type === 2);
-          if (anyVoiceChannel && botMember.permissions.has('CONNECT')) {
-            console.log('☢️ Attempting state reset via temp connection...');
-            await botMember.voice.setChannel(anyVoiceChannel.id);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await botMember.voice.disconnect();
-            console.log('✅ State reset via temp connection completed');
-          }
-        } catch (error) {
-          console.log('ℹ️ Temp connection state reset failed (acceptable)');
-        }
-      }
-
-      // Step 3: Clear any Shoukaku connection state at the node level
-      console.log('☢️ Step 3: Clearing Shoukaku node connections...');
+      // Step 2: Deep node cleanup
+      console.log('🚀 Step 2: Deep node state cleanup...');
       
       const nodes = this.client.shoukaku.nodes;
       if (nodes && nodes.size > 0) {
         for (const [nodeName, node] of nodes) {
           try {
-            // Try to access internal connection state and clear it
-            if (node.players && node.players.has(guildId)) {
-              console.log(`☢️ Found connection in node ${nodeName}, clearing...`);
+            console.log(`🚀 Cleaning node ${nodeName}...`);
+            
+            // Multiple approaches to clear node state
+            if (node.players) {
               node.players.delete(guildId);
             }
-          } catch (error) {
-            console.log(`ℹ️ Could not clear node ${nodeName} state: ${error.message}`);
+            
+            // Try to access internal connection maps
+            if (node.connection && node.connection.players) {
+              node.connection.players.delete(guildId);
+            }
+            
+            // If node has a send method, try to send a voice state update
+            if (node.send) {
+              try {
+                await node.send({
+                  op: 4, // VOICE_STATE_UPDATE
+                  d: {
+                    guild_id: guildId,
+                    channel_id: null,
+                    self_mute: false,
+                    self_deaf: false
+                  }
+                });
+                console.log(`✅ Sent voice state clear to node ${nodeName}`);
+              } catch (sendError) {
+                console.log(`ℹ️ Could not send voice state clear to ${nodeName}: ${sendError.message}`);
+              }
+            }
+            
+          } catch (nodeError) {
+            console.log(`ℹ️ Node ${nodeName} cleanup partial: ${nodeError.message}`);
           }
         }
       }
 
-      // Step 4: Extended settlement time
-      console.log('☢️ Step 4: Extended state settlement...');
-      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 seconds
-
-      // Step 5: Verification
-      console.log('☢️ Step 5: Nuclear cleanup verification...');
+      // Step 3: Discord voice state nuclear reset
+      console.log('🚀 Step 3: Nuclear Discord voice reset...');
       
+      const botMember = guild.members.me;
+      
+      // Method 1: Multiple disconnect attempts
+      for (let i = 0; i < 3; i++) {
+        try {
+          await botMember.voice.disconnect();
+          console.log(`✅ Disconnect attempt ${i + 1} completed`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.log(`ℹ️ Disconnect attempt ${i + 1} failed (expected)`);
+        }
+      }
+
+      // Method 2: Channel manipulation
+      try {
+        await botMember.voice.setChannel(null);
+        console.log('✅ SetChannel(null) completed');
+      } catch (error) {
+        console.log('ℹ️ SetChannel(null) failed (expected)');
+      }
+
+      // Method 3: Force state update via Discord's WebSocket
+      try {
+        console.log('🚀 Attempting raw voice state update...');
+        
+        // Send raw voice state update through Discord client
+        if (this.client.ws && this.client.ws.shards) {
+          const shard = this.client.ws.shards.get(guild.shardId);
+          if (shard && shard.send) {
+            await shard.send({
+              op: 4, // VOICE_STATE_UPDATE
+              d: {
+                guild_id: guildId,
+                channel_id: null,
+                self_mute: false,
+                self_deaf: false
+              }
+            });
+            console.log('✅ Raw voice state update sent');
+          }
+        }
+      } catch (rawError) {
+        console.log('ℹ️ Raw voice state update failed (acceptable)');
+      }
+
+      // Step 4: Extended settlement with verification loops
+      console.log('🚀 Step 4: Extended settlement with active verification...');
+      
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Check if state is actually clean
+        const stillHasPlayer = this.client.shoukaku.players.has(guildId);
+        const stillInVoice = guild.members.me?.voice?.channel;
+        
+        console.log(`🔍 Verification attempt ${attempt + 1}: Player=${stillHasPlayer}, Voice=${!!stillInVoice}`);
+        
+        if (!stillHasPlayer && !stillInVoice) {
+          console.log('✅ State verified clean!');
+          break;
+        }
+        
+        if (attempt === 4) {
+          console.warn('⚠️ State not fully clean after maximum attempts');
+        }
+      }
+
+      // Step 5: Final verification
       const finalPlayer = this.client.shoukaku.players.get(guildId);
       const finalVoice = guild.members.me?.voice?.channel;
       
-      if (finalPlayer) {
-        console.error('❌ Nuclear cleanup failed: Player still exists');
-        return false;
-      }
-      
-      if (finalVoice) {
-        console.error('❌ Nuclear cleanup failed: Voice connection still exists');
+      if (finalPlayer || finalVoice) {
+        console.error('❌ Ultimate cleanup incomplete');
+        console.error(`Final state: Player=${!!finalPlayer}, Voice=${!!finalVoice}`);
         return false;
       }
 
-      console.log('✅ Nuclear cleanup completed successfully');
+      console.log('✅ ULTIMATE cleanup completed successfully');
       return true;
 
     } catch (error) {
-      console.error('❌ Nuclear cleanup failed:', error.message);
+      console.error('❌ Ultimate cleanup failed:', error.message);
       return false;
     }
   }
@@ -484,11 +532,11 @@ export class SimpleRadioManager {
       const previousAttempts = this.connectionAttempts.get(guildId) || 0;
       
       if (previousAttempts >= 1) {
-        console.log('☢️ Previous connection attempts failed, using nuclear cleanup...');
-        const nuclearSuccess = await this.performNuclearCleanup(guildId);
+        console.log('🚀 Previous connection attempts failed, using ULTIMATE cleanup...');
+        const ultimateSuccess = await this.performUltimateCleanup(guildId);
         
-        if (!nuclearSuccess) {
-          throw new Error('Nuclear cleanup failed. Manual intervention may be required.');
+        if (!ultimateSuccess) {
+          throw new Error('Ultimate cleanup failed. The guild may need manual voice state reset.');
         }
       } else {
         // Normal cleanup for first attempt
@@ -650,13 +698,13 @@ export class SimpleRadioManager {
           if (connectionAttempts < maxAttempts) {
             console.log(`⏳ Waiting before retry attempt...`);
             
-            // On repeated failures, use nuclear cleanup
+            // On repeated failures, use ultimate cleanup
             if (connectionAttempts >= 2) {
-              console.log('☢️ Multiple failures detected, performing nuclear cleanup...');
-              const nuclearSuccess = await this.performNuclearCleanup(guildId);
+              console.log('🚀 Multiple failures detected, performing ULTIMATE cleanup...');
+              const ultimateSuccess = await this.performUltimateCleanup(guildId);
               
-              if (!nuclearSuccess) {
-                throw new Error('Nuclear cleanup failed - may need manual intervention');
+              if (!ultimateSuccess) {
+                throw new Error('Ultimate cleanup failed - may need manual intervention or bot restart');
               }
             } else {
               // Standard cleanup for first retry
