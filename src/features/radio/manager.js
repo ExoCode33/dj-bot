@@ -1,10 +1,26 @@
-// src/features/radio/manager.js - FIXED VERSION THAT HANDLES GHOST CONNECTIONS
+// src/features/radio/manager.js - COMPLETE VERSION WITH GHOST FIXES + VOLUME MANAGEMENT
 import { RADIO_STATIONS } from '../../config/stations.js';
 
 export class SimpleRadioManager {
   constructor(client) {
     this.client = client;
-    this.defaultVolume = parseInt(process.env.DEFAULT_VOLUME) || 35;
+    
+    // ENHANCED: Better volume handling for very low volumes
+    const rawVolume = parseInt(process.env.DEFAULT_VOLUME) || 35;
+    
+    // Volume validation and mapping
+    if (rawVolume < 1) {
+      console.warn(`⚠️ Volume ${rawVolume} is too low, setting to minimum (1)`);
+      this.defaultVolume = 1;
+    } else if (rawVolume > 200) {
+      console.warn(`⚠️ Volume ${rawVolume} is too high, setting to maximum (200)`);
+      this.defaultVolume = 200;
+    } else {
+      this.defaultVolume = rawVolume;
+    }
+    
+    console.log(`🔊 Volume configured: ${this.defaultVolume}% (from DEFAULT_VOLUME=${process.env.DEFAULT_VOLUME})`);
+    
     this.switchingStations = new Set();
     this.connectionAttempts = new Map();
     this.nodeHealthCheck = new Map();
@@ -39,6 +55,67 @@ export class SimpleRadioManager {
     }
     
     throw new Error(`All stream URLs failed for ${station.name}`);
+  }
+
+  // ENHANCED: Better volume setting with validation and logging
+  async setPlayerVolume(player, volume = null) {
+    const targetVolume = volume || this.defaultVolume;
+    
+    try {
+      console.log(`🔊 Setting volume to ${targetVolume}%`);
+      
+      // Extra validation
+      if (targetVolume < 1 || targetVolume > 200) {
+        console.error(`❌ Invalid volume: ${targetVolume}%. Using safe default of 35%`);
+        await player.setGlobalVolume(35);
+        return 35;
+      }
+      
+      await player.setGlobalVolume(targetVolume);
+      
+      // Verify the volume was set (some players have issues with very low volumes)
+      if (targetVolume <= 5) {
+        console.log(`🔇 Very low volume detected (${targetVolume}%) - this should be very quiet`);
+        
+        // For extremely low volumes, you might want to add additional handling
+        if (targetVolume <= 2) {
+          console.log(`🔕 Ultra-low volume (${targetVolume}%) - if still too loud, consider muting entirely`);
+        }
+      }
+      
+      console.log(`✅ Volume set successfully: ${targetVolume}%`);
+      return targetVolume;
+      
+    } catch (error) {
+      console.error(`❌ Failed to set volume to ${targetVolume}%:`, error.message);
+      
+      // Fallback to a safe volume
+      try {
+        await player.setGlobalVolume(10);
+        console.log(`✅ Fallback: Set volume to 10%`);
+        return 10;
+      } catch (fallbackError) {
+        console.error(`❌ Even fallback volume failed:`, fallbackError.message);
+        return targetVolume; // Return what we attempted
+      }
+    }
+  }
+
+  // ENHANCED: Volume testing method - useful for debugging
+  async testVolume(guildId, testVolume = 1) {
+    const player = this.client.shoukaku.players.get(guildId);
+    if (!player) {
+      throw new Error('No active player found for volume test');
+    }
+    
+    console.log(`🧪 Testing volume: ${testVolume}%`);
+    const actualVolume = await this.setPlayerVolume(player, testVolume);
+    
+    return {
+      requested: testVolume,
+      actual: actualVolume,
+      timestamp: Date.now()
+    };
   }
 
   async getBestAvailableNode(maxWaitTime = 20000) {
@@ -186,8 +263,12 @@ export class SimpleRadioManager {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
           
-          await existingPlayer.setGlobalVolume(this.defaultVolume);
+          // ENHANCED: Use the new volume setter
+          const actualVolume = await this.setPlayerVolume(existingPlayer);
           const result = await this.connectToStream(existingPlayer, stationKey);
+          
+          // Include actual volume in result
+          result.volume = actualVolume;
           
           this.connectionAttempts.delete(guildId);
           console.log('✅ Successfully reused existing player');
@@ -205,8 +286,12 @@ export class SimpleRadioManager {
       
       const newPlayer = await this.createSmartConnectionWithGhostProtection(guildId, voiceChannelId, guild, availableNode);
       
-      await newPlayer.setGlobalVolume(this.defaultVolume);
+      // ENHANCED: Use the new volume setter
+      const actualVolume = await this.setPlayerVolume(newPlayer);
       const result = await this.connectToStream(newPlayer, stationKey);
+      
+      // Include actual volume in result
+      result.volume = actualVolume;
       
       this.connectionAttempts.delete(guildId);
       this.nodeHealthCheck.set(availableNode.name, Date.now());
@@ -444,7 +529,9 @@ export class SimpleRadioManager {
       ghostCooldown: ghostCooldown ? Math.max(0, 60000 - (Date.now() - ghostCooldown)) : 0,
       nodes: nodeStates,
       connectedNodes: nodeStates.filter(n => n.healthy).length,
-      totalNodes: nodeStates.length
+      totalNodes: nodeStates.length,
+      defaultVolume: this.defaultVolume,
+      volumeRange: '1-200%'
     };
   }
 }
