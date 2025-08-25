@@ -73,7 +73,7 @@ export class SimpleRadioManager {
     console.log(`🎵 Creating persistent connection via node: ${node.name}`);
     
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3; // Reduced attempts since we're being smarter
     
     while (attempts < maxAttempts) {
       attempts++;
@@ -86,12 +86,21 @@ export class SimpleRadioManager {
         // Wait for Discord state to settle
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Create the connection using a more direct approach
-        const player = await this.directCreateConnection(guildId, voiceChannelId, guild);
+        // Create the connection using Shoukaku's standard method
+        const player = await this.client.shoukaku.joinVoiceChannel({
+          guildId: guildId,
+          channelId: voiceChannelId,
+          shardId: guild.shardId,
+          deaf: true,
+          mute: false
+        });
         
         if (!player) {
           throw new Error('Player creation returned null');
         }
+        
+        // Enhanced verification
+        await this.verifyPlayerConnection(player, guild, voiceChannelId);
         
         // Store as persistent connection
         this.persistentConnections.set(guildId, {
@@ -112,12 +121,12 @@ export class SimpleRadioManager {
         console.warn(`❌ Persistent connection attempt ${attempts} failed: ${error.message}`);
         
         if (attempts < maxAttempts) {
-          const waitTime = Math.min(5000 * attempts, 30000);
+          const waitTime = 5000 * attempts;
           console.log(`⏳ Waiting ${waitTime}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         } else {
           // Set cooldown to prevent rapid retry loops
-          this.reconnectCooldowns.set(guildId, Date.now() + 120000); // 2 minutes
+          this.reconnectCooldowns.set(guildId, Date.now() + 60000); // 1 minute
           throw new Error(`Failed to create persistent connection after ${maxAttempts} attempts: ${error.message}`);
         }
       }
@@ -125,7 +134,7 @@ export class SimpleRadioManager {
   }
 
   /**
-   * NUCLEAR APPROACH: Force cleanup everything related to a guild
+   * COMPLETE cleanup - removes all traces of guild connections
    */
   async forceCleanupGuild(guildId) {
     console.log(`🧹 FORCE cleaning up ALL connections for guild ${guildId}`);
@@ -168,28 +177,9 @@ export class SimpleRadioManager {
           console.log('🔌 Force disconnecting from Discord voice');
           try {
             await botMember.voice.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 1000));
           } catch (e) {
             console.log('ℹ️ Discord disconnect warning (expected):', e.message);
-          }
-        }
-      }
-      
-      // 4. Clean up all node player references
-      const nodes = this.client.shoukaku.nodes;
-      if (nodes) {
-        for (const [nodeName, node] of nodes) {
-          try {
-            // Try to access and clean node's internal player maps
-            if (node.players) {
-              node.players.delete(guildId);
-            }
-            
-            // Try to clean connection state if accessible
-            if (node.connection?.players) {
-              node.connection.players.delete(guildId);
-            }
-          } catch (e) {
-            // Expected - internal structures may not be accessible
           }
         }
       }
@@ -201,38 +191,18 @@ export class SimpleRadioManager {
     }
     
     // Always wait for state to settle
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   /**
-   * DIRECT connection creation bypassing Shoukaku's internal checks
+   * Verify player connection is actually working
    */
-  async directCreateConnection(guildId, voiceChannelId, guild) {
-    console.log('🎯 Direct connection creation');
+  async verifyPlayerConnection(player, guild, voiceChannelId) {
+    console.log('⏳ Verifying player connection...');
     
-    // Use the most basic Shoukaku connection method
-    const connectionOptions = {
-      guildId: guildId,
-      channelId: voiceChannelId,
-      shardId: guild.shardId,
-      deaf: true,
-      mute: false
-    };
-    
-    console.log('🔗 Attempting direct Shoukaku connection...');
-    
-    // Direct call to Shoukaku's connection method
-    const player = await this.client.shoukaku.joinVoiceChannel(connectionOptions);
-    
-    if (!player) {
-      throw new Error('Shoukaku joinVoiceChannel returned null');
-    }
-    
-    // Enhanced verification with longer timeout
-    console.log('⏳ Verifying direct connection...');
     let verified = false;
     
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       if (player.destroyed) {
@@ -245,19 +215,17 @@ export class SimpleRadioManager {
         
         if (inCorrectChannel) {
           verified = true;
-          console.log(`✅ Direct connection verified after ${i + 1} checks`);
+          console.log(`✅ Connection verified after ${i + 1} checks`);
           break;
         }
       }
       
-      console.log(`⏳ Verification check ${i + 1}/15...`);
+      console.log(`⏳ Verification check ${i + 1}/10...`);
     }
     
     if (!verified) {
-      console.warn('⚠️ Connection verification incomplete but proceeding');
+      throw new Error('Connection verification failed - bot may not be properly connected');
     }
-    
-    return player;
   }
 
   /**
@@ -337,16 +305,17 @@ export class SimpleRadioManager {
       return;
     }
     
-    // Find what station was playing
-    const currentTrack = player.track;
-    if (!currentTrack) {
-      console.log('ℹ️ No current track info, cannot restart');
+    // Find what station was playing by checking our tracking
+    // This is better than trying to parse the track info
+    const stationKey = persistent.currentStation;
+    if (!stationKey) {
+      console.log('ℹ️ No station info available, cannot restart');
       return;
     }
     
     // Try to restart the same station
     try {
-      console.log('🎵 Attempting to restart radio stream...');
+      console.log(`🎵 Attempting to restart station: ${RADIO_STATIONS[stationKey].name}`);
       
       // Stop current track cleanly
       try {
@@ -358,26 +327,9 @@ export class SimpleRadioManager {
       // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Find the station by URL (approximate match)
-      let stationToRestart = null;
-      const trackUri = currentTrack.uri || currentTrack.info?.uri;
-      
-      if (trackUri) {
-        for (const [key, station] of Object.entries(RADIO_STATIONS)) {
-          if (trackUri.includes(station.url) || station.url.includes(trackUri)) {
-            stationToRestart = key;
-            break;
-          }
-        }
-      }
-      
-      if (stationToRestart) {
-        console.log(`🎵 Restarting station: ${RADIO_STATIONS[stationToRestart].name}`);
-        await this.playStationOnPlayer(player, stationToRestart);
-        console.log('✅ Stream restart successful');
-      } else {
-        console.warn('⚠️ Could not identify station to restart');
-      }
+      // Restart the station
+      await this.playStationOnPlayer(player, stationKey);
+      console.log('✅ Stream restart successful');
       
     } catch (restartError) {
       console.error('❌ Stream restart failed:', restartError.message);
@@ -418,6 +370,13 @@ export class SimpleRadioManager {
       
       // Play the station
       const result = await this.playStationOnPlayer(player, stationKey);
+      
+      // Update persistent connection with current station
+      const connection = this.persistentConnections.get(guildId);
+      if (connection) {
+        connection.currentStation = stationKey;
+        connection.lastUsed = Date.now();
+      }
       
       // Setup health monitoring for this stream
       this.setupStreamHealthMonitoring(guildId, stationKey);
@@ -511,18 +470,16 @@ export class SimpleRadioManager {
     }
     
     // Check if player is actually playing
-    if (!player.track) {
-      console.warn(`⚠️ Player not playing for guild ${guildId}`);
+    if (!player.track && connection.currentStation) {
+      console.warn(`⚠️ Player not playing expected station for guild ${guildId}`);
       
-      // If connection hasn't been used recently, clean it up
-      const lastUsed = connection.lastUsed || connection.created;
-      const idleTime = Date.now() - lastUsed;
-      
-      if (idleTime > 300000) { // 5 minutes idle
-        console.log(`🧹 Cleaning up idle connection for guild ${guildId}`);
-        await this.cleanupPersistentConnection(guildId);
+      // Try to restart the station
+      try {
+        await this.playStationOnPlayer(player, connection.currentStation);
+        console.log(`✅ Restarted station for guild ${guildId}`);
+      } catch (error) {
+        console.error(`❌ Failed to restart station for guild ${guildId}: ${error.message}`);
       }
-      return;
     }
     
     // Check node health
@@ -530,16 +487,6 @@ export class SimpleRadioManager {
       console.warn(`⚠️ Player node unhealthy for guild ${guildId}`);
       // The node reconnection will be handled by Shoukaku
       return;
-    }
-    
-    // Check voice connection
-    const guild = this.client.guilds.cache.get(guildId);
-    if (guild) {
-      const botMember = guild.members.me;
-      if (!botMember?.voice?.channel) {
-        console.warn(`⚠️ Bot not in voice channel for guild ${guildId}`);
-        // This might be normal if users left and auto-leave triggered
-      }
     }
     
     console.log(`✅ Health check passed for guild ${guildId}`);
@@ -697,6 +644,7 @@ export class SimpleRadioManager {
       hasPersistentConnection: !!connection,
       playerDestroyed: player?.destroyed,
       playerPlaying: !!player?.track,
+      currentStation: connection?.currentStation,
       inVoiceChannel: !!botMember?.voice.channel,
       voiceChannelId: botMember?.voice.channel?.id,
       voiceChannelName: botMember?.voice.channel?.name,
