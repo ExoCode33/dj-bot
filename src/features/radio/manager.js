@@ -47,6 +47,20 @@ export class SimpleRadioManager {
       throw new Error('Already switching stations, please wait...');
     }
     
+    // Check Lavalink connection first
+    const nodes = this.client.shoukaku?.nodes;
+    if (!nodes || nodes.size === 0) {
+      throw new Error('No Lavalink nodes available. Please check Lavalink server connection.');
+    }
+    
+    const availableNodes = Array.from(nodes.values()).filter(node => node.state === 2); // 2 = CONNECTED
+    if (availableNodes.length === 0) {
+      const nodeStates = Array.from(nodes.entries()).map(([name, node]) => `${name}: ${this.getNodeStateText(node.state)}`).join(', ');
+      throw new Error(`No connected Lavalink nodes. Node states: ${nodeStates}`);
+    }
+    
+    console.log(`✅ Found ${availableNodes.length} connected Lavalink nodes`);
+    
     this.switchingStations.add(guildId);
     
     try {
@@ -137,6 +151,20 @@ export class SimpleRadioManager {
   async createSmartConnection(guildId, voiceChannelId, guild) {
     console.log('🧠 Creating smart connection...');
     
+    // Double-check Lavalink nodes are available
+    const nodes = this.client.shoukaku?.nodes;
+    if (!nodes || nodes.size === 0) {
+      throw new Error('No Lavalink nodes configured');
+    }
+    
+    const availableNodes = Array.from(nodes.values()).filter(node => node.state === 2);
+    if (availableNodes.length === 0) {
+      const nodeStates = Array.from(nodes.entries()).map(([name, node]) => `${name}: ${this.getNodeStateText(node.state)}`).join(', ');
+      throw new Error(`No connected nodes available. States: ${nodeStates}. Please wait for Lavalink to connect.`);
+    }
+    
+    console.log(`🎵 Using node: ${availableNodes[0].name} (${this.getNodeStateText(availableNodes[0].state)})`);
+    
     // Wait a bit before creating new connection (let Discord settle)
     await new Promise(resolve => setTimeout(resolve, 3000));
     
@@ -168,6 +196,17 @@ export class SimpleRadioManager {
       
       throw new Error(`Smart connection failed: ${error.message}`);
     }
+  }
+
+  // Helper to get readable node state
+  getNodeStateText(state) {
+    const states = {
+      0: 'DISCONNECTED',
+      1: 'CONNECTING', 
+      2: 'CONNECTED',
+      3: 'RECONNECTING'
+    };
+    return states[state] || `UNKNOWN(${state})`;
   }
 
   // MINIMAL: Simple cleanup that doesn't cause ghost connections
