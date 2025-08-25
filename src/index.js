@@ -13,9 +13,9 @@ const port = process.env.PORT || 3000;
 const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
-// NEW: Auto-connect and auto-play variables
-const AUTO_CONNECT_CHANNEL_ID = process.env.AUTO_CONNECT_CHANNEL_ID || false;
-const AUTO_START_STATION = process.env.AUTO_START_STATION || false;
+// NEW: Auto-connect and auto-play variables - FIXED
+const AUTO_CONNECT_CHANNEL_ID = process.env.AUTO_CONNECT_CHANNEL_ID && process.env.AUTO_CONNECT_CHANNEL_ID !== 'false' ? process.env.AUTO_CONNECT_CHANNEL_ID : null;
+const AUTO_START_STATION = process.env.AUTO_START_STATION && process.env.AUTO_START_STATION !== 'false' ? process.env.AUTO_START_STATION : null;
 
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
 console.log(`📻 Auto-connect channel: ${AUTO_CONNECT_CHANNEL_ID || 'Disabled'}`);
