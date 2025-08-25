@@ -1,4 +1,4 @@
-// src/features/radio/interactions.js - IMPROVED VERSION
+// src/features/radio/interactions.js - UPDATED WITH LAVALINK RETRY
 import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { RADIO_CATEGORIES, RADIO_STATIONS } from '../../config/stations.js';
 import { RadioUI } from './ui.js';
@@ -57,9 +57,22 @@ export class RadioInteractionHandler {
       });
     }
 
+    // Check Lavalink status before proceeding
     if (!this.client.shoukaku || !global.lavalinkReady) {
       return interaction.reply({
-        content: '*"My audio system isn\'t ready yet... please try again in a moment!"* ✨',
+        content: '*"My audio system is starting up... please try again in a moment!"* ✨',
+        ephemeral: true
+      });
+    }
+
+    // Check if nodes are reconnecting
+    const nodes = this.client.shoukaku.nodes;
+    const availableNodes = nodes ? Array.from(nodes.values()).filter(node => node.state === 2) : [];
+    const reconnectingNodes = nodes ? Array.from(nodes.values()).filter(node => node.state === 3) : [];
+    
+    if (availableNodes.length === 0 && reconnectingNodes.length > 0) {
+      return interaction.reply({
+        content: '*"My audio system is reconnecting... please wait a few seconds and try again!"* 🔄',
         ephemeral: true
       });
     }
@@ -134,7 +147,10 @@ export class RadioInteractionHandler {
       let deleteAfter = 5000;
       
       // Provide helpful error messages based on error type
-      if (error.message.includes('Too many connection attempts')) {
+      if (error.message.includes('Lavalink server is currently reconnecting')) {
+        errorMessage += ` My audio system is reconnecting. Please try again in 10 seconds!"* 🔄`;
+        deleteAfter = 8000;
+      } else if (error.message.includes('Too many connection attempts')) {
         errorMessage += ` I need a short break to reset my connections. Please wait 30 seconds!"* ⏰`;
         deleteAfter = 8000;
       } else if (error.message.includes('wait 10 seconds') || error.message.includes('few minutes')) {
