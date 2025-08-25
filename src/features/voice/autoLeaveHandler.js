@@ -1,4 +1,6 @@
-// src/features/voice/autoLeaveHandler.js - ENHANCED FOR PERSISTENT CONNECTIONS
+// src/features/voice/autoLeaveHandler.js - ENHANCED FOR DORMANT LAVALINK CONNECTIONS
+import { RADIO_STATIONS } from '../../config/stations.js';
+
 export class AutoLeaveHandler {
   constructor(client, radioManager, currentlyPlaying, updatePersistentMessage) {
     this.client = client;
@@ -27,7 +29,7 @@ export class AutoLeaveHandler {
 
   /**
    * Schedules the bot to leave a voice channel after a delay
-   * BUT KEEPS THE PERSISTENT CONNECTION ALIVE
+   * KEEPS LAVALINK CONNECTION ALIVE IN DORMANT STATE
    */
   scheduleLeave(guildId, voiceChannel) {
     // Clear any existing timer for this guild
@@ -48,7 +50,7 @@ export class AutoLeaveHandler {
           return;
         }
 
-        console.log(`👋 Leaving voice channel "${voiceChannel.name}" - no real users remaining`);
+        console.log(`👋 Leaving voice channel "${voiceChannel.name}" but keeping Lavalink alive`);
         await this.leaveVoiceChannelOnly(guildId);
         
       } catch (error) {
@@ -62,77 +64,219 @@ export class AutoLeaveHandler {
   }
 
   /**
-   * NEW STRATEGY: Only leave voice channel, keep persistent connection alive
-   * This solves the "This guild already have an existing connection" error
+   * NEW STRATEGY: Only leave Discord voice channel, keep Lavalink connection in dormant state
    */
   async leaveVoiceChannelOnly(guildId) {
-    console.log(`🚪 Leaving voice channel but maintaining persistent connection for guild ${guildId}`);
+    console.log(`🚪 Smart bot: Disconnecting from Discord voice but keeping Lavalink alive for guild ${guildId}`);
     
     const guild = this.client.guilds.cache.get(guildId);
-    if (!guild) {
-      console.error(`❌ Guild ${guildId} not found for voice leave`);
-      return;
-    }
+    if (!guild) return;
 
     try {
-      // STEP 1: Only disconnect from Discord voice - DON'T destroy the player
-      const botMember = guild.members.me;
-      const currentVoiceChannel = botMember?.voice?.channel;
+      // STEP 1: Get the current Lavalink player (keep it alive)
+      const player = this.client.shoukaku.players.get(guildId);
+      const persistent = this.radioManager.persistentConnections.get(guildId);
       
-      if (currentVoiceChannel) {
-        console.log(`🔌 Disconnecting from Discord voice channel: "${currentVoiceChannel.name}"`);
+      if (player && persistent) {
+        console.log(`🔄 Preserving Lavalink player for guild ${guildId}`);
+        
+        // Mark the connection as "dormant" (not in Discord voice but Lavalink alive)
+        persistent.dormant = true;
+        persistent.lastVoiceDisconnect = Date.now();
+        
+        // Keep track of what's playing
+        if (player.track) {
+          persistent.trackInfo = {
+            position: player.position || 0,
+            isPaused: player.paused || false
+          };
+          console.log(`💾 Saved track state: position=${persistent.trackInfo.position}ms`);
+        }
+        
+        console.log(`💤 Connection marked as dormant - Lavalink stays alive`);
+      }
+      
+      // STEP 2: ONLY disconnect from Discord voice (don't destroy Lavalink player)
+      const botMember = guild.members.me;
+      if (botMember?.voice?.channel) {
+        const channelName = botMember.voice.channel.name;
+        console.log(`🔌 Disconnecting from Discord voice channel: "${channelName}"`);
         
         try {
+          // Method 1: Standard disconnect
           await botMember.voice.disconnect();
-          console.log(`✅ Successfully left "${currentVoiceChannel.name}"`);
-          
-          // Wait for Discord to process the disconnection
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Verify disconnection
-          const stillConnected = guild.members.me?.voice?.channel;
-          if (stillConnected) {
-            console.warn(`⚠️ Bot still appears connected, attempting force disconnect`);
+          if (guild.members.me?.voice?.channel) {
+            console.log('🔄 Using alternative disconnect method...');
             await botMember.voice.setChannel(null);
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
+          
+          console.log(`✅ Successfully disconnected from "${channelName}"`);
           
         } catch (disconnectError) {
-          console.error('❌ Error disconnecting from Discord voice:', disconnectError.message);
+          console.error('❌ Discord voice disconnect error:', disconnectError.message);
           
-          // Try alternative method
+          // Fallback: Raw WebSocket disconnect
           try {
-            await botMember.voice.setChannel(null);
-          } catch (altError) {
-            console.error('❌ Alternative disconnect also failed:', altError.message);
+            const shard = guild.shard;
+            if (shard?.send) {
+              await shard.send({
+                op: 4, // VOICE_STATE_UPDATE
+                d: {
+                  guild_id: guildId,
+                  channel_id: null,
+                  self_mute: false,
+                  self_deaf: false
+                }
+              });
+              console.log('✅ Raw WebSocket disconnect sent');
+            }
+          } catch (rawError) {
+            console.error('❌ Raw disconnect failed:', rawError.message);
           }
         }
-      } else {
-        console.log(`ℹ️ Bot not in any voice channel for guild ${guild.name}`);
       }
       
-      // STEP 2: Keep the persistent connection alive but mark it as "dormant"
-      const status = await this.radioManager.getConnectionStatus(guildId);
-      if (status.hasPersistentConnection) {
-        console.log(`✅ Keeping persistent connection alive for guild ${guildId}`);
-        console.log(`🎵 Music will resume automatically when users rejoin`);
-        
-        // The persistent connection stays alive, ready for instant reconnection
-      }
+      // STEP 3: Update UI but DON'T clear currentlyPlaying (connection still alive)
+      console.log(`💤 Guild ${guildId} is now dormant (Lavalink alive, Discord voice disconnected)`);
       
-      // STEP 3: Update UI but don't clear tracking (connection is still alive)
+      // Update persistent message to show "dormant" status
       if (this.updatePersistentMessage) {
-        try {
-          await this.updatePersistentMessage();
-          console.log(`📻 Updated persistent radio message`);
-        } catch (updateError) {
-          console.warn('⚠️ Failed to update persistent message:', updateError.message);
-        }
+        await this.updatePersistentMessage();
       }
-
-      console.log(`✅ Voice leave completed for guild ${guildId} - persistent connection maintained`);
+      
+      console.log(`✅ Smart bot voice disconnect completed - Lavalink connection preserved`);
       
     } catch (error) {
-      console.error(`❌ Voice leave error for guild ${guildId}:`, error.message);
+      console.error(`❌ Smart bot voice disconnect error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Enhanced rejoin method that reuses existing Lavalink connection
+   */
+  async rejoinWithPersistentConnection(guildId, voiceChannelId) {
+    try {
+      console.log(`🔄 Smart bot: Rejoining Discord voice with existing Lavalink connection for guild ${guildId}`);
+      
+      const guild = this.client.guilds.cache.get(guildId);
+      if (!guild) return;
+      
+      const voiceChannel = guild.channels.cache.get(voiceChannelId);
+      if (!voiceChannel) return;
+      
+      // Check if we have a dormant Lavalink connection
+      const persistent = this.radioManager.persistentConnections.get(guildId);
+      const player = this.client.shoukaku.players.get(guildId);
+      
+      if (!persistent || !player || !persistent.dormant) {
+        console.log('ℹ️ No dormant Lavalink connection found, creating fresh connection');
+        return await this.createFreshConnection(guildId, voiceChannelId);
+      }
+      
+      console.log(`🔄 Reusing dormant Lavalink player for "${voiceChannel.name}"`);
+      
+      // STEP 1: Reconnect to Discord voice ONLY
+      try {
+        const botMember = guild.members.me;
+        await botMember.voice.setChannel(voiceChannelId);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Verify connection
+        const connectedChannelId = guild.members.me?.voice?.channelId;
+        if (connectedChannelId !== voiceChannelId) {
+          throw new Error(`Voice connection verification failed: expected ${voiceChannelId}, got ${connectedChannelId}`);
+        }
+        
+        console.log(`✅ Successfully reconnected to "${voiceChannel.name}"`);
+        
+      } catch (voiceError) {
+        console.error('❌ Discord voice reconnection failed:', voiceError.message);
+        // Fall back to fresh connection
+        return await this.createFreshConnection(guildId, voiceChannelId);
+      }
+      
+      // STEP 2: Reactivate the dormant Lavalink player
+      try {
+        // Mark as no longer dormant
+        persistent.dormant = false;
+        persistent.voiceChannelId = voiceChannelId;
+        persistent.lastUsed = Date.now();
+        
+        // Resume playback if it was paused
+        if (persistent.trackInfo?.isPaused === false && player.track) {
+          console.log('🎵 Resuming playback from dormant state');
+          // Player should continue playing automatically
+        } else if (!player.track && persistent.currentStation) {
+          console.log('🎵 Restarting station from dormant state');
+          await this.radioManager.playStationOnPlayer(player, persistent.currentStation);
+        }
+        
+        // Update tracking
+        this.currentlyPlaying.set(guildId, {
+          stationKey: persistent.currentStation,
+          stationName: RADIO_STATIONS[persistent.currentStation]?.name || 'Unknown',
+          voiceChannelId: voiceChannelId,
+          startedAt: persistent.lastVoiceDisconnect || Date.now() // Keep original start time
+        });
+        
+        console.log(`✅ Lavalink player reactivated successfully`);
+        console.log(`🎵 Continuing: ${persistent.currentStation}`);
+        
+      } catch (reactivationError) {
+        console.error('❌ Lavalink reactivation failed:', reactivationError.message);
+        // Fall back to fresh connection
+        return await this.createFreshConnection(guildId, voiceChannelId);
+      }
+      
+      // STEP 3: Update UI
+      if (this.updatePersistentMessage) {
+        await this.updatePersistentMessage();
+      }
+      
+      console.log(`✅ Smart bot successfully rejoined with preserved Lavalink connection`);
+      
+    } catch (error) {
+      console.error('❌ Smart bot rejoin failed:', error.message);
+      // Ultimate fallback
+      await this.createFreshConnection(guildId, voiceChannelId);
+    }
+  }
+
+  /**
+   * Fallback method for fresh connections
+   */
+  async createFreshConnection(guildId, voiceChannelId) {
+    console.log(`🆕 Creating fresh connection for guild ${guildId}`);
+    
+    try {
+      // Get what station should be playing
+      const persistent = this.radioManager.persistentConnections.get(guildId);
+      const stationKey = persistent?.currentStation;
+      
+      if (!stationKey) {
+        console.log('ℹ️ No station info available for fresh connection');
+        return;
+      }
+      
+      // Create completely new connection
+      const result = await this.radioManager.switchToStation(guildId, stationKey, voiceChannelId);
+      
+      // Update tracking
+      this.currentlyPlaying.set(guildId, {
+        stationKey: stationKey,
+        stationName: RADIO_STATIONS[stationKey]?.name || 'Unknown',
+        voiceChannelId: voiceChannelId,
+        startedAt: Date.now()
+      });
+      
+      console.log(`✅ Fresh connection created and playing ${stationKey}`);
+      
+    } catch (error) {
+      console.error('❌ Fresh connection creation failed:', error.message);
     }
   }
 
@@ -171,7 +315,7 @@ export class AutoLeaveHandler {
   }
 
   /**
-   * Enhanced voice state update handler
+   * Enhanced voice state update handler with dormant connection support
    */
   async handleVoiceStateUpdate(oldState, newState) {
     try {
@@ -183,7 +327,7 @@ export class AutoLeaveHandler {
       const guild = oldState.guild || newState.guild;
       const botMember = guild.members.me;
       
-      // Check if bot has a persistent connection (even if not in voice)
+      // Check if bot has a persistent connection (active or dormant)
       const status = await this.radioManager.getConnectionStatus(guild.id);
       const hasActiveConnection = status.hasPersistentConnection && status.currentStation;
       
@@ -192,7 +336,7 @@ export class AutoLeaveHandler {
         return;
       }
 
-      console.log(`🔄 Voice update for guild with active connection: ${guild.name}`);
+      console.log(`🔄 Voice update for guild with connection (dormant: ${status.isDormant || false}): ${guild.name}`);
 
       // Find which voice channel we should be monitoring
       let targetVoiceChannel = null;
@@ -201,14 +345,13 @@ export class AutoLeaveHandler {
       if (botMember?.voice?.channel) {
         targetVoiceChannel = botMember.voice.channel;
       } else {
-        // Bot not in voice but has persistent connection
+        // Bot not in voice but has persistent connection (probably dormant)
         // Check if users are joining a channel where we should be
         if (newState.channelId && !oldState.channelId) {
-          // User joined a channel - if we have a connection for this guild,
-          // we might want to rejoin
+          // User joined a channel - if we have a dormant connection, try to rejoin
           const channelTheyJoined = newState.channel;
           if (channelTheyJoined && this.hasRealUsers(channelTheyJoined)) {
-            console.log(`👥 User joined "${channelTheyJoined.name}" - attempting to rejoin with persistent connection`);
+            console.log(`👥 User joined "${channelTheyJoined.name}" - attempting to rejoin with dormant connection`);
             await this.rejoinWithPersistentConnection(guild.id, channelTheyJoined.id);
             return;
           }
@@ -247,62 +390,15 @@ export class AutoLeaveHandler {
         // Users present - cancel any scheduled leave
         this.cancelScheduledLeave(guild.id);
       } else {
-        // No real users - schedule voice leave (but keep connection)
+        // No real users - schedule voice leave (but keep Lavalink connection dormant)
         if (!this.leaveTimers.has(guild.id)) {
-          console.log(`🚪 No real users in "${updatedChannel.name}", scheduling voice leave`);
+          console.log(`🚪 No real users in "${updatedChannel.name}", scheduling voice leave (Lavalink stays alive)`);
           this.scheduleLeave(guild.id, updatedChannel);
         }
       }
 
     } catch (error) {
       console.error('❌ Enhanced auto-leave handler error:', error.message);
-    }
-  }
-
-  /**
-   * Rejoin voice channel with existing persistent connection
-   */
-  async rejoinWithPersistentConnection(guildId, voiceChannelId) {
-    try {
-      console.log(`🔄 Attempting to rejoin voice with persistent connection for guild ${guildId}`);
-      
-      const status = await this.radioManager.getConnectionStatus(guildId);
-      if (!status.hasPersistentConnection || !status.currentStation) {
-        console.log('ℹ️ No persistent connection to rejoin with');
-        return;
-      }
-      
-      const guild = this.client.guilds.cache.get(guildId);
-      if (!guild) return;
-      
-      const voiceChannel = guild.channels.cache.get(voiceChannelId);
-      if (!voiceChannel) return;
-      
-      // Use the radio manager to reconnect to voice
-      await this.radioManager.ensurePlayerInVoiceChannel(
-        status.player, 
-        guildId, 
-        voiceChannelId
-      );
-      
-      console.log(`✅ Successfully rejoined "${voiceChannel.name}" with persistent connection`);
-      console.log(`🎵 Continuing to play: ${status.currentStation}`);
-      
-      // Update tracking
-      this.currentlyPlaying.set(guildId, {
-        stationKey: status.currentStation,
-        stationName: RADIO_STATIONS[status.currentStation]?.name || 'Unknown',
-        voiceChannelId: voiceChannelId,
-        startedAt: Date.now() // Reset start time for UI
-      });
-      
-      // Update UI
-      if (this.updatePersistentMessage) {
-        await this.updatePersistentMessage();
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to rejoin with persistent connection:', error.message);
     }
   }
 
@@ -338,13 +434,20 @@ export class AutoLeaveHandler {
           console.log(`🔍 Checking voice channel "${voiceChannel.name}" in ${guild.name}`);
           
           if (!this.hasRealUsers(voiceChannel)) {
-            console.log(`🚪 Startup: No real users in "${voiceChannel.name}", leaving voice but keeping connection`);
+            console.log(`🚪 Startup: No real users in "${voiceChannel.name}", going dormant`);
             await this.leaveVoiceChannelOnly(guildId);
           } else {
             console.log(`✅ Startup: Real users found in "${voiceChannel.name}", staying connected`);
           }
         } else {
-          console.log(`ℹ️ Persistent connection exists but not in voice for ${guild.name} - this is normal`);
+          console.log(`ℹ️ Persistent connection exists but not in voice for ${guild.name} - checking if dormant`);
+          const persistent = this.radioManager.persistentConnections.get(guildId);
+          if (persistent && !persistent.dormant) {
+            // Connection exists but not in voice and not marked dormant - mark it dormant
+            persistent.dormant = true;
+            persistent.lastVoiceDisconnect = Date.now();
+            console.log(`💤 Marked connection as dormant for ${guild.name}`);
+          }
         }
 
         // Add delay between checks
@@ -359,7 +462,7 @@ export class AutoLeaveHandler {
   }
 
   /**
-   * Gets enhanced status information
+   * Gets enhanced status information including dormant connections
    */
   getStatus() {
     const timers = Array.from(this.leaveTimers.entries()).map(([guildId, timer]) => {
@@ -371,16 +474,26 @@ export class AutoLeaveHandler {
       };
     });
 
+    // Count dormant connections
+    let dormantConnections = 0;
+    if (this.radioManager?.persistentConnections) {
+      for (const [guildId, connection] of this.radioManager.persistentConnections.entries()) {
+        if (connection.dormant) dormantConnections++;
+      }
+    }
+
     return {
       enabled: true,
-      strategy: 'persistent-connection',
+      strategy: 'dormant-lavalink-connections',
       activeLeaveTimers: this.leaveTimers.size,
       leaveDelay: this.leaveDelay,
       leaveDelaySeconds: this.leaveDelay / 1000,
       guildsWithTimers: timers,
       totalGuilds: this.client.guilds.cache.size,
       persistentConnections: this.radioManager?.persistentConnections?.size || 0,
-      description: 'Leaves voice channels when empty but maintains persistent audio connections for instant rejoin'
+      dormantConnections: dormantConnections,
+      activeConnections: (this.radioManager?.persistentConnections?.size || 0) - dormantConnections,
+      description: 'Leaves Discord voice when empty but keeps Lavalink connections alive in dormant state for instant reconnection'
     };
   }
 
