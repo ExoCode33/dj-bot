@@ -1,4 +1,4 @@
-// src/features/voice/autoLeaveHandler.js - COMPLETE FIXED VERSION
+// src/features/voice/autoLeaveHandler.js - ENHANCED FOR PERSISTENT CONNECTIONS
 export class AutoLeaveHandler {
   constructor(client, radioManager, currentlyPlaying, updatePersistentMessage) {
     this.client = client;
@@ -8,13 +8,11 @@ export class AutoLeaveHandler {
     this.leaveTimers = new Map(); // Track delayed leave timers
     this.leaveDelay = parseInt(process.env.AUTO_LEAVE_DELAY) || 30000; // 30 seconds default
     
-    console.log(`🚪 AutoLeaveHandler initialized with ${this.leaveDelay / 1000}s delay`);
+    console.log(`🚪 Enhanced AutoLeaveHandler initialized with ${this.leaveDelay / 1000}s delay`);
   }
 
   /**
    * Checks if a voice channel has any real users (non-bots)
-   * @param {VoiceChannel} voiceChannel - The voice channel to check
-   * @returns {boolean} - True if there are real users, false if only bots
    */
   hasRealUsers(voiceChannel) {
     if (!voiceChannel) return false;
@@ -24,21 +22,12 @@ export class AutoLeaveHandler {
     
     console.log(`👥 Channel "${voiceChannel.name}": ${realUsers.size} real users, ${bots.size} bots`);
     
-    // Debug: Show who's in the channel
-    if (realUsers.size > 0) {
-      console.log(`👤 Real users: ${realUsers.map(u => u.user.username).join(', ')}`);
-    }
-    if (bots.size > 0) {
-      console.log(`🤖 Bots: ${bots.map(u => u.user.username).join(', ')}`);
-    }
-    
     return realUsers.size > 0;
   }
 
   /**
    * Schedules the bot to leave a voice channel after a delay
-   * @param {string} guildId - Guild ID
-   * @param {VoiceChannel} voiceChannel - Voice channel to leave
+   * BUT KEEPS THE PERSISTENT CONNECTION ALIVE
    */
   scheduleLeave(guildId, voiceChannel) {
     // Clear any existing timer for this guild
@@ -47,20 +36,20 @@ export class AutoLeaveHandler {
       clearTimeout(this.leaveTimers.get(guildId));
     }
 
-    console.log(`⏰ Scheduling auto-leave in ${this.leaveDelay / 1000}s for channel "${voiceChannel.name}"`);
+    console.log(`⏰ Scheduling voice leave in ${this.leaveDelay / 1000}s for channel "${voiceChannel.name}"`);
     
     const timer = setTimeout(async () => {
       try {
         // Double-check that there are still no real users
         const currentChannel = this.client.channels.cache.get(voiceChannel.id);
         if (!currentChannel || this.hasRealUsers(currentChannel)) {
-          console.log(`✅ Users returned to "${voiceChannel.name}", canceling auto-leave`);
+          console.log(`✅ Users returned to "${voiceChannel.name}", canceling leave`);
           this.leaveTimers.delete(guildId);
           return;
         }
 
-        console.log(`👋 Auto-leaving "${voiceChannel.name}" - no real users remaining`);
-        await this.leaveVoiceChannel(guildId);
+        console.log(`👋 Leaving voice channel "${voiceChannel.name}" - no real users remaining`);
+        await this.leaveVoiceChannelOnly(guildId);
         
       } catch (error) {
         console.error('❌ Auto-leave error:', error.message);
@@ -73,8 +62,105 @@ export class AutoLeaveHandler {
   }
 
   /**
+   * NEW STRATEGY: Only leave voice channel, keep persistent connection alive
+   * This solves the "This guild already have an existing connection" error
+   */
+  async leaveVoiceChannelOnly(guildId) {
+    console.log(`🚪 Leaving voice channel but maintaining persistent connection for guild ${guildId}`);
+    
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      console.error(`❌ Guild ${guildId} not found for voice leave`);
+      return;
+    }
+
+    try {
+      // STEP 1: Only disconnect from Discord voice - DON'T destroy the player
+      const botMember = guild.members.me;
+      const currentVoiceChannel = botMember?.voice?.channel;
+      
+      if (currentVoiceChannel) {
+        console.log(`🔌 Disconnecting from Discord voice channel: "${currentVoiceChannel.name}"`);
+        
+        try {
+          await botMember.voice.disconnect();
+          console.log(`✅ Successfully left "${currentVoiceChannel.name}"`);
+          
+          // Wait for Discord to process the disconnection
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Verify disconnection
+          const stillConnected = guild.members.me?.voice?.channel;
+          if (stillConnected) {
+            console.warn(`⚠️ Bot still appears connected, attempting force disconnect`);
+            await botMember.voice.setChannel(null);
+          }
+          
+        } catch (disconnectError) {
+          console.error('❌ Error disconnecting from Discord voice:', disconnectError.message);
+          
+          // Try alternative method
+          try {
+            await botMember.voice.setChannel(null);
+          } catch (altError) {
+            console.error('❌ Alternative disconnect also failed:', altError.message);
+          }
+        }
+      } else {
+        console.log(`ℹ️ Bot not in any voice channel for guild ${guild.name}`);
+      }
+      
+      // STEP 2: Keep the persistent connection alive but mark it as "dormant"
+      const status = await this.radioManager.getConnectionStatus(guildId);
+      if (status.hasPersistentConnection) {
+        console.log(`✅ Keeping persistent connection alive for guild ${guildId}`);
+        console.log(`🎵 Music will resume automatically when users rejoin`);
+        
+        // The persistent connection stays alive, ready for instant reconnection
+      }
+      
+      // STEP 3: Update UI but don't clear tracking (connection is still alive)
+      if (this.updatePersistentMessage) {
+        try {
+          await this.updatePersistentMessage();
+          console.log(`📻 Updated persistent radio message`);
+        } catch (updateError) {
+          console.warn('⚠️ Failed to update persistent message:', updateError.message);
+        }
+      }
+
+      console.log(`✅ Voice leave completed for guild ${guildId} - persistent connection maintained`);
+      
+    } catch (error) {
+      console.error(`❌ Voice leave error for guild ${guildId}:`, error.message);
+    }
+  }
+
+  /**
+   * COMPLETE shutdown - destroys everything (used for manual stop)
+   */
+  async completeShutdown(guildId) {
+    console.log(`🛑 Complete shutdown for guild ${guildId}`);
+    
+    // Cancel any pending leave
+    this.cancelScheduledLeave(guildId);
+    
+    // Clean up persistent connection
+    await this.radioManager.cleanupPersistentConnection(guildId);
+    
+    // Clean up tracking
+    this.currentlyPlaying.delete(guildId);
+    
+    // Update UI
+    if (this.updatePersistentMessage) {
+      await this.updatePersistentMessage();
+    }
+    
+    console.log(`✅ Complete shutdown finished for guild ${guildId}`);
+  }
+
+  /**
    * Cancels a scheduled leave for a guild
-   * @param {string} guildId - Guild ID
    */
   cancelScheduledLeave(guildId) {
     if (this.leaveTimers.has(guildId)) {
@@ -85,138 +171,7 @@ export class AutoLeaveHandler {
   }
 
   /**
-   * FIXED: Actually leaves the voice channel completely
-   * @param {string} guildId - Guild ID
-   */
-  async leaveVoiceChannel(guildId) {
-    console.log(`🚪 Starting complete voice channel exit for guild ${guildId}`);
-    
-    const guild = this.client.guilds.cache.get(guildId);
-    if (!guild) {
-      console.error(`❌ Guild ${guildId} not found for voice leave`);
-      this.currentlyPlaying.delete(guildId);
-      return;
-    }
-
-    // STEP 1: Stop and destroy Lavalink player
-    const player = this.client.shoukaku.players.get(guildId);
-    if (player) {
-      try {
-        console.log(`🎵 Stopping music for guild ${guildId}`);
-        
-        if (player.track) {
-          await player.stopTrack();
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        console.log(`🔌 Destroying Lavalink player for guild ${guildId}`);
-        await player.destroy();
-        this.client.shoukaku.players.delete(guildId);
-        
-        console.log(`✅ Lavalink player cleaned up for guild ${guildId}`);
-        
-      } catch (error) {
-        console.error('❌ Error cleaning up Lavalink player:', error.message);
-        // Force cleanup even if there's an error
-        this.client.shoukaku.players.delete(guildId);
-      }
-    } else {
-      console.log(`ℹ️ No Lavalink player found for guild ${guildId}`);
-    }
-
-    // STEP 2: CRITICAL - Actually disconnect from Discord voice channel
-    try {
-      const botMember = guild.members.me;
-      const currentVoiceChannel = botMember?.voice?.channel;
-      
-      if (currentVoiceChannel) {
-        console.log(`🔌 Disconnecting bot from Discord voice channel: "${currentVoiceChannel.name}"`);
-        
-        // Method 1: Direct disconnect (most reliable)
-        await botMember.voice.disconnect();
-        console.log(`✅ Successfully disconnected from "${currentVoiceChannel.name}"`);
-        
-        // Wait a moment for Discord to process the disconnection
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Verify disconnection
-        const stillConnected = guild.members.me?.voice?.channel;
-        if (stillConnected) {
-          console.warn(`⚠️ Bot still appears connected to "${stillConnected.name}", attempting force disconnect`);
-          
-          // Method 2: Force disconnect via setChannel(null)
-          try {
-            await botMember.voice.setChannel(null);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Final verification
-            const finalCheck = guild.members.me?.voice?.channel;
-            if (finalCheck) {
-              console.error(`❌ Bot still connected to "${finalCheck.name}" after force disconnect`);
-            } else {
-              console.log(`✅ Force disconnect successful`);
-            }
-          } catch (forceError) {
-            console.error('❌ Force disconnect failed:', forceError.message);
-          }
-        } else {
-          console.log(`✅ Verified: Bot successfully left voice channel`);
-        }
-        
-      } else {
-        console.log(`ℹ️ Bot not in any voice channel for guild ${guild.name}`);
-      }
-      
-    } catch (disconnectError) {
-      console.error('❌ Error disconnecting from Discord voice:', disconnectError.message);
-      
-      // FALLBACK: Try alternative disconnect methods
-      try {
-        console.log(`🔄 Attempting fallback disconnect method...`);
-        const botMember = guild.members.me;
-        
-        if (botMember?.voice?.channel) {
-          // Try setChannel(null) as fallback
-          await botMember.voice.setChannel(null);
-          
-          // Check if it worked
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const checkChannel = guild.members.me?.voice?.channel;
-          
-          if (checkChannel) {
-            console.error('❌ All disconnect methods failed - bot may appear stuck');
-            console.error('⚠️ Manual intervention or bot restart may be required');
-          } else {
-            console.log(`✅ Fallback disconnect successful`);
-          }
-        }
-      } catch (fallbackError) {
-        console.error('❌ All disconnect methods failed:', fallbackError.message);
-        console.error('⚠️ Bot may appear stuck in voice channel until restart');
-      }
-    }
-
-    // STEP 3: Clean up tracking data
-    this.currentlyPlaying.delete(guildId);
-    console.log(`🗑️ Cleaned up tracking data for guild ${guildId}`);
-    
-    // STEP 4: Update persistent radio message
-    if (this.updatePersistentMessage) {
-      try {
-        await this.updatePersistentMessage();
-        console.log(`📻 Updated persistent radio message`);
-      } catch (updateError) {
-        console.warn('⚠️ Failed to update persistent message:', updateError.message);
-      }
-    }
-
-    console.log(`✅ Complete voice channel exit finished for guild ${guildId} (${guild.name})`);
-  }
-
-  /**
-   * Handles voice state updates for auto-leave logic
-   * @param {VoiceState} oldState - Previous voice state
-   * @param {VoiceState} newState - New voice state
+   * Enhanced voice state update handler
    */
   async handleVoiceStateUpdate(oldState, newState) {
     try {
@@ -227,112 +182,184 @@ export class AutoLeaveHandler {
 
       const guild = oldState.guild || newState.guild;
       const botMember = guild.members.me;
-      const botVoiceChannel = botMember?.voice?.channel;
-
-      // Only process if the bot is in a voice channel
-      if (!botVoiceChannel) {
+      
+      // Check if bot has a persistent connection (even if not in voice)
+      const status = await this.radioManager.getConnectionStatus(guild.id);
+      const hasActiveConnection = status.hasPersistentConnection && status.currentStation;
+      
+      // If no active connection, nothing to manage
+      if (!hasActiveConnection) {
         return;
       }
 
-      // Check if this voice state change affects the bot's channel
+      console.log(`🔄 Voice update for guild with active connection: ${guild.name}`);
+
+      // Find which voice channel we should be monitoring
+      let targetVoiceChannel = null;
+      
+      // If bot is currently in voice, use that channel
+      if (botMember?.voice?.channel) {
+        targetVoiceChannel = botMember.voice.channel;
+      } else {
+        // Bot not in voice but has persistent connection
+        // Check if users are joining a channel where we should be
+        if (newState.channelId && !oldState.channelId) {
+          // User joined a channel - if we have a connection for this guild,
+          // we might want to rejoin
+          const channelTheyJoined = newState.channel;
+          if (channelTheyJoined && this.hasRealUsers(channelTheyJoined)) {
+            console.log(`👥 User joined "${channelTheyJoined.name}" - attempting to rejoin with persistent connection`);
+            await this.rejoinWithPersistentConnection(guild.id, channelTheyJoined.id);
+            return;
+          }
+        }
+      }
+
+      if (!targetVoiceChannel) {
+        return; // Nothing to monitor
+      }
+
+      // Check if this voice state change affects our monitored channel
       const isRelevantUpdate = (
-        oldState.channelId === botVoiceChannel.id || 
-        newState.channelId === botVoiceChannel.id
+        oldState.channelId === targetVoiceChannel.id || 
+        newState.channelId === targetVoiceChannel.id
       );
 
       if (!isRelevantUpdate) {
         return;
       }
 
-      console.log(`🔄 Voice update affecting bot's channel "${botVoiceChannel.name}"`);
+      console.log(`🔄 Voice update affecting monitored channel "${targetVoiceChannel.name}"`);
 
       // Add a small delay to let Discord settle the voice state
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Re-fetch the voice channel to get updated member list
-      const updatedChannel = this.client.channels.cache.get(botVoiceChannel.id);
+      const updatedChannel = this.client.channels.cache.get(targetVoiceChannel.id);
       
       if (!updatedChannel) {
-        console.warn(`⚠️ Could not re-fetch voice channel ${botVoiceChannel.id}`);
+        console.warn(`⚠️ Could not re-fetch voice channel ${targetVoiceChannel.id}`);
         return;
       }
 
-      // Check if the bot's current channel has real users
+      // Check if the monitored channel has real users
       if (this.hasRealUsers(updatedChannel)) {
         // Users present - cancel any scheduled leave
         this.cancelScheduledLeave(guild.id);
       } else {
-        // No real users - schedule leave (unless already scheduled)
+        // No real users - schedule voice leave (but keep connection)
         if (!this.leaveTimers.has(guild.id)) {
-          console.log(`🚪 No real users in "${updatedChannel.name}", scheduling auto-leave`);
+          console.log(`🚪 No real users in "${updatedChannel.name}", scheduling voice leave`);
           this.scheduleLeave(guild.id, updatedChannel);
-        } else {
-          console.log(`⏰ Auto-leave already scheduled for "${updatedChannel.name}"`);
         }
       }
 
     } catch (error) {
-      console.error('❌ Auto-leave handler error:', error.message);
-      console.error('Stack trace:', error.stack);
+      console.error('❌ Enhanced auto-leave handler error:', error.message);
     }
   }
 
   /**
-   * Performs initial check when bot starts - leaves channels with no users
+   * Rejoin voice channel with existing persistent connection
+   */
+  async rejoinWithPersistentConnection(guildId, voiceChannelId) {
+    try {
+      console.log(`🔄 Attempting to rejoin voice with persistent connection for guild ${guildId}`);
+      
+      const status = await this.radioManager.getConnectionStatus(guildId);
+      if (!status.hasPersistentConnection || !status.currentStation) {
+        console.log('ℹ️ No persistent connection to rejoin with');
+        return;
+      }
+      
+      const guild = this.client.guilds.cache.get(guildId);
+      if (!guild) return;
+      
+      const voiceChannel = guild.channels.cache.get(voiceChannelId);
+      if (!voiceChannel) return;
+      
+      // Use the radio manager to reconnect to voice
+      await this.radioManager.ensurePlayerInVoiceChannel(
+        status.player, 
+        guildId, 
+        voiceChannelId
+      );
+      
+      console.log(`✅ Successfully rejoined "${voiceChannel.name}" with persistent connection`);
+      console.log(`🎵 Continuing to play: ${status.currentStation}`);
+      
+      // Update tracking
+      this.currentlyPlaying.set(guildId, {
+        stationKey: status.currentStation,
+        stationName: RADIO_STATIONS[status.currentStation]?.name || 'Unknown',
+        voiceChannelId: voiceChannelId,
+        startedAt: Date.now() // Reset start time for UI
+      });
+      
+      // Update UI
+      if (this.updatePersistentMessage) {
+        await this.updatePersistentMessage();
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to rejoin with persistent connection:', error.message);
+    }
+  }
+
+  /**
+   * Startup check - handles existing connections
    */
   async performStartupCheck() {
-    console.log('🔍 Performing startup auto-leave check...');
+    console.log('🔍 Performing enhanced startup auto-leave check...');
     
     try {
-      const players = this.client.shoukaku.players;
+      const status = await this.radioManager.getConnectionStatus();
       
-      if (!players || players.size === 0) {
-        console.log('ℹ️ No active players found during startup check');
+      if (status.persistentConnections === 0) {
+        console.log('ℹ️ No persistent connections found during startup check');
         return;
       }
 
-      console.log(`🔍 Found ${players.size} active player(s) to check`);
+      console.log(`🔍 Found ${status.persistentConnections} persistent connection(s) to check`);
       
-      for (const [guildId, player] of players) {
+      // Get all guilds with persistent connections
+      for (const guildId of this.radioManager.persistentConnections.keys()) {
         const guild = this.client.guilds.cache.get(guildId);
         if (!guild) {
-          console.log(`⚠️ Guild ${guildId} not found, cleaning up player`);
-          await this.leaveVoiceChannel(guildId);
+          console.log(`⚠️ Guild ${guildId} not found, cleaning up connection`);
+          await this.radioManager.cleanupPersistentConnection(guildId);
           continue;
         }
 
         const botMember = guild.members.me;
         const voiceChannel = botMember?.voice?.channel;
         
-        if (!voiceChannel) {
-          console.log(`⚠️ Bot not in voice channel for guild ${guild.name}, cleaning up player`);
-          await this.leaveVoiceChannel(guildId);
-          continue;
-        }
-
-        console.log(`🔍 Checking voice channel "${voiceChannel.name}" in ${guild.name}`);
-        
-        if (!this.hasRealUsers(voiceChannel)) {
-          console.log(`🚪 Startup: No real users in "${voiceChannel.name}" (${guild.name}), leaving immediately`);
-          await this.leaveVoiceChannel(guildId);
+        if (voiceChannel) {
+          console.log(`🔍 Checking voice channel "${voiceChannel.name}" in ${guild.name}`);
+          
+          if (!this.hasRealUsers(voiceChannel)) {
+            console.log(`🚪 Startup: No real users in "${voiceChannel.name}", leaving voice but keeping connection`);
+            await this.leaveVoiceChannelOnly(guildId);
+          } else {
+            console.log(`✅ Startup: Real users found in "${voiceChannel.name}", staying connected`);
+          }
         } else {
-          console.log(`✅ Startup: Real users found in "${voiceChannel.name}" (${guild.name}), staying`);
+          console.log(`ℹ️ Persistent connection exists but not in voice for ${guild.name} - this is normal`);
         }
 
-        // Add delay between checks to avoid overwhelming Discord API
+        // Add delay between checks
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      console.log('✅ Startup auto-leave check completed');
+      console.log('✅ Enhanced startup auto-leave check completed');
       
     } catch (error) {
-      console.error('❌ Startup auto-leave check error:', error.message);
-      console.error('Stack trace:', error.stack);
+      console.error('❌ Enhanced startup auto-leave check error:', error.message);
     }
   }
 
   /**
-   * Gets status information for debugging
+   * Gets enhanced status information
    */
   getStatus() {
     const timers = Array.from(this.leaveTimers.entries()).map(([guildId, timer]) => {
@@ -340,34 +367,28 @@ export class AutoLeaveHandler {
       return {
         guildId,
         guildName: guild?.name || 'Unknown',
-        timerId: timer[Symbol.toPrimitive] || 'Active'
+        timerId: 'Active'
       };
     });
 
     return {
       enabled: true,
-      activeTimers: this.leaveTimers.size,
+      strategy: 'persistent-connection',
+      activeLeaveTimers: this.leaveTimers.size,
       leaveDelay: this.leaveDelay,
       leaveDelaySeconds: this.leaveDelay / 1000,
       guildsWithTimers: timers,
       totalGuilds: this.client.guilds.cache.size,
-      activePlayers: this.client.shoukaku?.players?.size || 0
+      persistentConnections: this.radioManager?.persistentConnections?.size || 0,
+      description: 'Leaves voice channels when empty but maintains persistent audio connections for instant rejoin'
     };
   }
 
   /**
-   * Manual trigger for testing (use in debug commands)
-   */
-  async manualLeave(guildId) {
-    console.log(`🧪 Manual leave triggered for guild ${guildId}`);
-    await this.leaveVoiceChannel(guildId);
-  }
-
-  /**
-   * Emergency cleanup - forces leave from all voice channels
+   * Emergency cleanup - forces complete shutdown
    */
   async emergencyCleanup() {
-    console.log('🚨 Emergency cleanup triggered');
+    console.log('🚨 Enhanced emergency cleanup triggered');
     
     try {
       // Clear all timers
@@ -377,20 +398,18 @@ export class AutoLeaveHandler {
       }
       this.leaveTimers.clear();
 
-      // Force leave all voice channels
-      const players = this.client.shoukaku.players;
-      if (players && players.size > 0) {
-        for (const [guildId] of players) {
-          console.log(`🧹 Emergency cleanup for guild ${guildId}`);
-          await this.leaveVoiceChannel(guildId);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      // Use radio manager's shutdown
+      if (this.radioManager) {
+        await this.radioManager.shutdown();
       }
 
-      console.log('✅ Emergency cleanup completed');
+      // Clear our tracking
+      this.currentlyPlaying.clear();
+
+      console.log('✅ Enhanced emergency cleanup completed');
       
     } catch (error) {
-      console.error('❌ Emergency cleanup error:', error.message);
+      console.error('❌ Enhanced emergency cleanup error:', error.message);
     }
   }
 }
