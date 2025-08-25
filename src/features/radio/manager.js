@@ -318,9 +318,9 @@ export class SimpleRadioManager {
     this.switchingStations.add(guildId);
     
     try {
-      const attempts = this.connectionAttempts.get(guildId) || 0;
-      if (attempts >= 3) {
-        const waitTime = Math.min(60 + (attempts - 3) * 30, 180); // Reduced max wait from 300s to 180s
+      const connectionAttempts = this.connectionAttempts.get(guildId) || 0;
+      if (connectionAttempts >= 3) {
+        const waitTime = Math.min(60 + (connectionAttempts - 3) * 30, 180); // Reduced max wait from 300s to 180s
         throw new Error(`Too many connection attempts. Please wait ${waitTime} seconds and try again.`);
       }
 
@@ -365,9 +365,9 @@ export class SimpleRadioManager {
       console.log('🆕 Creating new connection...');
       
       // Use nuclear cleanup for persistent connection conflicts
-      const attempts = this.connectionAttempts.get(guildId) || 0;
+      const previousAttempts = this.connectionAttempts.get(guildId) || 0;
       
-      if (attempts >= 1) {
+      if (previousAttempts >= 1) {
         console.log('☢️ Previous connection attempts failed, using nuclear cleanup...');
         const nuclearSuccess = await this.performNuclearCleanup(guildId);
         
@@ -416,14 +416,14 @@ export class SimpleRadioManager {
         throw new Error('Connection conflict resolved. Please try again in 15-30 seconds.');
       }
       
-      const attempts = (this.connectionAttempts.get(guildId) || 0) + 1;
-      this.connectionAttempts.set(guildId, attempts);
+      const newAttemptCount = (this.connectionAttempts.get(guildId) || 0) + 1;
+      this.connectionAttempts.set(guildId, newAttemptCount);
       
       if (availableNode) {
         this.nodeHealthCheck.set(availableNode.name, Date.now());
       }
       
-      const clearTime = Math.min(60000 + (attempts - 1) * 15000, 180000); // Reduced scaling
+      const clearTime = Math.min(60000 + (newAttemptCount - 1) * 15000, 180000); // Reduced scaling
       setTimeout(() => {
         this.connectionAttempts.delete(guildId);
       }, clearTime);
