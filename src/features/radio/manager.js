@@ -1,4 +1,4 @@
-// src/features/radio/manager.js - COMPLETELY RETHOUGHT CONNECTION STRATEGY
+// src/features/radio/manager.js - ENHANCED WITH DORMANT CONNECTION SUPPORT
 import { RADIO_STATIONS } from '../../config/stations.js';
 
 export class SimpleRadioManager {
@@ -10,8 +10,8 @@ export class SimpleRadioManager {
     this.defaultVolume = Math.max(1, Math.min(200, rawVolume));
     console.log(`🔊 Volume configured: ${this.defaultVolume}% (from DEFAULT_VOLUME=${process.env.DEFAULT_VOLUME})`);
     
-    // Connection tracking - NEW APPROACH
-    this.persistentConnections = new Map(); // Guild -> { player, voiceChannelId, lastUsed }
+    // Connection tracking - ENHANCED FOR DORMANT STATE
+    this.persistentConnections = new Map(); // Guild -> { player, voiceChannelId, lastUsed, dormant, currentStation }
     this.switchingStations = new Set();
     this.connectionAttempts = new Map();
     this.streamHealthChecks = new Map(); // Guild -> interval
@@ -21,14 +21,17 @@ export class SimpleRadioManager {
     this.recoveryAttempts = new Map(); // Guild -> count
     this.lastRecoveryTime = new Map(); // Guild -> timestamp
     
-    // Stream monitoring for 24/7 reliability
+    // Stream monitoring for 24/7 reliability (paused for dormant connections)
     this.monitoringInterval = null;
     this.startGlobalMonitoring();
     
     // Setup automatic recovery system
     this.setupAutoRecovery();
     
-    console.log('🎵 Enhanced Radio Manager initialized with persistent connection strategy');
+    console.log('🎵 Enhanced Radio Manager initialized with dormant connection support');
+    
+    // Make manager accessible to client for UI
+    this.client.radioManager = this;
   }
 
   /**
@@ -107,17 +110,6 @@ export class SimpleRadioManager {
         } catch (e) {
           console.log('ℹ️ Member fetch failed (expected):', e.message);
         }
-        
-        // Clear any potential voice connection remnants
-        const botMember = guild.members.me;
-        if (botMember?.voice?.channel) {
-          try {
-            await botMember.voice.disconnect();
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          } catch (e) {
-            console.log('ℹ️ Recovery disconnect failed (expected):', e.message);
-          }
-        }
       }
       
       // Clear cooldown if recovery seems successful
@@ -134,8 +126,8 @@ export class SimpleRadioManager {
   }
 
   // ================================
-  // NEW STRATEGY: PERSISTENT CONNECTIONS
-  // Keep players alive even when leaving voice channels
+  // ENHANCED STRATEGY: DORMANT CONNECTIONS
+  // Keep Lavalink alive even when Discord voice disconnects
   // ================================
 
   /**
@@ -146,16 +138,22 @@ export class SimpleRadioManager {
     
     const existing = this.persistentConnections.get(guildId);
     
-    // Check if we can reuse existing player
+    // Check if we can reuse existing player (even if dormant)
     if (existing && existing.player && !existing.player.destroyed) {
-      console.log('♻️ Reusing existing persistent player');
+      console.log(`♻️ Reusing existing persistent player (dormant: ${existing.dormant || false})`);
       
       // Update last used time
       existing.lastUsed = Date.now();
       existing.voiceChannelId = voiceChannelId;
       
-      // Ensure player is in correct voice channel
-      await this.ensurePlayerInVoiceChannel(existing.player, guildId, voiceChannelId);
+      // If it was dormant, reactivate it
+      if (existing.dormant) {
+        console.log('🚀 Reactivating dormant connection');
+        existing.dormant = false;
+        
+        // Ensure player is in correct voice channel
+        await this.ensurePlayerInVoiceChannel(existing.player, guildId, voiceChannelId);
+      }
       
       return existing.player;
     }
@@ -166,7 +164,7 @@ export class SimpleRadioManager {
   }
 
   /**
-   * Creates a new persistent player with enhanced error handling and fallback methods
+   * Creates a new persistent player with enhanced error handling
    */
   async createNewPersistentPlayer(guildId, voiceChannelId) {
     const guild = this.client.guilds.cache.get(guildId);
@@ -192,24 +190,14 @@ export class SimpleRadioManager {
         // CRITICAL: Nuclear cleanup before each attempt
         await this.forceCleanupGuild(guildId);
         
-        let player;
-        
-        // Try different connection methods based on attempt number
-        if (attempts <= 2) {
-          // Standard method
-          console.log('🔗 Using standard Shoukaku connection method');
-          player = await this.client.shoukaku.joinVoiceChannel({
-            guildId: guildId,
-            channelId: voiceChannelId,
-            shardId: guild.shardId,
-            deaf: true,
-            mute: false
-          });
-        } else {
-          // Fallback method - create player more directly
-          console.log('🔗 Using fallback connection method');
-          player = await this.createPlayerWithFallbackMethod(guildId, voiceChannelId, guild, node);
-        }
+        // Standard Shoukaku connection method
+        const player = await this.client.shoukaku.joinVoiceChannel({
+          guildId: guildId,
+          channelId: voiceChannelId,
+          shardId: guild.shardId,
+          deaf: true,
+          mute: false
+        });
         
         if (!player) {
           throw new Error('Player creation returned null');
@@ -226,7 +214,10 @@ export class SimpleRadioManager {
           voiceChannelId: voiceChannelId,
           lastUsed: Date.now(),
           created: Date.now(),
-          guildId: guildId
+          guildId: guildId,
+          dormant: false, // Initially active
+          currentStation: null, // Will be set when playing
+          trackInfo: null // For preserving state during dormancy
         });
         
         // Setup player event handlers for persistence
@@ -248,68 +239,6 @@ export class SimpleRadioManager {
           throw new Error(`Failed to create persistent connection after ${maxAttempts} attempts: ${error.message}`);
         }
       }
-    }
-  }
-
-  /**
-   * Fallback connection method - tries to create connection more directly
-   */
-  async createPlayerWithFallbackMethod(guildId, voiceChannelId, guild, node) {
-    console.log('🔧 Attempting fallback connection method');
-    
-    try {
-      // Method 1: Try to create player directly through the node
-      const connectionOptions = {
-        guildId: guildId,
-        channelId: voiceChannelId,
-        shardId: guild.shardId
-      };
-      
-      // Direct node connection attempt
-      if (node.joinVoiceChannel && typeof node.joinVoiceChannel === 'function') {
-        console.log('🔗 Trying direct node connection...');
-        const player = await node.joinVoiceChannel(connectionOptions);
-        if (player) {
-          console.log('✅ Direct node connection successful');
-          return player;
-        }
-      }
-      
-      // Method 2: Manual Discord voice connection + Shoukaku player
-      console.log('🔗 Trying manual voice connection...');
-      
-      // First, manually connect to Discord voice
-      const botMember = guild.members.me;
-      await botMember.voice.setChannel(voiceChannelId);
-      
-      // Wait for voice connection to establish
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Verify we're in the channel
-      const connectedChannelId = guild.members.me?.voice?.channelId;
-      if (connectedChannelId !== voiceChannelId) {
-        throw new Error('Manual voice connection failed');
-      }
-      
-      // Now try to create Shoukaku player for existing connection
-      const player = await this.client.shoukaku.joinVoiceChannel({
-        guildId: guildId,
-        channelId: voiceChannelId,
-        shardId: guild.shardId,
-        deaf: true,
-        mute: false
-      });
-      
-      if (player) {
-        console.log('✅ Manual connection method successful');
-        return player;
-      }
-      
-      throw new Error('All fallback methods failed');
-      
-    } catch (error) {
-      console.error('❌ Fallback connection method failed:', error.message);
-      throw error;
     }
   }
 
@@ -336,7 +265,7 @@ export class SimpleRadioManager {
       }
       this.persistentConnections.delete(guildId);
       
-      // 2. Clean up ALL Shoukaku players for this guild (from all possible locations)
+      // 2. Clean up ALL Shoukaku players for this guild
       const shoukakuPlayer = this.client.shoukaku.players.get(guildId);
       if (shoukakuPlayer) {
         try {
@@ -359,24 +288,9 @@ export class SimpleRadioManager {
           try {
             console.log(`🔧 Deep cleaning node ${nodeName} for guild ${guildId}`);
             
-            // Multiple approaches to clear node state
             if (node.players && typeof node.players.delete === 'function') {
               node.players.delete(guildId);
               console.log(`✅ Cleared ${nodeName} players map`);
-            }
-            
-            // Try to access internal connection state
-            if (node.connection) {
-              if (node.connection.players && typeof node.connection.players.delete === 'function') {
-                node.connection.players.delete(guildId);
-                console.log(`✅ Cleared ${nodeName} connection players`);
-              }
-              
-              // Try to clear any guild-specific connection state
-              if (node.connection.guildConnections && typeof node.connection.guildConnections.delete === 'function') {
-                node.connection.guildConnections.delete(guildId);
-                console.log(`✅ Cleared ${nodeName} guild connections`);
-              }
             }
             
             // Try to send destroy message to node if possible
@@ -403,30 +317,15 @@ export class SimpleRadioManager {
         const botMember = guild.members.me;
         
         // Multiple disconnect attempts with different methods
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
           try {
-            console.log(`🔌 Disconnect attempt ${attempt}/3`);
+            console.log(`🔌 Disconnect attempt ${attempt}/2`);
             
             if (botMember?.voice?.channel) {
               if (attempt === 1) {
                 await botMember.voice.disconnect();
-              } else if (attempt === 2) {
-                await botMember.voice.setChannel(null);
               } else {
-                // Force via raw WebSocket if available
-                const shard = guild.shard;
-                if (shard && shard.send) {
-                  await shard.send({
-                    op: 4, // VOICE_STATE_UPDATE
-                    d: {
-                      guild_id: guildId,
-                      channel_id: null,
-                      self_mute: false,
-                      self_deaf: false
-                    }
-                  });
-                  console.log(`✅ Sent raw voice state update`);
-                }
+                await botMember.voice.setChannel(null);
               }
               
               console.log(`✅ Disconnect method ${attempt} completed`);
@@ -450,17 +349,7 @@ export class SimpleRadioManager {
     
     // Extended wait for all systems to settle
     console.log('⏳ Waiting for all systems to settle...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    // Final verification
-    const stillExists = this.client.shoukaku.players.has(guildId);
-    const stillInVoice = guild?.members.me?.voice?.channel;
-    
-    console.log(`🔍 Final state: Player=${stillExists}, Voice=${!!stillInVoice}`);
-    
-    if (stillExists || stillInVoice) {
-      console.warn('⚠️ Some cleanup may be incomplete, but proceeding...');
-    }
+    await new Promise(resolve => setTimeout(resolve, 3000));
   }
 
   /**
@@ -482,7 +371,7 @@ export class SimpleRadioManager {
     let connectionVerified = false;
     
     // Give it more time and be more lenient
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       if (player.destroyed) {
@@ -511,12 +400,12 @@ export class SimpleRadioManager {
       }
       
       // If we have connection but not voice, that might be OK for some cases
-      if (connectionVerified && i >= 8) {
+      if (connectionVerified && i >= 5) {
         console.log(`✅ Connection verified but voice state unclear - proceeding anyway`);
         return;
       }
       
-      console.log(`⏳ Verification check ${i + 1}/15 (connection: ${connectionVerified}, voice: ${voiceVerified})`);
+      console.log(`⏳ Verification check ${i + 1}/10 (connection: ${connectionVerified}, voice: ${voiceVerified})`);
     }
     
     // Be more lenient - if we have any sign of connection, proceed
@@ -566,7 +455,7 @@ export class SimpleRadioManager {
   }
 
   /**
-   * Setup event handlers for persistent players
+   * Setup event handlers for persistent players with dormant support
    */
   setupPlayerEventHandlers(player, guildId) {
     console.log(`🔧 Setting up event handlers for guild ${guildId}`);
@@ -574,28 +463,42 @@ export class SimpleRadioManager {
     player.on('end', async (track, reason) => {
       console.log(`🎵 Track ended for guild ${guildId}: ${reason}`);
       
-      // For radio streams, we want to restart immediately unless manually stopped
-      if (reason !== 'stopped' && reason !== 'cleanup') {
-        console.log('🔄 Radio stream ended unexpectedly, attempting restart...');
-        await this.handleStreamInterruption(guildId, player);
+      const persistent = this.persistentConnections.get(guildId);
+      
+      // Skip restart if connection is dormant or manually stopped
+      if (persistent?.dormant || reason === 'stopped' || reason === 'cleanup') {
+        console.log('ℹ️ Skipping restart - connection dormant or manually stopped');
+        return;
       }
+      
+      // For radio streams, we want to restart immediately
+      console.log('🔄 Radio stream ended unexpectedly, attempting restart...');
+      await this.handleStreamInterruption(guildId, player);
     });
     
     player.on('stuck', async (track, thresholdMs) => {
       console.warn(`⚠️ Track stuck for guild ${guildId} after ${thresholdMs}ms`);
-      await this.handleStreamInterruption(guildId, player);
+      
+      const persistent = this.persistentConnections.get(guildId);
+      if (!persistent?.dormant) {
+        await this.handleStreamInterruption(guildId, player);
+      }
     });
     
     player.on('exception', async (track, exception) => {
       console.error(`❌ Player exception for guild ${guildId}:`, exception.message);
-      await this.handleStreamInterruption(guildId, player);
+      
+      const persistent = this.persistentConnections.get(guildId);
+      if (!persistent?.dormant) {
+        await this.handleStreamInterruption(guildId, player);
+      }
     });
     
-    console.log('✅ Event handlers configured');
+    console.log('✅ Event handlers configured with dormant support');
   }
 
   /**
-   * Handles stream interruptions with automatic restart
+   * Handles stream interruptions with automatic restart (unless dormant)
    */
   async handleStreamInterruption(guildId, player) {
     console.log(`🔄 Handling stream interruption for guild ${guildId}`);
@@ -606,8 +509,12 @@ export class SimpleRadioManager {
       return;
     }
     
-    // Find what station was playing by checking our tracking
-    // This is better than trying to parse the track info
+    // Don't restart if dormant
+    if (persistent.dormant) {
+      console.log('ℹ️ Connection is dormant, skipping restart');
+      return;
+    }
+    
     const stationKey = persistent.currentStation;
     if (!stationKey) {
       console.log('ℹ️ No station info available, cannot restart');
@@ -642,7 +549,7 @@ export class SimpleRadioManager {
 
   /**
    * ================================
-   * MAIN STATION SWITCHING METHOD - REDESIGNED
+   * MAIN STATION SWITCHING METHOD - ENHANCED FOR DORMANT STATE
    * ================================
    */
   async switchToStation(guildId, stationKey, voiceChannelId) {
@@ -663,7 +570,7 @@ export class SimpleRadioManager {
     this.switchingStations.add(guildId);
     
     try {
-      // Get or create persistent player
+      // Get or create persistent player (handles dormant reactivation)
       const player = await this.getOrCreatePersistentPlayer(guildId, voiceChannelId);
       
       // Set volume
@@ -677,9 +584,10 @@ export class SimpleRadioManager {
       if (connection) {
         connection.currentStation = stationKey;
         connection.lastUsed = Date.now();
+        connection.dormant = false; // Ensure it's not dormant when playing
       }
       
-      // Setup health monitoring for this stream
+      // Setup health monitoring for this stream (unless dormant)
       this.setupStreamHealthMonitoring(guildId, stationKey);
       
       result.volume = actualVolume;
@@ -731,7 +639,7 @@ export class SimpleRadioManager {
 
   /**
    * ================================
-   * STREAM HEALTH MONITORING - 24/7 RELIABILITY
+   * STREAM HEALTH MONITORING - ENHANCED FOR DORMANT STATE
    * ================================
    */
   
@@ -740,7 +648,7 @@ export class SimpleRadioManager {
       clearInterval(this.monitoringInterval);
     }
     
-    console.log('🩺 Starting global stream health monitoring');
+    console.log('🩺 Starting global stream health monitoring with dormant support');
     
     this.monitoringInterval = setInterval(() => {
       this.performHealthChecks();
@@ -750,13 +658,26 @@ export class SimpleRadioManager {
   async performHealthChecks() {
     if (this.persistentConnections.size === 0) return;
     
-    console.log(`🩺 Performing health checks on ${this.persistentConnections.size} connections`);
+    const activeConnections = Array.from(this.persistentConnections.entries()).filter(([_, conn]) => !conn.dormant);
+    const dormantConnections = Array.from(this.persistentConnections.entries()).filter(([_, conn]) => conn.dormant);
     
-    for (const [guildId, connection] of this.persistentConnections.entries()) {
+    console.log(`🩺 Health check: ${activeConnections.length} active, ${dormantConnections.length} dormant connections`);
+    
+    // Check active connections
+    for (const [guildId, connection] of activeConnections) {
       try {
         await this.checkConnectionHealth(guildId, connection);
       } catch (error) {
-        console.warn(`⚠️ Health check failed for guild ${guildId}: ${error.message}`);
+        console.warn(`⚠️ Active connection health check failed for guild ${guildId}: ${error.message}`);
+      }
+    }
+    
+    // Light check for dormant connections (just verify Lavalink is alive)
+    for (const [guildId, connection] of dormantConnections) {
+      try {
+        await this.checkDormantConnectionHealth(guildId, connection);
+      } catch (error) {
+        console.warn(`⚠️ Dormant connection health check failed for guild ${guildId}: ${error.message}`);
       }
     }
   }
@@ -770,8 +691,8 @@ export class SimpleRadioManager {
       return;
     }
     
-    // Check if player is actually playing
-    if (!player.track && connection.currentStation) {
+    // Check if player is actually playing (only for active connections)
+    if (!connection.dormant && !player.track && connection.currentStation) {
       console.warn(`⚠️ Player not playing expected station for guild ${guildId}`);
       
       // Try to restart the station
@@ -786,11 +707,39 @@ export class SimpleRadioManager {
     // Check node health
     if (!player.node || player.node.state !== 2) {
       console.warn(`⚠️ Player node unhealthy for guild ${guildId}`);
-      // The node reconnection will be handled by Shoukaku
       return;
     }
     
-    console.log(`✅ Health check passed for guild ${guildId}`);
+    console.log(`✅ Health check passed for active connection ${guildId}`);
+  }
+  
+  async checkDormantConnectionHealth(guildId, connection) {
+    const { player } = connection;
+    
+    if (!player || player.destroyed) {
+      console.warn(`💀 Dead dormant player detected for guild ${guildId}, removing`);
+      this.persistentConnections.delete(guildId);
+      return;
+    }
+    
+    // For dormant connections, just verify the Lavalink player is alive
+    if (!player.node || player.node.state !== 2) {
+      console.warn(`⚠️ Dormant player node unhealthy for guild ${guildId}, cleaning up`);
+      this.persistentConnections.delete(guildId);
+      return;
+    }
+    
+    // Check how long it's been dormant
+    const dormantTime = Date.now() - (connection.lastVoiceDisconnect || connection.lastUsed);
+    const maxDormantTime = parseInt(process.env.MAX_DORMANT_TIME) || 3600000; // 1 hour default
+    
+    if (dormantTime > maxDormantTime) {
+      console.log(`💤 Dormant connection for guild ${guildId} expired after ${Math.floor(dormantTime / 1000 / 60)} minutes, cleaning up`);
+      await this.cleanupPersistentConnection(guildId);
+      return;
+    }
+    
+    console.log(`💤 Dormant connection ${guildId} healthy (dormant for ${Math.floor(dormantTime / 1000 / 60)} minutes)`);
   }
   
   setupStreamHealthMonitoring(guildId, stationKey) {
@@ -808,6 +757,11 @@ export class SimpleRadioManager {
           console.log(`🛑 Stopping monitoring for guild ${guildId} - connection gone`);
           clearInterval(monitoringInterval);
           this.streamHealthChecks.delete(guildId);
+          return;
+        }
+        
+        // Skip monitoring if dormant
+        if (connection.dormant) {
           return;
         }
         
@@ -829,7 +783,81 @@ export class SimpleRadioManager {
 
   /**
    * ================================
-   * UTILITY METHODS
+   * DORMANT CONNECTION METHODS
+   * ================================
+   */
+  
+  /**
+   * Mark a connection as dormant (Lavalink alive, Discord voice disconnected)
+   */
+  async setConnectionDormant(guildId, preserveTrackInfo = true) {
+    const connection = this.persistentConnections.get(guildId);
+    if (!connection) {
+      console.warn(`⚠️ Cannot set dormant: No connection found for guild ${guildId}`);
+      return;
+    }
+    
+    console.log(`💤 Setting connection dormant for guild ${guildId}`);
+    
+    // Preserve current state
+    if (preserveTrackInfo && connection.player?.track) {
+      connection.trackInfo = {
+        position: connection.player.position || 0,
+        isPaused: connection.player.paused || false,
+        stationKey: connection.currentStation
+      };
+    }
+    
+    // Mark as dormant
+    connection.dormant = true;
+    connection.lastVoiceDisconnect = Date.now();
+    
+    console.log(`💤 Connection for guild ${guildId} is now dormant`);
+  }
+  
+  /**
+   * Reactivate a dormant connection
+   */
+  async reactivateDormantConnection(guildId, voiceChannelId) {
+    const connection = this.persistentConnections.get(guildId);
+    if (!connection || !connection.dormant) {
+      console.warn(`⚠️ Cannot reactivate: No dormant connection found for guild ${guildId}`);
+      return false;
+    }
+    
+    console.log(`🚀 Reactivating dormant connection for guild ${guildId}`);
+    
+    try {
+      // Reconnect to Discord voice
+      await this.ensurePlayerInVoiceChannel(connection.player, guildId, voiceChannelId);
+      
+      // Mark as active
+      connection.dormant = false;
+      connection.voiceChannelId = voiceChannelId;
+      connection.lastUsed = Date.now();
+      
+      // Resume playback if needed
+      if (connection.trackInfo && connection.currentStation) {
+        console.log(`🎵 Resuming playback: ${connection.currentStation}`);
+        
+        // If track stopped during dormancy, restart it
+        if (!connection.player.track) {
+          await this.playStationOnPlayer(connection.player, connection.currentStation);
+        }
+      }
+      
+      console.log(`✅ Dormant connection reactivated for guild ${guildId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Failed to reactivate dormant connection for guild ${guildId}: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * ================================
+   * UTILITY METHODS - ENHANCED
    * ================================
    */
   
@@ -926,12 +954,32 @@ export class SimpleRadioManager {
     };
   }
 
-  async getConnectionStatus(guildId) {
-    const connection = this.persistentConnections.get(guildId);
-    const player = connection?.player;
-    const guild = this.client.guilds.cache.get(guildId);
-    const botMember = guild?.members.cache.get(this.client.user.id);
+  async getConnectionStatus(guildId = null) {
+    if (guildId) {
+      // Get status for specific guild
+      const connection = this.persistentConnections.get(guildId);
+      const player = connection?.player;
+      const guild = this.client.guilds.cache.get(guildId);
+      const botMember = guild?.members.cache.get(this.client.user.id);
+      
+      return {
+        hasPlayer: !!player,
+        hasPersistentConnection: !!connection,
+        playerDestroyed: player?.destroyed,
+        playerPlaying: !!player?.track,
+        currentStation: connection?.currentStation,
+        isDormant: connection?.dormant || false,
+        inVoiceChannel: !!botMember?.voice.channel,
+        voiceChannelId: botMember?.voice.channel?.id,
+        voiceChannelName: botMember?.voice.channel?.name,
+        isSwitching: this.switchingStations.has(guildId),
+        lastUsed: connection?.lastUsed,
+        connectionAge: connection ? Date.now() - connection.created : null,
+        dormantSince: connection?.lastVoiceDisconnect
+      };
+    }
     
+    // Get global status
     const nodes = this.client.shoukaku?.nodes;
     const nodeStates = nodes ? Array.from(nodes.values()).map(node => ({
       name: node.name,
@@ -940,24 +988,21 @@ export class SimpleRadioManager {
       healthy: node.state === 2
     })) : [];
     
+    const totalConnections = this.persistentConnections.size;
+    const dormantConnections = Array.from(this.persistentConnections.values()).filter(conn => conn.dormant).length;
+    const activeConnections = totalConnections - dormantConnections;
+    
     return {
-      hasPlayer: !!player,
-      hasPersistentConnection: !!connection,
-      playerDestroyed: player?.destroyed,
-      playerPlaying: !!player?.track,
-      currentStation: connection?.currentStation,
-      inVoiceChannel: !!botMember?.voice.channel,
-      voiceChannelId: botMember?.voice.channel?.id,
-      voiceChannelName: botMember?.voice.channel?.name,
-      isSwitching: this.switchingStations.has(guildId),
-      persistentConnections: this.persistentConnections.size,
+      persistentConnections: totalConnections,
+      activeConnections: activeConnections,
+      dormantConnections: dormantConnections,
       activeHealthChecks: this.streamHealthChecks.size,
+      switchingStations: this.switchingStations.size,
       nodes: nodeStates,
       connectedNodes: nodeStates.filter(n => n.healthy).length,
       totalNodes: nodeStates.length,
       defaultVolume: this.defaultVolume,
-      lastUsed: connection?.lastUsed,
-      connectionAge: connection ? Date.now() - connection.created : null
+      cooldownGuilds: this.reconnectCooldowns.size
     };
   }
 
