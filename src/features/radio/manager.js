@@ -47,19 +47,13 @@ export class SimpleRadioManager {
       throw new Error('Already switching stations, please wait...');
     }
     
-    // Check Lavalink connection first
-    const nodes = this.client.shoukaku?.nodes;
-    if (!nodes || nodes.size === 0) {
-      throw new Error('No Lavalink nodes available. Please check Lavalink server connection.');
+    // Check Lavalink connection with retry logic
+    const availableNode = await this.waitForConnectedNode();
+    if (!availableNode) {
+      throw new Error('Lavalink server is currently reconnecting. Please try again in a few seconds.');
     }
     
-    const availableNodes = Array.from(nodes.values()).filter(node => node.state === 2); // 2 = CONNECTED
-    if (availableNodes.length === 0) {
-      const nodeStates = Array.from(nodes.entries()).map(([name, node]) => `${name}: ${this.getNodeStateText(node.state)}`).join(', ');
-      throw new Error(`No connected Lavalink nodes. Node states: ${nodeStates}`);
-    }
-    
-    console.log(`✅ Found ${availableNodes.length} connected Lavalink nodes`);
+    console.log(`✅ Using Lavalink node: ${availableNode.name} (${this.getNodeStateText(availableNode.state)})`);
     
     this.switchingStations.add(guildId);
     
@@ -234,7 +228,38 @@ export class SimpleRadioManager {
     }
   }
 
-  // Helper to get readable node state
+  // Helper to wait for a connected node (with retry logic)
+  async waitForConnectedNode(maxWaitTime = 15000) {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      const nodes = this.client.shoukaku?.nodes;
+      
+      if (!nodes || nodes.size === 0) {
+        console.log('⏳ No Lavalink nodes configured, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
+      
+      const availableNodes = Array.from(nodes.values()).filter(node => node.state === 2); // 2 = CONNECTED
+      
+      if (availableNodes.length > 0) {
+        return availableNodes[0]; // Return first available node
+      }
+      
+      // Show current states while waiting
+      const nodeStates = Array.from(nodes.entries()).map(([name, node]) => `${name}: ${this.getNodeStateText(node.state)}`).join(', ');
+      console.log(`⏳ Waiting for Lavalink to connect... States: ${nodeStates}`);
+      
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Check every 2 seconds
+    }
+    
+    // Timeout reached
+    const nodes = this.client.shoukaku?.nodes;
+    const finalStates = nodes ? Array.from(nodes.entries()).map(([name, node]) => `${name}: ${this.getNodeStateText(node.state)}`).join(', ') : 'No nodes';
+    console.error(`❌ Timeout waiting for Lavalink connection. Final states: ${finalStates}`);
+    return null;
+  }
   getNodeStateText(state) {
     const states = {
       0: 'DISCONNECTED',
