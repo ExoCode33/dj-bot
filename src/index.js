@@ -13,7 +13,7 @@ const port = process.env.PORT || 3000;
 const RADIO_CHANNEL_ID = process.env.RADIO_CHANNEL_ID || "1408960645826871407";
 const DEFAULT_VOLUME = parseInt(process.env.DEFAULT_VOLUME) || 35;
 
-// ENHANCED: Auto-connect and auto-play variables with auto-leave logic
+// AUTO-LEAVE DETECTION LOGIC - FIXED
 const AUTO_CONNECT_CHANNEL_ID = process.env.AUTO_CONNECT_CHANNEL_ID && process.env.AUTO_CONNECT_CHANNEL_ID !== 'false' ? process.env.AUTO_CONNECT_CHANNEL_ID : null;
 const AUTO_START_STATION = process.env.AUTO_START_STATION && process.env.AUTO_START_STATION !== 'false' ? process.env.AUTO_START_STATION : null;
 const AUTO_LEAVE_ENABLED = process.env.AUTO_CONNECT_CHANNEL_ID === 'false' && process.env.AUTO_START_STATION === 'false';
@@ -22,7 +22,7 @@ const AUTO_LEAVE_DELAY = parseInt(process.env.AUTO_LEAVE_DELAY) || 30000; // 30 
 console.log(`🔊 Default volume set to: ${DEFAULT_VOLUME}%`);
 console.log(`📻 Auto-connect channel: ${AUTO_CONNECT_CHANNEL_ID || 'Disabled'}`);
 console.log(`🎵 Auto-start station: ${AUTO_START_STATION || 'Disabled'}`);
-console.log(`🚪 Auto-leave when empty: ${AUTO_LEAVE_ENABLED ? `Enabled (${AUTO_LEAVE_DELAY / 1000}s delay)` : 'Disabled'}`);
+console.log(`🚪 Auto-leave when empty: ${AUTO_LEAVE_ENABLED ? `✅ ENABLED (${AUTO_LEAVE_DELAY / 1000}s delay)` : '❌ DISABLED'}`);
 
 // Get current directory for loading commands
 const __filename = fileURLToPath(import.meta.url);
@@ -32,7 +32,7 @@ const __dirname = path.dirname(__filename);
 global.discordReady = false;
 global.lavalinkReady = false;
 
-// Health server - MUST start first and stay simple
+// Health server with auto-leave status
 const server = http.createServer((req, res) => {
   console.log(`📡 Health check: ${req.url}`);
   
@@ -60,7 +60,7 @@ const server = http.createServer((req, res) => {
       autoStart: !!AUTO_START_STATION,
       autoLeave: AUTO_LEAVE_ENABLED,
       autoLeaveDelay: AUTO_LEAVE_DELAY,
-      version: '2.1.0'
+      version: '2.1.1-autoleave'
     }));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -81,7 +81,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason);
 });
 
-// Command loader function
+// Command loader function - only loads actual slash commands
 async function loadSlashCommands(client) {
   console.log('📂 Loading slash commands...');
   
@@ -136,17 +136,17 @@ async function startDiscordBot() {
       return;
     }
 
-    // Dynamic imports
+    // Dynamic imports - FIXED PATHS
     const discord = await import('discord.js');
     const shoukaku = await import('shoukaku');
     
-    // Import our custom modules
+    // Import our custom modules with correct relative paths
     const { SimpleRadioManager } = await import('./features/radio/manager.js');
     const { RadioInteractionHandler } = await import('./features/radio/interactions.js');
     const { RadioUI } = await import('./features/radio/ui.js');
     const { AutoLeaveHandler } = await import('./features/voice/autoLeaveHandler.js');
     
-    // Import bot commands
+    // Import bot commands (not slash commands)
     const { radioCommand } = await import('./bot/commands.js');
     
     console.log('✅ Libraries and modules loaded');
@@ -171,10 +171,10 @@ async function startDiscordBot() {
 
     client.commands = new Collection();
 
-    // Load slash commands
+    // Load actual slash commands from /commands directory
     const slashCommands = await loadSlashCommands(client);
     
-    // Add bot commands
+    // Add bot-specific commands (only /radio redirect)
     client.commands.set('radio', radioCommand);
     
     // Combine all commands for registration
@@ -216,7 +216,7 @@ async function startDiscordBot() {
 
     // Initialize managers and handlers
     const radioManager = new SimpleRadioManager(client);
-    const currentlyPlaying = new Map();
+    const currentlyPlaying = new Map(); // Track what's playing per guild
     let persistentMessage = null;
 
     // Update persistent message function
@@ -226,6 +226,7 @@ async function startDiscordBot() {
           const embed = await RadioUI.createPersistentRadioEmbed(client, currentlyPlaying);
           const components = await RadioUI.createPersistentRadioComponents(persistentMessage.guildId, currentlyPlaying);
           
+          // Check if banner exists and attach it
           const bannerPath = path.join(process.cwd(), 'images', 'uta-banner.gif');
           let files = [];
           
@@ -245,7 +246,7 @@ async function startDiscordBot() {
       }
     }
 
-    // Initialize handlers
+    // Initialize radio interaction handler
     const radioInteractionHandler = new RadioInteractionHandler(
       client, 
       radioManager, 
@@ -254,20 +255,27 @@ async function startDiscordBot() {
     );
 
     // ENHANCED: Initialize auto-leave handler
-    const autoLeaveHandler = new AutoLeaveHandler(
-      client,
-      radioManager,
-      currentlyPlaying,
-      updatePersistentMessage
-    );
+    let autoLeaveHandler = null;
+    if (AUTO_LEAVE_ENABLED) {
+      console.log('🚪 Initializing auto-leave handler...');
+      autoLeaveHandler = new AutoLeaveHandler(
+        client,
+        radioManager,
+        currentlyPlaying,
+        updatePersistentMessage
+      );
+      console.log('✅ Auto-leave handler initialized');
+    }
 
-    // Auto-play initialization function
+    // Initialize auto-play function
     async function initializeAutoPlay() {
       try {
         console.log('🤖 Initializing auto-connect and auto-play...');
         
+        // Import stations to find the station key
         const { RADIO_STATIONS } = await import('./config/stations.js');
         
+        // Find station by name
         let stationKey = null;
         for (const [key, station] of Object.entries(RADIO_STATIONS)) {
           if (station.name === AUTO_START_STATION) {
@@ -282,8 +290,9 @@ async function startDiscordBot() {
           return;
         }
         
+        // Get the voice channel
         const voiceChannel = await client.channels.fetch(AUTO_CONNECT_CHANNEL_ID);
-        if (!voiceChannel || voiceChannel.type !== 2) {
+        if (!voiceChannel || voiceChannel.type !== 2) { // 2 = GUILD_VOICE
           console.error(`❌ Auto-connect voice channel not found or invalid: ${AUTO_CONNECT_CHANNEL_ID}`);
           return;
         }
@@ -291,12 +300,14 @@ async function startDiscordBot() {
         console.log(`🎤 Auto-connecting to voice channel: #${voiceChannel.name}`);
         console.log(`🎵 Auto-starting station: ${RADIO_STATIONS[stationKey].name}`);
         
+        // Use radio manager to start playing
         const result = await radioManager.switchToStation(
           voiceChannel.guild.id,
           stationKey,
           voiceChannel.id
         );
         
+        // Track what's playing
         currentlyPlaying.set(voiceChannel.guild.id, {
           stationKey: stationKey,
           stationName: RADIO_STATIONS[stationKey].name,
@@ -311,18 +322,18 @@ async function startDiscordBot() {
         console.error('❌ Auto-play initialization failed:', error.message);
         console.log('💡 Falling back to regular radio channel setup...');
         
+        // Fall back to regular radio setup
         setTimeout(() => {
           initializePersistentRadio();
         }, 2000);
       }
     }
 
-    // Regular radio setup function
     async function initializePersistentRadio() {
       try {
-        // Validate RADIO_CHANNEL_ID
+        // Validate RADIO_CHANNEL_ID properly
         if (!RADIO_CHANNEL_ID || RADIO_CHANNEL_ID === 'false') {
-          console.warn('⚠️ RADIO_CHANNEL_ID not set or set to "false" - skipping persistent radio setup');
+          console.warn('⚠️ RADIO_CHANNEL_ID not set properly - skipping persistent radio setup');
           console.log('💡 Set RADIO_CHANNEL_ID to a valid Discord channel ID to enable persistent radio interface');
           return;
         }
@@ -358,10 +369,11 @@ async function startDiscordBot() {
           files.push(bannerAttachment);
           console.log('✅ Banner attachment created');
         } else {
-          console.warn('⚠️ Banner file not found - interface will work without banner');
+          console.warn('⚠️ Banner file not found at:', bannerPath);
+          console.warn('⚠️ Interface will work without banner');
         }
 
-        // Send message
+        // Send message with banner
         persistentMessage = await channel.send({
           embeds: [embed],
           components: components,
@@ -375,7 +387,7 @@ async function startDiscordBot() {
       }
     }
 
-    // Register commands
+    // Register all commands
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     
     try {
@@ -398,27 +410,28 @@ async function startDiscordBot() {
       console.log(`🎉 Discord ready: ${client.user.tag}`);
       global.discordReady = true;
       
-      // Startup logic based on configuration
+      // Enhanced startup logic based on configuration
       if (AUTO_CONNECT_CHANNEL_ID && AUTO_START_STATION) {
-        console.log('🚀 Auto-connect and auto-play enabled');
+        console.log('🚀 Auto-connect and auto-play mode enabled');
         setTimeout(() => {
           initializeAutoPlay();
         }, 3000);
       } else if (AUTO_LEAVE_ENABLED) {
-        console.log('🚪 Auto-leave mode enabled - performing startup check');
-        setTimeout(() => {
-          autoLeaveHandler.performStartupCheck();
-          initializePersistentRadio();
+        console.log('🚪 Auto-leave mode enabled - performing startup cleanup');
+        setTimeout(async () => {
+          if (autoLeaveHandler) {
+            await autoLeaveHandler.performStartupCheck();
+          }
+          await initializePersistentRadio();
         }, 3000);
       } else {
-        console.log('📻 Regular radio mode enabled');
+        console.log('📻 Standard radio mode enabled');
         setTimeout(() => {
           initializePersistentRadio();
         }, 3000);
       }
     });
 
-    // Interaction handler
     client.on(Events.InteractionCreate, async (interaction) => {
       try {
         if (interaction.isChatInputCommand()) {
@@ -434,7 +447,7 @@ async function startDiscordBot() {
       }
     });
 
-    // ENHANCED: Voice state update handler with auto-leave logic
+    // ENHANCED: Voice state update handler with integrated auto-leave logic
     client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
       try {
         // Handle bot disconnections (existing logic)
@@ -456,8 +469,9 @@ async function startDiscordBot() {
           await updatePersistentMessage();
         }
 
-        // ENHANCED: Handle auto-leave logic
-        if (AUTO_LEAVE_ENABLED) {
+        // AUTO-LEAVE LOGIC: Only process if auto-leave is enabled
+        if (AUTO_LEAVE_ENABLED && autoLeaveHandler) {
+          console.log('🔍 Processing voice state update for auto-leave...');
           await autoLeaveHandler.handleVoiceStateUpdate(oldState, newState);
         }
         
@@ -468,6 +482,9 @@ async function startDiscordBot() {
 
     await client.login(process.env.DISCORD_TOKEN);
     console.log('✅ Discord login initiated');
+
+    // Make client globally accessible for health checks
+    global.client = client;
 
   } catch (error) {
     console.error('💥 Bot startup failed:', error.message);
