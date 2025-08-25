@@ -1,71 +1,596 @@
-// src/features/radio/manager.js - FIXED VERSION WITH PROPER GHOST CONNECTION HANDLING
+// src/features/radio/manager.js - COMPLETELY RETHOUGHT CONNECTION STRATEGY
 import { RADIO_STATIONS } from '../../config/stations.js';
 
 export class SimpleRadioManager {
   constructor(client) {
     this.client = client;
     
-    // ENHANCED: Better volume handling for very low volumes
+    // Volume handling
     const rawVolume = parseInt(process.env.DEFAULT_VOLUME) || 35;
-    
-    // Volume validation and mapping
-    if (rawVolume < 1) {
-      console.warn(`⚠️ Volume ${rawVolume} is too low, setting to minimum (1)`);
-      this.defaultVolume = 1;
-    } else if (rawVolume > 200) {
-      console.warn(`⚠️ Volume ${rawVolume} is too high, setting to maximum (200)`);
-      this.defaultVolume = 200;
-    } else {
-      this.defaultVolume = rawVolume;
-    }
-    
+    this.defaultVolume = Math.max(1, Math.min(200, rawVolume));
     console.log(`🔊 Volume configured: ${this.defaultVolume}% (from DEFAULT_VOLUME=${process.env.DEFAULT_VOLUME})`);
     
+    // Connection tracking - NEW APPROACH
+    this.persistentConnections = new Map(); // Guild -> { player, voiceChannelId, lastUsed }
     this.switchingStations = new Set();
     this.connectionAttempts = new Map();
-    this.nodeHealthCheck = new Map();
-    this.ghostConnectionCooldown = new Map();
-    this.lastDisconnectTime = new Map(); // Track when we last disconnected
+    this.streamHealthChecks = new Map(); // Guild -> interval
+    this.reconnectCooldowns = new Map();
+    
+    // Stream monitoring for 24/7 reliability
+    this.monitoringInterval = null;
+    this.startGlobalMonitoring();
+    
+    console.log('🎵 Enhanced Radio Manager initialized with persistent connection strategy');
   }
 
-  async connectToStream(player, stationKey) {
+  // ================================
+  // NEW STRATEGY: PERSISTENT CONNECTIONS
+  // Keep players alive even when leaving voice channels
+  // ================================
+
+  /**
+   * Creates or reuses a persistent player connection
+   */
+  async getOrCreatePersistentPlayer(guildId, voiceChannelId) {
+    console.log(`🔄 Getting/creating persistent player for guild ${guildId}`);
+    
+    const existing = this.persistentConnections.get(guildId);
+    
+    // Check if we can reuse existing player
+    if (existing && existing.player && !existing.player.destroyed) {
+      console.log('♻️ Reusing existing persistent player');
+      
+      // Update last used time
+      existing.lastUsed = Date.now();
+      existing.voiceChannelId = voiceChannelId;
+      
+      // Ensure player is in correct voice channel
+      await this.ensurePlayerInVoiceChannel(existing.player, guildId, voiceChannelId);
+      
+      return existing.player;
+    }
+    
+    // Create new persistent player
+    console.log('🆕 Creating new persistent player');
+    return await this.createNewPersistentPlayer(guildId, voiceChannelId);
+  }
+
+  /**
+   * Creates a new persistent player with enhanced error handling
+   */
+  async createNewPersistentPlayer(guildId, voiceChannelId) {
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) throw new Error('Guild not found');
+    
+    const voiceChannel = guild.channels.cache.get(voiceChannelId);
+    if (!voiceChannel) throw new Error('Voice channel not found');
+    
+    // Get best available node
+    const node = await this.getBestAvailableNode();
+    if (!node) throw new Error('No Lavalink nodes available');
+    
+    console.log(`🎵 Creating persistent connection via node: ${node.name}`);
+    
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`🔄 Persistent connection attempt ${attempts}/${maxAttempts}`);
+      
+      try {
+        // CRITICAL: Always clean up any existing connections first
+        await this.forceCleanupGuild(guildId);
+        
+        // Wait for Discord state to settle
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Create the connection using a more direct approach
+        const player = await this.directCreateConnection(guildId, voiceChannelId, guild);
+        
+        if (!player) {
+          throw new Error('Player creation returned null');
+        }
+        
+        // Store as persistent connection
+        this.persistentConnections.set(guildId, {
+          player: player,
+          voiceChannelId: voiceChannelId,
+          lastUsed: Date.now(),
+          created: Date.now(),
+          guildId: guildId
+        });
+        
+        // Setup player event handlers for persistence
+        this.setupPlayerEventHandlers(player, guildId);
+        
+        console.log('✅ Persistent player created and stored');
+        return player;
+        
+      } catch (error) {
+        console.warn(`❌ Persistent connection attempt ${attempts} failed: ${error.message}`);
+        
+        if (attempts < maxAttempts) {
+          const waitTime = Math.min(5000 * attempts, 30000);
+          console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          // Set cooldown to prevent rapid retry loops
+          this.reconnectCooldowns.set(guildId, Date.now() + 120000); // 2 minutes
+          throw new Error(`Failed to create persistent connection after ${maxAttempts} attempts: ${error.message}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * NUCLEAR APPROACH: Force cleanup everything related to a guild
+   */
+  async forceCleanupGuild(guildId) {
+    console.log(`🧹 FORCE cleaning up ALL connections for guild ${guildId}`);
+    
+    const guild = this.client.guilds.cache.get(guildId);
+    
+    try {
+      // 1. Clean up our persistent tracking
+      const existing = this.persistentConnections.get(guildId);
+      if (existing?.player) {
+        try {
+          if (!existing.player.destroyed) {
+            if (existing.player.track) await existing.player.stopTrack();
+            await existing.player.destroy();
+          }
+        } catch (e) {
+          console.log('ℹ️ Player cleanup warning (expected):', e.message);
+        }
+      }
+      this.persistentConnections.delete(guildId);
+      
+      // 2. Clean up Shoukaku's internal player registry
+      const shoukakuPlayer = this.client.shoukaku.players.get(guildId);
+      if (shoukakuPlayer) {
+        try {
+          if (!shoukakuPlayer.destroyed) {
+            if (shoukakuPlayer.track) await shoukakuPlayer.stopTrack();
+            await shoukakuPlayer.destroy();
+          }
+        } catch (e) {
+          console.log('ℹ️ Shoukaku cleanup warning (expected):', e.message);
+        }
+        this.client.shoukaku.players.delete(guildId);
+      }
+      
+      // 3. Clean up Discord voice connection
+      if (guild) {
+        const botMember = guild.members.me;
+        if (botMember?.voice?.channel) {
+          console.log('🔌 Force disconnecting from Discord voice');
+          try {
+            await botMember.voice.disconnect();
+          } catch (e) {
+            console.log('ℹ️ Discord disconnect warning (expected):', e.message);
+          }
+        }
+      }
+      
+      // 4. Clean up all node player references
+      const nodes = this.client.shoukaku.nodes;
+      if (nodes) {
+        for (const [nodeName, node] of nodes) {
+          try {
+            // Try to access and clean node's internal player maps
+            if (node.players) {
+              node.players.delete(guildId);
+            }
+            
+            // Try to clean connection state if accessible
+            if (node.connection?.players) {
+              node.connection.players.delete(guildId);
+            }
+          } catch (e) {
+            // Expected - internal structures may not be accessible
+          }
+        }
+      }
+      
+      console.log('✅ Force cleanup completed');
+      
+    } catch (error) {
+      console.warn('⚠️ Force cleanup had errors (some expected):', error.message);
+    }
+    
+    // Always wait for state to settle
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
+  /**
+   * DIRECT connection creation bypassing Shoukaku's internal checks
+   */
+  async directCreateConnection(guildId, voiceChannelId, guild) {
+    console.log('🎯 Direct connection creation');
+    
+    // Use the most basic Shoukaku connection method
+    const connectionOptions = {
+      guildId: guildId,
+      channelId: voiceChannelId,
+      shardId: guild.shardId,
+      deaf: true,
+      mute: false
+    };
+    
+    console.log('🔗 Attempting direct Shoukaku connection...');
+    
+    // Direct call to Shoukaku's connection method
+    const player = await this.client.shoukaku.joinVoiceChannel(connectionOptions);
+    
+    if (!player) {
+      throw new Error('Shoukaku joinVoiceChannel returned null');
+    }
+    
+    // Enhanced verification with longer timeout
+    console.log('⏳ Verifying direct connection...');
+    let verified = false;
+    
+    for (let i = 0; i < 15; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      if (player.destroyed) {
+        throw new Error('Player was destroyed during verification');
+      }
+      
+      if (player.voiceConnection && player.node && player.node.state === 2) {
+        const botMember = guild.members.me;
+        const inCorrectChannel = botMember?.voice?.channelId === voiceChannelId;
+        
+        if (inCorrectChannel) {
+          verified = true;
+          console.log(`✅ Direct connection verified after ${i + 1} checks`);
+          break;
+        }
+      }
+      
+      console.log(`⏳ Verification check ${i + 1}/15...`);
+    }
+    
+    if (!verified) {
+      console.warn('⚠️ Connection verification incomplete but proceeding');
+    }
+    
+    return player;
+  }
+
+  /**
+   * Ensures player is connected to the correct voice channel
+   */
+  async ensurePlayerInVoiceChannel(player, guildId, targetVoiceChannelId) {
+    if (player.destroyed) {
+      throw new Error('Cannot move destroyed player');
+    }
+    
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) throw new Error('Guild not found');
+    
+    const botMember = guild.members.me;
+    const currentChannelId = botMember?.voice?.channelId;
+    
+    if (currentChannelId === targetVoiceChannelId) {
+      console.log('✅ Player already in correct voice channel');
+      return;
+    }
+    
+    console.log(`🚶 Moving player from ${currentChannelId} to ${targetVoiceChannelId}`);
+    
+    try {
+      await botMember.voice.setChannel(targetVoiceChannelId);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const newChannelId = guild.members.me?.voice?.channelId;
+      if (newChannelId !== targetVoiceChannelId) {
+        console.warn(`⚠️ Channel move incomplete: expected ${targetVoiceChannelId}, got ${newChannelId}`);
+      } else {
+        console.log('✅ Successfully moved to target voice channel');
+      }
+    } catch (error) {
+      throw new Error(`Failed to move to voice channel: ${error.message}`);
+    }
+  }
+
+  /**
+   * Setup event handlers for persistent players
+   */
+  setupPlayerEventHandlers(player, guildId) {
+    console.log(`🔧 Setting up event handlers for guild ${guildId}`);
+    
+    player.on('end', async (track, reason) => {
+      console.log(`🎵 Track ended for guild ${guildId}: ${reason}`);
+      
+      // For radio streams, we want to restart immediately unless manually stopped
+      if (reason !== 'stopped' && reason !== 'cleanup') {
+        console.log('🔄 Radio stream ended unexpectedly, attempting restart...');
+        await this.handleStreamInterruption(guildId, player);
+      }
+    });
+    
+    player.on('stuck', async (track, thresholdMs) => {
+      console.warn(`⚠️ Track stuck for guild ${guildId} after ${thresholdMs}ms`);
+      await this.handleStreamInterruption(guildId, player);
+    });
+    
+    player.on('exception', async (track, exception) => {
+      console.error(`❌ Player exception for guild ${guildId}:`, exception.message);
+      await this.handleStreamInterruption(guildId, player);
+    });
+    
+    console.log('✅ Event handlers configured');
+  }
+
+  /**
+   * Handles stream interruptions with automatic restart
+   */
+  async handleStreamInterruption(guildId, player) {
+    console.log(`🔄 Handling stream interruption for guild ${guildId}`);
+    
+    const persistent = this.persistentConnections.get(guildId);
+    if (!persistent) {
+      console.log('ℹ️ No persistent connection found, skipping restart');
+      return;
+    }
+    
+    // Find what station was playing
+    const currentTrack = player.track;
+    if (!currentTrack) {
+      console.log('ℹ️ No current track info, cannot restart');
+      return;
+    }
+    
+    // Try to restart the same station
+    try {
+      console.log('🎵 Attempting to restart radio stream...');
+      
+      // Stop current track cleanly
+      try {
+        await player.stopTrack();
+      } catch (e) {
+        // Expected
+      }
+      
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Find the station by URL (approximate match)
+      let stationToRestart = null;
+      const trackUri = currentTrack.uri || currentTrack.info?.uri;
+      
+      if (trackUri) {
+        for (const [key, station] of Object.entries(RADIO_STATIONS)) {
+          if (trackUri.includes(station.url) || station.url.includes(trackUri)) {
+            stationToRestart = key;
+            break;
+          }
+        }
+      }
+      
+      if (stationToRestart) {
+        console.log(`🎵 Restarting station: ${RADIO_STATIONS[stationToRestart].name}`);
+        await this.playStationOnPlayer(player, stationToRestart);
+        console.log('✅ Stream restart successful');
+      } else {
+        console.warn('⚠️ Could not identify station to restart');
+      }
+      
+    } catch (restartError) {
+      console.error('❌ Stream restart failed:', restartError.message);
+      
+      // Mark connection as potentially problematic
+      persistent.lastError = Date.now();
+    }
+  }
+
+  /**
+   * ================================
+   * MAIN STATION SWITCHING METHOD - REDESIGNED
+   * ================================
+   */
+  async switchToStation(guildId, stationKey, voiceChannelId) {
+    console.log(`🔄 Station switch: ${stationKey} for guild ${guildId}`);
+    
+    // Check cooldown
+    const cooldownEnd = this.reconnectCooldowns.get(guildId);
+    if (cooldownEnd && Date.now() < cooldownEnd) {
+      const remainingTime = Math.ceil((cooldownEnd - Date.now()) / 1000);
+      throw new Error(`Connection cooling down. Please wait ${remainingTime} more seconds.`);
+    }
+    
+    // Prevent concurrent switches
+    if (this.switchingStations.has(guildId)) {
+      throw new Error('Already switching stations, please wait...');
+    }
+    
+    this.switchingStations.add(guildId);
+    
+    try {
+      // Get or create persistent player
+      const player = await this.getOrCreatePersistentPlayer(guildId, voiceChannelId);
+      
+      // Set volume
+      const actualVolume = await this.setPlayerVolume(player);
+      
+      // Play the station
+      const result = await this.playStationOnPlayer(player, stationKey);
+      
+      // Setup health monitoring for this stream
+      this.setupStreamHealthMonitoring(guildId, stationKey);
+      
+      result.volume = actualVolume;
+      return result;
+      
+    } finally {
+      this.switchingStations.delete(guildId);
+    }
+  }
+
+  /**
+   * Play a station on an existing player
+   */
+  async playStationOnPlayer(player, stationKey) {
     const station = RADIO_STATIONS[stationKey];
     if (!station) throw new Error('Station not found');
-
-    console.log(`🎵 Connecting to ${station.name}: ${station.url}`);
+    
+    console.log(`🎵 Playing ${station.name} on existing player`);
+    
+    // Stop current track if playing
+    if (player.track) {
+      await player.stopTrack();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     
     const urlsToTry = [station.url];
     if (station.fallback) urlsToTry.push(station.fallback);
     
     for (const url of urlsToTry) {
       try {
+        console.log(`🔗 Trying URL: ${url}`);
+        
         const result = await player.node.rest.resolve(url);
         
         if (result.loadType === 'track' && result.data) {
           await player.playTrack({ track: { encoded: result.data.encoded } });
           await new Promise(resolve => setTimeout(resolve, 2000));
-          return { success: true, station, url };
-        } else if (result.tracks && result.tracks.length > 0) {
-          await player.playTrack({ track: { encoded: result.tracks[0].encoded } });
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          console.log(`✅ Successfully started playing ${station.name}`);
           return { success: true, station, url };
         }
       } catch (error) {
-        console.error(`❌ URL failed: ${url} - ${error.message}`);
+        console.warn(`❌ URL failed: ${url} - ${error.message}`);
       }
     }
     
     throw new Error(`All stream URLs failed for ${station.name}`);
   }
 
-  // ENHANCED: Better volume setting with validation and logging
+  /**
+   * ================================
+   * STREAM HEALTH MONITORING - 24/7 RELIABILITY
+   * ================================
+   */
+  
+  startGlobalMonitoring() {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+    
+    console.log('🩺 Starting global stream health monitoring');
+    
+    this.monitoringInterval = setInterval(() => {
+      this.performHealthChecks();
+    }, 30000); // Check every 30 seconds
+  }
+  
+  async performHealthChecks() {
+    if (this.persistentConnections.size === 0) return;
+    
+    console.log(`🩺 Performing health checks on ${this.persistentConnections.size} connections`);
+    
+    for (const [guildId, connection] of this.persistentConnections.entries()) {
+      try {
+        await this.checkConnectionHealth(guildId, connection);
+      } catch (error) {
+        console.warn(`⚠️ Health check failed for guild ${guildId}: ${error.message}`);
+      }
+    }
+  }
+  
+  async checkConnectionHealth(guildId, connection) {
+    const { player } = connection;
+    
+    if (!player || player.destroyed) {
+      console.warn(`💀 Dead player detected for guild ${guildId}, removing`);
+      this.persistentConnections.delete(guildId);
+      return;
+    }
+    
+    // Check if player is actually playing
+    if (!player.track) {
+      console.warn(`⚠️ Player not playing for guild ${guildId}`);
+      
+      // If connection hasn't been used recently, clean it up
+      const lastUsed = connection.lastUsed || connection.created;
+      const idleTime = Date.now() - lastUsed;
+      
+      if (idleTime > 300000) { // 5 minutes idle
+        console.log(`🧹 Cleaning up idle connection for guild ${guildId}`);
+        await this.cleanupPersistentConnection(guildId);
+      }
+      return;
+    }
+    
+    // Check node health
+    if (!player.node || player.node.state !== 2) {
+      console.warn(`⚠️ Player node unhealthy for guild ${guildId}`);
+      // The node reconnection will be handled by Shoukaku
+      return;
+    }
+    
+    // Check voice connection
+    const guild = this.client.guilds.cache.get(guildId);
+    if (guild) {
+      const botMember = guild.members.me;
+      if (!botMember?.voice?.channel) {
+        console.warn(`⚠️ Bot not in voice channel for guild ${guildId}`);
+        // This might be normal if users left and auto-leave triggered
+      }
+    }
+    
+    console.log(`✅ Health check passed for guild ${guildId}`);
+  }
+  
+  setupStreamHealthMonitoring(guildId, stationKey) {
+    // Clear any existing monitoring
+    if (this.streamHealthChecks.has(guildId)) {
+      clearInterval(this.streamHealthChecks.get(guildId));
+    }
+    
+    console.log(`🩺 Setting up stream monitoring for ${stationKey} in guild ${guildId}`);
+    
+    const monitoringInterval = setInterval(async () => {
+      try {
+        const connection = this.persistentConnections.get(guildId);
+        if (!connection || !connection.player || connection.player.destroyed) {
+          console.log(`🛑 Stopping monitoring for guild ${guildId} - connection gone`);
+          clearInterval(monitoringInterval);
+          this.streamHealthChecks.delete(guildId);
+          return;
+        }
+        
+        const player = connection.player;
+        
+        // Check if stream is still playing
+        if (!player.track) {
+          console.warn(`🔄 Stream stopped for guild ${guildId}, attempting restart`);
+          await this.playStationOnPlayer(player, stationKey);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Stream monitoring error for guild ${guildId}: ${error.message}`);
+      }
+    }, 60000); // Check every minute
+    
+    this.streamHealthChecks.set(guildId, monitoringInterval);
+  }
+
+  /**
+   * ================================
+   * UTILITY METHODS
+   * ================================
+   */
+  
   async setPlayerVolume(player, volume = null) {
     const targetVolume = volume || this.defaultVolume;
     
     try {
       console.log(`🔊 Setting volume to ${targetVolume}%`);
       
-      // Extra validation
       if (targetVolume < 1 || targetVolume > 200) {
         console.error(`❌ Invalid volume: ${targetVolume}%. Using safe default of 35%`);
         await player.setGlobalVolume(35);
@@ -73,38 +598,72 @@ export class SimpleRadioManager {
       }
       
       await player.setGlobalVolume(targetVolume);
-      
-      // Verify the volume was set (some players have issues with very low volumes)
-      if (targetVolume <= 5) {
-        console.log(`🔇 Very low volume detected (${targetVolume}%) - this should be very quiet`);
-        
-        // For extremely low volumes, you might want to add additional handling
-        if (targetVolume <= 2) {
-          console.log(`🔕 Ultra-low volume (${targetVolume}%) - if still too loud, consider muting entirely`);
-        }
-      }
-      
       console.log(`✅ Volume set successfully: ${targetVolume}%`);
       return targetVolume;
       
     } catch (error) {
-      console.error(`❌ Failed to set volume to ${targetVolume}%:`, error.message);
-      
-      // Fallback to a safe volume
-      try {
-        await player.setGlobalVolume(10);
-        console.log(`✅ Fallback: Set volume to 10%`);
-        return 10;
-      } catch (fallbackError) {
-        console.error(`❌ Even fallback volume failed:`, fallbackError.message);
-        return targetVolume; // Return what we attempted
-      }
+      console.error(`❌ Failed to set volume:`, error.message);
+      return targetVolume;
     }
   }
 
-  // ENHANCED: Volume testing method - useful for debugging
+  async getBestAvailableNode(maxWaitTime = 15000) {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      const nodes = this.client.shoukaku?.nodes;
+      
+      if (!nodes || nodes.size === 0) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+      
+      const connectedNodes = Array.from(nodes.values()).filter(node => node.state === 2);
+      
+      if (connectedNodes.length > 0) {
+        const chosenNode = connectedNodes[0];
+        console.log(`✅ Using connected node: ${chosenNode.name}`);
+        return chosenNode;
+      }
+      
+      console.log('⏳ Waiting for stable nodes...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    
+    console.error('❌ No usable nodes available');
+    return null;
+  }
+
+  async cleanupPersistentConnection(guildId) {
+    console.log(`🧹 Cleaning up persistent connection for guild ${guildId}`);
+    
+    const connection = this.persistentConnections.get(guildId);
+    if (connection?.player) {
+      try {
+        if (!connection.player.destroyed) {
+          if (connection.player.track) await connection.player.stopTrack();
+          await connection.player.destroy();
+        }
+      } catch (error) {
+        console.warn('⚠️ Cleanup error:', error.message);
+      }
+    }
+    
+    this.persistentConnections.delete(guildId);
+    
+    if (this.streamHealthChecks.has(guildId)) {
+      clearInterval(this.streamHealthChecks.get(guildId));
+      this.streamHealthChecks.delete(guildId);
+    }
+    
+    console.log(`✅ Persistent connection cleaned up for guild ${guildId}`);
+  }
+
+  // Testing method
   async testVolume(guildId, testVolume = 1) {
-    const player = this.client.shoukaku.players.get(guildId);
+    const connection = this.persistentConnections.get(guildId);
+    const player = connection?.player || this.client.shoukaku.players.get(guildId);
+    
     if (!player) {
       throw new Error('No active player found for volume test');
     }
@@ -119,751 +678,9 @@ export class SimpleRadioManager {
     };
   }
 
-  async getBestAvailableNode(maxWaitTime = 20000) {
-    const startTime = Date.now();
-    
-    while (Date.now() - startTime < maxWaitTime) {
-      const nodes = this.client.shoukaku?.nodes;
-      
-      if (!nodes || nodes.size === 0) {
-        console.log('⏳ No Lavalink nodes configured, waiting...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        continue;
-      }
-      
-      const allNodes = Array.from(nodes.values());
-      const connectedNodes = allNodes.filter(node => node.state === 2);
-      
-      if (connectedNodes.length > 0) {
-        const healthyNodes = connectedNodes.filter(node => {
-          const lastHealthCheck = this.nodeHealthCheck.get(node.name);
-          return !lastHealthCheck || (Date.now() - lastHealthCheck) > 30000;
-        });
-        
-        const chosenNode = healthyNodes.length > 0 ? healthyNodes[0] : connectedNodes[0];
-        console.log(`✅ Using healthy connected node: ${chosenNode.name} (state: ${this.getNodeStateText(chosenNode.state)})`);
-        return chosenNode;
-      }
-      
-      const nodeStates = allNodes.map(node => `${node.name}: ${this.getNodeStateText(node.state)}`).join(', ');
-      console.log(`⏳ Waiting for stable nodes... States: ${nodeStates}`);
-      
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-    
-    const nodes = this.client.shoukaku?.nodes;
-    if (nodes && nodes.size > 0) {
-      const allNodes = Array.from(nodes.values());
-      const anyUsableNode = allNodes.find(node => node.state === 2);
-      
-      if (anyUsableNode) {
-        console.warn(`⚠️ Using any available node as last resort: ${anyUsableNode.name}`);
-        return anyUsableNode;
-      }
-    }
-    
-    const finalStates = nodes ? Array.from(nodes.values()).map(node => `${node.name}: ${this.getNodeStateText(node.state)}`).join(', ') : 'No nodes';
-    console.error(`❌ No usable nodes available. Final states: ${finalStates}`);
-    return null;
-  }
-
-  // FIXED: Enhanced ghost connection handling with Discord state synchronization
-  async handleGhostConnection(guildId) {
-    console.log(`👻 Comprehensive ghost connection cleanup for guild ${guildId}`);
-    
-    try {
-      const guild = this.client.guilds.cache.get(guildId);
-      if (!guild) {
-        console.warn(`⚠️ Guild ${guildId} not found during ghost cleanup`);
-        return;
-      }
-
-      let cleanupNeeded = false;
-
-      // Step 1: Check and clean up Lavalink player
-      const existingPlayer = this.client.shoukaku.players.get(guildId);
-      if (existingPlayer) {
-        console.log('👻 Found ghost Lavalink player, destroying...');
-        try {
-          if (!existingPlayer.destroyed) {
-            if (existingPlayer.track) {
-              await existingPlayer.stopTrack();
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            await existingPlayer.destroy();
-          }
-        } catch (error) {
-          console.warn('⚠️ Error destroying ghost player:', error.message);
-        }
-        
-        this.client.shoukaku.players.delete(guildId);
-        cleanupNeeded = true;
-        console.log('✅ Ghost Lavalink player cleaned up');
-      }
-
-      // Step 2: Check and clean up Discord voice connection
-      const botMember = guild.members.me;
-      if (botMember?.voice?.channel) {
-        console.log(`👻 Bot appears to be in voice channel: ${botMember.voice.channel.name}`);
-        console.log('👻 Attempting to disconnect from ghost voice connection...');
-        
-        try {
-          await botMember.voice.disconnect();
-          cleanupNeeded = true;
-          console.log('✅ Successfully disconnected from ghost voice connection');
-        } catch (error) {
-          console.warn('⚠️ Could not disconnect from ghost voice connection:', error.message);
-          
-          // Try alternative disconnect method
-          try {
-            await botMember.voice.setChannel(null);
-            cleanupNeeded = true;
-            console.log('✅ Alternative disconnect method succeeded');
-          } catch (altError) {
-            console.error('❌ All disconnect methods failed:', altError.message);
-          }
-        }
-      }
-
-      // Step 3: CRITICAL - Force cleanup Discord's internal voice state
-      // Even if no visible connection, Discord may have internal state conflicts
-      if (!cleanupNeeded) {
-        console.log('👻 No visible connections, but checking for hidden Discord voice state...');
-        try {
-          // Force a disconnect attempt even if we don't see a connection
-          await botMember.voice.disconnect();
-          console.log('✅ Forced disconnect of hidden voice state');
-          cleanupNeeded = true;
-        } catch (error) {
-          // This is expected if there's really no connection
-          console.log('✅ No hidden voice state found (this is good)');
-        }
-      }
-
-      if (cleanupNeeded) {
-        // Record the cleanup time
-        this.lastDisconnectTime.set(guildId, Date.now());
-        
-        // Wait longer for Discord to fully process the disconnection
-        console.log('⏳ Waiting for Discord to process ghost connection cleanup...');
-        await new Promise(resolve => setTimeout(resolve, 7000)); // Increased to 7 seconds
-        
-        // Verify cleanup was successful with multiple checks
-        let verificationPassed = true;
-        
-        const finalCheck = guild.members.me?.voice?.channel;
-        const finalPlayer = this.client.shoukaku.players.get(guildId);
-        
-        if (finalCheck) {
-          console.warn(`⚠️ Bot still appears connected to ${finalCheck.name} after cleanup`);
-          verificationPassed = false;
-        }
-        
-        if (finalPlayer) {
-          console.warn(`⚠️ Player still exists after cleanup attempt`);
-          verificationPassed = false;
-        }
-        
-        if (verificationPassed) {
-          console.log('✅ Ghost connection cleanup fully verified');
-          this.ghostConnectionCooldown.delete(guildId);
-        } else {
-          console.warn('⚠️ Cleanup verification failed, setting extended cooldown');
-          this.ghostConnectionCooldown.set(guildId, Date.now());
-        }
-      } else {
-        console.log('✅ No ghost connections detected, but performing precautionary wait...');
-        // Even if no cleanup was needed, wait a bit for Discord state consistency
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-      
-    } catch (error) {
-      console.error('❌ Ghost connection cleanup failed:', error.message);
-      this.ghostConnectionCooldown.set(guildId, Date.now());
-    }
-  }
-
-  // ULTIMATE SOLUTION: Deep Shoukaku state cleanup
-  async performUltimateCleanup(guildId) {
-    console.log(`🚀 Performing ULTIMATE cleanup for guild ${guildId}`);
-    
-    try {
-      const guild = this.client.guilds.cache.get(guildId);
-      if (!guild) return false;
-
-      // Step 1: Comprehensive Shoukaku cleanup
-      console.log('🚀 Step 1: Deep Shoukaku state cleanup...');
-      
-      // Destroy all players for this guild
-      for (const [playerGuildId, player] of this.client.shoukaku.players.entries()) {
-        if (playerGuildId === guildId) {
-          console.log(`🚀 Destroying player for guild ${guildId}...`);
-          try {
-            if (player.track) await player.stopTrack();
-            if (!player.destroyed) await player.destroy();
-          } catch (error) {
-            console.warn(`⚠️ Player destroy error: ${error.message}`);
-          }
-        }
-      }
-      
-      // Force clear from players map
-      this.client.shoukaku.players.delete(guildId);
-
-      // Step 2: Deep node cleanup
-      console.log('🚀 Step 2: Deep node state cleanup...');
-      
-      const nodes = this.client.shoukaku.nodes;
-      if (nodes && nodes.size > 0) {
-        for (const [nodeName, node] of nodes) {
-          try {
-            console.log(`🚀 Cleaning node ${nodeName}...`);
-            
-            // Multiple approaches to clear node state
-            if (node.players) {
-              node.players.delete(guildId);
-            }
-            
-            // Try to access internal connection maps
-            if (node.connection && node.connection.players) {
-              node.connection.players.delete(guildId);
-            }
-            
-            // If node has a send method, try to send a voice state update
-            if (node.send) {
-              try {
-                await node.send({
-                  op: 4, // VOICE_STATE_UPDATE
-                  d: {
-                    guild_id: guildId,
-                    channel_id: null,
-                    self_mute: false,
-                    self_deaf: false
-                  }
-                });
-                console.log(`✅ Sent voice state clear to node ${nodeName}`);
-              } catch (sendError) {
-                console.log(`ℹ️ Could not send voice state clear to ${nodeName}: ${sendError.message}`);
-              }
-            }
-            
-          } catch (nodeError) {
-            console.log(`ℹ️ Node ${nodeName} cleanup partial: ${nodeError.message}`);
-          }
-        }
-      }
-
-      // Step 3: Discord voice state nuclear reset
-      console.log('🚀 Step 3: Nuclear Discord voice reset...');
-      
-      const botMember = guild.members.me;
-      
-      // Method 1: Multiple disconnect attempts
-      for (let i = 0; i < 3; i++) {
-        try {
-          await botMember.voice.disconnect();
-          console.log(`✅ Disconnect attempt ${i + 1} completed`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.log(`ℹ️ Disconnect attempt ${i + 1} failed (expected)`);
-        }
-      }
-
-      // Method 2: Channel manipulation
-      try {
-        await botMember.voice.setChannel(null);
-        console.log('✅ SetChannel(null) completed');
-      } catch (error) {
-        console.log('ℹ️ SetChannel(null) failed (expected)');
-      }
-
-      // Method 3: Force state update via Discord's WebSocket
-      try {
-        console.log('🚀 Attempting raw voice state update...');
-        
-        // Send raw voice state update through Discord client
-        if (this.client.ws && this.client.ws.shards) {
-          const shard = this.client.ws.shards.get(guild.shardId);
-          if (shard && shard.send) {
-            await shard.send({
-              op: 4, // VOICE_STATE_UPDATE
-              d: {
-                guild_id: guildId,
-                channel_id: null,
-                self_mute: false,
-                self_deaf: false
-              }
-            });
-            console.log('✅ Raw voice state update sent');
-          }
-        }
-      } catch (rawError) {
-        console.log('ℹ️ Raw voice state update failed (acceptable)');
-      }
-
-      // Step 4: Extended settlement with verification loops
-      console.log('🚀 Step 4: Extended settlement with active verification...');
-      
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        // Check if state is actually clean
-        const stillHasPlayer = this.client.shoukaku.players.has(guildId);
-        const stillInVoice = guild.members.me?.voice?.channel;
-        
-        console.log(`🔍 Verification attempt ${attempt + 1}: Player=${stillHasPlayer}, Voice=${!!stillInVoice}`);
-        
-        if (!stillHasPlayer && !stillInVoice) {
-          console.log('✅ State verified clean!');
-          break;
-        }
-        
-        if (attempt === 4) {
-          console.warn('⚠️ State not fully clean after maximum attempts');
-        }
-      }
-
-      // Step 5: Final verification
-      const finalPlayer = this.client.shoukaku.players.get(guildId);
-      const finalVoice = guild.members.me?.voice?.channel;
-      
-      if (finalPlayer || finalVoice) {
-        console.error('❌ Ultimate cleanup incomplete');
-        console.error(`Final state: Player=${!!finalPlayer}, Voice=${!!finalVoice}`);
-        return false;
-      }
-
-      console.log('✅ ULTIMATE cleanup completed successfully');
-      return true;
-
-    } catch (error) {
-      console.error('❌ Ultimate cleanup failed:', error.message);
-      return false;
-    }
-  }
-
-  async switchToStation(guildId, stationKey, voiceChannelId) {
-    console.log(`🔄 Switching to station: ${stationKey} for guild ${guildId}`);
-    
-    if (this.switchingStations.has(guildId)) {
-      throw new Error('Already switching stations, please wait...');
-    }
-    
-    // IMPROVED: More intelligent cooldown handling
-    const ghostCooldown = this.ghostConnectionCooldown.get(guildId);
-    const lastDisconnect = this.lastDisconnectTime.get(guildId);
-    
-    // Check if we're in a cooldown period
-    if (ghostCooldown) {
-      const cooldownRemaining = 30000 - (Date.now() - ghostCooldown); // Reduced from 60s to 30s
-      if (cooldownRemaining > 0) {
-        const remainingTime = Math.ceil(cooldownRemaining / 1000);
-        throw new Error(`Connection stabilizing after cleanup. Please wait ${remainingTime} more seconds.`);
-      } else {
-        // Cooldown expired, clear it
-        this.ghostConnectionCooldown.delete(guildId);
-        console.log('✅ Ghost connection cooldown expired, proceeding...');
-      }
-    }
-    
-    // If we recently disconnected, wait a bit longer for Discord to stabilize
-    if (lastDisconnect && (Date.now() - lastDisconnect) < 10000) {
-      console.log('⏳ Recent disconnect detected, waiting for Discord to stabilize...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-
-    const availableNode = await this.getBestAvailableNode();
-    if (!availableNode) {
-      throw new Error('No Lavalink nodes available. Please wait for the service to reconnect.');
-    }
-    
-    console.log(`✅ Using node: ${availableNode.name} (${this.getNodeStateText(availableNode.state)})`);
-    
-    this.switchingStations.add(guildId);
-    
-    try {
-      const connectionAttempts = this.connectionAttempts.get(guildId) || 0;
-      if (connectionAttempts >= 3) {
-        const waitTime = Math.min(60 + (connectionAttempts - 3) * 30, 180); // Reduced max wait from 300s to 180s
-        throw new Error(`Too many connection attempts. Please wait ${waitTime} seconds and try again.`);
-      }
-
-      const guild = this.client.guilds.cache.get(guildId);
-      const voiceChannel = guild.channels.cache.get(voiceChannelId);
-      
-      if (!voiceChannel) {
-        throw new Error('Voice channel not found');
-      }
-
-      // STRATEGY 1: Try to reuse existing player if it's healthy
-      const existingPlayer = this.client.shoukaku.players.get(guildId);
-      if (existingPlayer && this.isPlayerUsable(existingPlayer)) {
-        console.log('🎵 Found usable existing player, attempting reuse...');
-        
-        try {
-          await this.ensureCorrectVoiceChannel(existingPlayer, guild, voiceChannelId);
-          
-          if (existingPlayer.track) {
-            await existingPlayer.stopTrack();
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-          
-          const actualVolume = await this.setPlayerVolume(existingPlayer);
-          const result = await this.connectToStream(existingPlayer, stationKey);
-          
-          result.volume = actualVolume;
-          
-          this.connectionAttempts.delete(guildId);
-          console.log('✅ Successfully reused existing player');
-          return result;
-          
-        } catch (reuseError) {
-          console.warn('⚠️ Player reuse failed:', reuseError.message);
-          await this.safeCleanupPlayer(guildId, existingPlayer);
-          // Don't immediately retry, let it fall through to new connection
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-
-      // STRATEGY 2: Create new connection with nuclear cleanup if needed
-      console.log('🆕 Creating new connection...');
-      
-      // Use nuclear cleanup for persistent connection conflicts
-      const previousAttempts = this.connectionAttempts.get(guildId) || 0;
-      
-      if (previousAttempts >= 1) {
-        console.log('🚀 Previous connection attempts failed, using ULTIMATE cleanup...');
-        const ultimateSuccess = await this.performUltimateCleanup(guildId);
-        
-        if (!ultimateSuccess) {
-          throw new Error('Ultimate cleanup failed. The guild may need manual voice state reset.');
-        }
-      } else {
-        // Normal cleanup for first attempt
-        await this.handleGhostConnection(guildId);
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-      
-      const newPlayer = await this.createReliableConnection(guildId, voiceChannelId, guild, availableNode);
-      
-      const actualVolume = await this.setPlayerVolume(newPlayer);
-      const result = await this.connectToStream(newPlayer, stationKey);
-      
-      result.volume = actualVolume;
-      
-      this.connectionAttempts.delete(guildId);
-      this.nodeHealthCheck.set(availableNode.name, Date.now());
-      console.log('✅ Successfully created new connection');
-      return result;
-      
-    } catch (error) {
-      // IMPROVED: Better error classification and handling
-      const errorMsg = error.message.toLowerCase();
-      
-      if (errorMsg.includes('already connected') || 
-          errorMsg.includes('existing connection') || 
-          errorMsg.includes('already have') ||
-          errorMsg.includes('cannot join')) {
-        
-        console.log('👻 Connection conflict detected, performing cleanup...');
-        
-        // Perform immediate cleanup
-        try {
-          await this.handleGhostConnection(guildId);
-        } catch (cleanupError) {
-          console.warn('⚠️ Cleanup failed:', cleanupError.message);
-        }
-        
-        // Set a shorter cooldown since we did immediate cleanup
-        this.ghostConnectionCooldown.set(guildId, Date.now());
-        
-        throw new Error('Connection conflict resolved. Please try again in 15-30 seconds.');
-      }
-      
-      const newAttemptCount = (this.connectionAttempts.get(guildId) || 0) + 1;
-      this.connectionAttempts.set(guildId, newAttemptCount);
-      
-      if (availableNode) {
-        this.nodeHealthCheck.set(availableNode.name, Date.now());
-      }
-      
-      const clearTime = Math.min(60000 + (newAttemptCount - 1) * 15000, 180000); // Reduced scaling
-      setTimeout(() => {
-        this.connectionAttempts.delete(guildId);
-      }, clearTime);
-      
-      console.error('❌ Station switch failed:', error.message);
-      throw error;
-      
-    } finally {
-      this.switchingStations.delete(guildId);
-    }
-  }
-
-  async ensureCorrectVoiceChannel(player, guild, targetChannelId) {
-    const botMember = guild.members.me;
-    const currentChannelId = botMember?.voice?.channelId;
-    
-    if (currentChannelId === targetChannelId) {
-      console.log('✅ Bot already in correct voice channel');
-      return;
-    }
-    
-    console.log(`🚶 Moving from channel ${currentChannelId} to ${targetChannelId}`);
-    
-    try {
-      await botMember.voice.setChannel(targetChannelId);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const newChannelId = guild.members.me?.voice?.channelId;
-      if (newChannelId !== targetChannelId) {
-        throw new Error(`Channel move verification failed: expected ${targetChannelId}, got ${newChannelId}`);
-      }
-      
-      console.log('✅ Successfully moved to new voice channel');
-    } catch (moveError) {
-      console.error('❌ Voice channel move failed:', moveError.message);
-      throw new Error(`Could not join voice channel: ${moveError.message}`);
-    }
-  }
-
-  // ENHANCED: More robust connection creation with forced Discord state reset
-  async createReliableConnection(guildId, voiceChannelId, guild, preferredNode = null) {
-    console.log('🔗 Creating reliable connection with enhanced state management...');
-    
-    const targetNode = preferredNode || await this.getBestAvailableNode(5000);
-    if (!targetNode) {
-      throw new Error('No suitable Lavalink node available for new connection');
-    }
-    
-    console.log(`🎵 Connecting via node: ${targetNode.name}`);
-    
-    try {
-      // CRITICAL: Always force a disconnect attempt before connecting
-      // This handles Discord's internal state issues that aren't visible to us
-      console.log('🛡️ Performing aggressive pre-connection state reset...');
-      
-      const botMember = guild.members.me;
-      
-      // Force disconnect attempt (even if we don't think we're connected)
-      try {
-        console.log('🔌 Force disconnecting (even from invisible state)...');
-        await botMember.voice.disconnect();
-        console.log('✅ Force disconnect completed');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (disconnectError) {
-        console.log('✅ Force disconnect failed as expected (no connection to break)');
-      }
-      
-      // Double-check and force cleanup any remaining players
-      const prePlayer = this.client.shoukaku.players.get(guildId);
-      if (prePlayer) {
-        console.log('🧹 Final player cleanup before connection...');
-        await this.safeCleanupPlayer(guildId, prePlayer);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      // Additional Discord state settlement time
-      console.log('⏳ Allowing Discord state to fully settle...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Now attempt the connection
-      console.log('🚀 Attempting voice channel connection with clean state...');
-      
-      let player;
-      let connectionAttempts = 0;
-      const maxAttempts = 3;
-      
-      while (connectionAttempts < maxAttempts) {
-        try {
-          connectionAttempts++;
-          console.log(`🔄 Connection attempt ${connectionAttempts}/${maxAttempts}...`);
-          
-          player = await this.client.shoukaku.joinVoiceChannel({
-            guildId: guildId,
-            channelId: voiceChannelId,
-            shardId: guild.shardId
-          });
-          
-          if (player) {
-            console.log('✅ Initial connection created, stabilizing...');
-            break;
-          } else {
-            throw new Error('joinVoiceChannel returned null');
-          }
-          
-        } catch (attemptError) {
-          console.warn(`❌ Connection attempt ${connectionAttempts} failed: ${attemptError.message}`);
-          
-          if (connectionAttempts < maxAttempts) {
-            console.log(`⏳ Waiting before retry attempt...`);
-            
-            // On repeated failures, use ultimate cleanup
-            if (connectionAttempts >= 2) {
-              console.log('🚀 Multiple failures detected, performing ULTIMATE cleanup...');
-              const ultimateSuccess = await this.performUltimateCleanup(guildId);
-              
-              if (!ultimateSuccess) {
-                throw new Error('Ultimate cleanup failed - may need manual intervention or bot restart');
-              }
-            } else {
-              // Standard cleanup for first retry
-              const partialPlayer = this.client.shoukaku.players.get(guildId);
-              if (partialPlayer) {
-                await this.safeCleanupPlayer(guildId, partialPlayer);
-              }
-              
-              // Force another disconnect attempt
-              try {
-                await botMember.voice.disconnect();
-              } catch (err) {
-                // Expected
-              }
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 5000 * connectionAttempts));
-          } else {
-            throw attemptError;
-          }
-        }
-      }
-      
-      if (!player) {
-        throw new Error('Failed to create player after all attempts');
-      }
-      
-      // Enhanced stabilization with progressive verification
-      console.log('🔄 Stabilizing connection...');
-      await new Promise(resolve => setTimeout(resolve, 4000)); // Increased stabilization time
-      
-      // Verify the connection is actually working
-      if (player.destroyed) {
-        throw new Error('Player was destroyed immediately after creation');
-      }
-      
-      if (!player.node || player.node.state !== 2) {
-        throw new Error('Player node is not in connected state');
-      }
-      
-      // Enhanced voice connection verification with more attempts
-      let voiceVerified = false;
-      console.log('🔍 Verifying voice connection stability...');
-      
-      for (let attempt = 0; attempt < 8; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        const currentBotMember = guild.members.me;
-        if (currentBotMember?.voice?.channelId === voiceChannelId) {
-          voiceVerified = true;
-          console.log(`✅ Voice connection verified on attempt ${attempt + 1}`);
-          break;
-        }
-        
-        console.log(`⏳ Voice verification attempt ${attempt + 1}/8...`);
-      }
-      
-      if (!voiceVerified) {
-        console.warn('⚠️ Voice connection verification failed');
-        console.warn('⚠️ This may indicate Discord API delays or issues');
-        
-        // Don't fail immediately - give it one more chance
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        const finalCheck = guild.members.me?.voice?.channelId;
-        
-        if (finalCheck === voiceChannelId) {
-          console.log('✅ Final verification check passed!');
-          voiceVerified = true;
-        } else {
-          console.error('❌ Final verification failed - connection may be unstable');
-          // We'll proceed but warn
-        }
-      }
-      
-      console.log('✅ Enhanced connection established successfully');
-      return player;
-      
-    } catch (error) {
-      console.error('❌ Enhanced connection creation failed:', error.message);
-      
-      // Enhanced error classification
-      const errorMsg = error.message.toLowerCase();
-      
-      if (errorMsg.includes('missing permissions') || errorMsg.includes('no permission')) {
-        throw new Error('Bot missing voice permissions. Please check channel permissions.');
-      }
-      
-      if (errorMsg.includes('user limit') || errorMsg.includes('channel full')) {
-        throw new Error('Voice channel is full. Please make room or try another channel.');
-      }
-      
-      if (errorMsg.includes('already connected') || 
-          errorMsg.includes('existing connection') || 
-          errorMsg.includes('cannot join') ||
-          errorMsg.includes('already have')) {
-        
-        console.log('🔄 Persistent connection conflict - Discord state desync detected');
-        
-        // Set cooldown and provide better error message
-        this.ghostConnectionCooldown.set(guildId, Date.now());
-        
-        throw new Error('Discord voice state desync detected. This usually resolves in 30-60 seconds. Please try again later.');
-      }
-      
-      throw new Error(`Enhanced connection failed: ${error.message}`);
-    }
-  }
-
-  async safeCleanupPlayer(guildId, player) {
-    console.log('🧽 Safe player cleanup...');
-    
-    try {
-      if (player && !player.destroyed) {
-        if (player.track) {
-          await player.stopTrack();
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        await player.destroy();
-      }
-    } catch (error) {
-      console.warn('⚠️ Cleanup warning:', error.message);
-    }
-    
-    this.client.shoukaku.players.delete(guildId);
-    console.log('✅ Safe cleanup completed');
-  }
-
-  // Relaxed health check for reusing players
-  isPlayerUsable(player) {
-    return player && 
-           player.node && 
-           player.guildId && 
-           !player.destroyed &&
-           player.node.state === 2; // Require connected node for reuse
-  }
-
-  // Strict health check for status reporting
-  isPlayerHealthy(player) {
-    return player && 
-           player.node && 
-           player.node.state === 2 && 
-           player.guildId && 
-           !player.destroyed &&
-           player.voiceConnection;
-  }
-
-  getNodeStateText(state) {
-    const states = {
-      0: 'DISCONNECTED',
-      1: 'CONNECTING', 
-      2: 'CONNECTED',
-      3: 'RECONNECTING'
-    };
-    return states[state] || `UNKNOWN(${state})`;
-  }
-
   async getConnectionStatus(guildId) {
-    const player = this.client.shoukaku.players.get(guildId);
+    const connection = this.persistentConnections.get(guildId);
+    const player = connection?.player;
     const guild = this.client.guilds.cache.get(guildId);
     const botMember = guild?.members.cache.get(this.client.user.id);
     
@@ -871,30 +688,47 @@ export class SimpleRadioManager {
     const nodeStates = nodes ? Array.from(nodes.values()).map(node => ({
       name: node.name,
       state: node.state,
-      stateText: this.getNodeStateText(node.state),
+      stateText: ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'RECONNECTING'][node.state] || 'UNKNOWN',
       healthy: node.state === 2
     })) : [];
     
-    const ghostCooldown = this.ghostConnectionCooldown.get(guildId);
-    const lastDisconnect = this.lastDisconnectTime.get(guildId);
-    
     return {
       hasPlayer: !!player,
-      playerUsable: this.isPlayerUsable(player),
-      playerHealthy: this.isPlayerHealthy(player),
-      playerState: player?.voiceConnection?.state,
+      hasPersistentConnection: !!connection,
+      playerDestroyed: player?.destroyed,
+      playerPlaying: !!player?.track,
       inVoiceChannel: !!botMember?.voice.channel,
       voiceChannelId: botMember?.voice.channel?.id,
       voiceChannelName: botMember?.voice.channel?.name,
       isSwitching: this.switchingStations.has(guildId),
-      recentAttempts: this.connectionAttempts.get(guildId) || 0,
-      ghostCooldown: ghostCooldown ? Math.max(0, 30000 - (Date.now() - ghostCooldown)) : 0,
-      lastDisconnect: lastDisconnect ? Date.now() - lastDisconnect : null,
+      persistentConnections: this.persistentConnections.size,
+      activeHealthChecks: this.streamHealthChecks.size,
       nodes: nodeStates,
       connectedNodes: nodeStates.filter(n => n.healthy).length,
       totalNodes: nodeStates.length,
       defaultVolume: this.defaultVolume,
-      volumeRange: '1-200%'
+      lastUsed: connection?.lastUsed,
+      connectionAge: connection ? Date.now() - connection.created : null
     };
+  }
+
+  // Graceful shutdown
+  async shutdown() {
+    console.log('🛑 Shutting down radio manager...');
+    
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+    
+    for (const [guildId, intervalId] of this.streamHealthChecks.entries()) {
+      clearInterval(intervalId);
+    }
+    this.streamHealthChecks.clear();
+    
+    for (const [guildId] of this.persistentConnections.entries()) {
+      await this.cleanupPersistentConnection(guildId);
+    }
+    
+    console.log('✅ Radio manager shutdown complete');
   }
 }
