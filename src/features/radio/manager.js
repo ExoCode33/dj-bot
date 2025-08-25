@@ -167,6 +167,122 @@ export class SimpleRadioManager {
     return null;
   }
 
+  // FIXED: Enhanced ghost connection handling with Discord state synchronization
+  async handleGhostConnection(guildId) {
+    console.log(`👻 Comprehensive ghost connection cleanup for guild ${guildId}`);
+    
+    try {
+      const guild = this.client.guilds.cache.get(guildId);
+      if (!guild) {
+        console.warn(`⚠️ Guild ${guildId} not found during ghost cleanup`);
+        return;
+      }
+
+      let cleanupNeeded = false;
+
+      // Step 1: Check and clean up Lavalink player
+      const existingPlayer = this.client.shoukaku.players.get(guildId);
+      if (existingPlayer) {
+        console.log('👻 Found ghost Lavalink player, destroying...');
+        try {
+          if (!existingPlayer.destroyed) {
+            if (existingPlayer.track) {
+              await existingPlayer.stopTrack();
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            await existingPlayer.destroy();
+          }
+        } catch (error) {
+          console.warn('⚠️ Error destroying ghost player:', error.message);
+        }
+        
+        this.client.shoukaku.players.delete(guildId);
+        cleanupNeeded = true;
+        console.log('✅ Ghost Lavalink player cleaned up');
+      }
+
+      // Step 2: Check and clean up Discord voice connection
+      const botMember = guild.members.me;
+      if (botMember?.voice?.channel) {
+        console.log(`👻 Bot appears to be in voice channel: ${botMember.voice.channel.name}`);
+        console.log('👻 Attempting to disconnect from ghost voice connection...');
+        
+        try {
+          await botMember.voice.disconnect();
+          cleanupNeeded = true;
+          console.log('✅ Successfully disconnected from ghost voice connection');
+        } catch (error) {
+          console.warn('⚠️ Could not disconnect from ghost voice connection:', error.message);
+          
+          // Try alternative disconnect method
+          try {
+            await botMember.voice.setChannel(null);
+            cleanupNeeded = true;
+            console.log('✅ Alternative disconnect method succeeded');
+          } catch (altError) {
+            console.error('❌ All disconnect methods failed:', altError.message);
+          }
+        }
+      }
+
+      // Step 3: CRITICAL - Force cleanup Discord's internal voice state
+      // Even if no visible connection, Discord may have internal state conflicts
+      if (!cleanupNeeded) {
+        console.log('👻 No visible connections, but checking for hidden Discord voice state...');
+        try {
+          // Force a disconnect attempt even if we don't see a connection
+          await botMember.voice.disconnect();
+          console.log('✅ Forced disconnect of hidden voice state');
+          cleanupNeeded = true;
+        } catch (error) {
+          // This is expected if there's really no connection
+          console.log('✅ No hidden voice state found (this is good)');
+        }
+      }
+
+      if (cleanupNeeded) {
+        // Record the cleanup time
+        this.lastDisconnectTime.set(guildId, Date.now());
+        
+        // Wait longer for Discord to fully process the disconnection
+        console.log('⏳ Waiting for Discord to process ghost connection cleanup...');
+        await new Promise(resolve => setTimeout(resolve, 7000)); // Increased to 7 seconds
+        
+        // Verify cleanup was successful with multiple checks
+        let verificationPassed = true;
+        
+        const finalCheck = guild.members.me?.voice?.channel;
+        const finalPlayer = this.client.shoukaku.players.get(guildId);
+        
+        if (finalCheck) {
+          console.warn(`⚠️ Bot still appears connected to ${finalCheck.name} after cleanup`);
+          verificationPassed = false;
+        }
+        
+        if (finalPlayer) {
+          console.warn(`⚠️ Player still exists after cleanup attempt`);
+          verificationPassed = false;
+        }
+        
+        if (verificationPassed) {
+          console.log('✅ Ghost connection cleanup fully verified');
+          this.ghostConnectionCooldown.delete(guildId);
+        } else {
+          console.warn('⚠️ Cleanup verification failed, setting extended cooldown');
+          this.ghostConnectionCooldown.set(guildId, Date.now());
+        }
+      } else {
+        console.log('✅ No ghost connections detected, but performing precautionary wait...');
+        // Even if no cleanup was needed, wait a bit for Discord state consistency
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+    } catch (error) {
+      console.error('❌ Ghost connection cleanup failed:', error.message);
+      this.ghostConnectionCooldown.set(guildId, Date.now());
+    }
+  }
+
   // NUCLEAR OPTION: Complete state reset including Shoukaku internals
   async performNuclearCleanup(guildId) {
     console.log(`☢️ Performing nuclear cleanup for guild ${guildId}`);
