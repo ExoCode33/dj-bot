@@ -1,4 +1,4 @@
-// src/features/radio/manager.js - FIXED VERSION WITH RELAXED HEALTH CHECK
+// src/features/radio/manager.js - FIXED VERSION THAT HANDLES GHOST CONNECTIONS
 import { RADIO_STATIONS } from '../../config/stations.js';
 
 export class SimpleRadioManager {
@@ -8,6 +8,7 @@ export class SimpleRadioManager {
     this.switchingStations = new Set();
     this.connectionAttempts = new Map();
     this.nodeHealthCheck = new Map();
+    this.ghostConnectionCooldown = new Map(); // Track ghost connections
   }
 
   async connectToStream(player, stationKey) {
@@ -54,7 +55,6 @@ export class SimpleRadioManager {
       
       const allNodes = Array.from(nodes.values());
       const connectedNodes = allNodes.filter(node => node.state === 2);
-      const reconnectingNodes = allNodes.filter(node => node.state === 3);
       
       if (connectedNodes.length > 0) {
         const healthyNodes = connectedNodes.filter(node => {
@@ -65,18 +65,6 @@ export class SimpleRadioManager {
         const chosenNode = healthyNodes.length > 0 ? healthyNodes[0] : connectedNodes[0];
         console.log(`✅ Using healthy connected node: ${chosenNode.name} (state: ${this.getNodeStateText(chosenNode.state)})`);
         return chosenNode;
-      }
-      
-      if (reconnectingNodes.length > 0) {
-        const waitTime = Date.now() - startTime;
-        if (waitTime < 10000) {
-          console.log(`⏳ Waiting for reconnecting nodes... (${Math.ceil((10000 - waitTime) / 1000)}s remaining)`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          continue;
-        } else {
-          console.warn('⚠️ Reconnecting nodes taking too long, will create connection without them');
-          break;
-        }
       }
       
       const nodeStates = allNodes.map(node => `${node.name}: ${this.getNodeStateText(node.state)}`).join(', ');
@@ -101,11 +89,62 @@ export class SimpleRadioManager {
     return null;
   }
 
+  // ENHANCED: Handle ghost connections properly
+  async handleGhostConnection(guildId) {
+    console.log(`👻 Checking for ghost connection in guild ${guildId}`);
+    
+    try {
+      // Check if there's a player that shouldn't exist
+      const existingPlayer = this.client.shoukaku.players.get(guildId);
+      if (existingPlayer) {
+        console.log('👻 Found ghost player, cleaning up...');
+        try {
+          await existingPlayer.destroy();
+        } catch (error) {
+          console.warn('⚠️ Error destroying ghost player:', error.message);
+        }
+        this.client.shoukaku.players.delete(guildId);
+      }
+      
+      // Check Discord voice state
+      const guild = this.client.guilds.cache.get(guildId);
+      if (guild) {
+        const botMember = guild.members.me;
+        if (botMember?.voice?.channel) {
+          console.log(`👻 Bot appears to be in voice channel: ${botMember.voice.channel.name}`);
+          console.log('👻 Attempting to leave ghost connection...');
+          
+          try {
+            await botMember.voice.disconnect();
+            console.log('✅ Successfully disconnected from ghost connection');
+          } catch (error) {
+            console.warn('⚠️ Could not disconnect from ghost connection:', error.message);
+          }
+        }
+      }
+      
+      // Wait for Discord to process the disconnection
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      console.log('✅ Ghost connection cleanup completed');
+      
+    } catch (error) {
+      console.error('❌ Ghost connection cleanup failed:', error.message);
+    }
+  }
+
   async switchToStation(guildId, stationKey, voiceChannelId) {
     console.log(`🔄 Switching to station: ${stationKey} for guild ${guildId}`);
     
     if (this.switchingStations.has(guildId)) {
       throw new Error('Already switching stations, please wait...');
+    }
+    
+    // Check for ghost connection cooldown
+    const ghostCooldown = this.ghostConnectionCooldown.get(guildId);
+    if (ghostCooldown && Date.now() - ghostCooldown < 60000) {
+      const remainingTime = Math.ceil((60000 - (Date.now() - ghostCooldown)) / 1000);
+      throw new Error(`Ghost connection cleanup in progress. Please wait ${remainingTime} more seconds.`);
     }
     
     const availableNode = await this.getBestAvailableNode();
@@ -131,9 +170,12 @@ export class SimpleRadioManager {
         throw new Error('Voice channel not found');
       }
 
-      // STRATEGY 1: Try to reuse existing player
+      // ENHANCED: Always check for ghost connections first
+      await this.handleGhostConnection(guildId);
+
+      // STRATEGY 1: Try to reuse existing player (only if it's actually healthy)
       const existingPlayer = this.client.shoukaku.players.get(guildId);
-      if (existingPlayer && this.isPlayerUsable(existingPlayer)) {  // CHANGED: Use relaxed check
+      if (existingPlayer && this.isPlayerUsable(existingPlayer)) {
         console.log('🎵 Found usable existing player...');
         
         try {
@@ -153,17 +195,15 @@ export class SimpleRadioManager {
           
         } catch (reuseError) {
           console.warn('⚠️ Player reuse failed:', reuseError.message);
+          // Clean up failed player
+          await this.safeCleanupPlayer(guildId, existingPlayer);
         }
       }
 
-      // STRATEGY 2: Create new connection
-      console.log('🆕 Creating new connection...');
+      // STRATEGY 2: Create new connection with ghost protection
+      console.log('🆕 Creating new connection with ghost protection...');
       
-      if (existingPlayer) {
-        await this.safeCleanupPlayer(guildId, existingPlayer);
-      }
-      
-      const newPlayer = await this.createSmartConnection(guildId, voiceChannelId, guild, availableNode);
+      const newPlayer = await this.createSmartConnectionWithGhostProtection(guildId, voiceChannelId, guild, availableNode);
       
       await newPlayer.setGlobalVolume(this.defaultVolume);
       const result = await this.connectToStream(newPlayer, stationKey);
@@ -174,6 +214,19 @@ export class SimpleRadioManager {
       return result;
       
     } catch (error) {
+      // Handle ghost connection errors specifically
+      if (error.message.includes('already have') || error.message.includes('existing connection')) {
+        console.log('👻 Ghost connection detected, scheduling cleanup...');
+        this.ghostConnectionCooldown.set(guildId, Date.now());
+        
+        // Attempt immediate cleanup
+        setTimeout(async () => {
+          await this.handleGhostConnection(guildId);
+        }, 1000);
+        
+        throw new Error('Ghost connection detected. I\'ve started cleanup - please wait 60 seconds and try again.');
+      }
+      
       const attempts = (this.connectionAttempts.get(guildId) || 0) + 1;
       this.connectionAttempts.set(guildId, attempts);
       
@@ -221,20 +274,41 @@ export class SimpleRadioManager {
     }
   }
 
-  // FIXED: More relaxed connection creation with better health checks
-  async createSmartConnection(guildId, voiceChannelId, guild, preferredNode = null) {
-    console.log('🧠 Creating smart connection...');
+  // NEW: Smart connection with ghost protection
+  async createSmartConnectionWithGhostProtection(guildId, voiceChannelId, guild, preferredNode = null) {
+    console.log('🛡️ Creating connection with ghost protection...');
     
     const targetNode = preferredNode || await this.getBestAvailableNode(5000);
     if (!targetNode) {
       throw new Error('No suitable Lavalink node available for new connection');
     }
     
-    console.log(`🎵 Creating connection via node: ${targetNode.name}`);
+    console.log(`🎵 Creating protected connection via node: ${targetNode.name}`);
     
+    // Wait before attempting connection
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     try {
+      // Double-check for ghost connections right before creating
+      const existingPlayer = this.client.shoukaku.players.get(guildId);
+      if (existingPlayer) {
+        console.log('🛡️ Last-second ghost player detected, cleaning up...');
+        await this.safeCleanupPlayer(guildId, existingPlayer);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // Check Discord voice state
+      const botMember = guild.members.me;
+      if (botMember?.voice?.channel) {
+        console.log('🛡️ Bot already in a voice channel, disconnecting first...');
+        try {
+          await botMember.voice.disconnect();
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } catch (error) {
+          console.warn('⚠️ Could not pre-disconnect:', error.message);
+        }
+      }
+      
       const player = await this.client.shoukaku.joinVoiceChannel({
         guildId: guildId,
         channelId: voiceChannelId,
@@ -242,51 +316,55 @@ export class SimpleRadioManager {
       });
       
       if (player) {
-        console.log('✅ Smart connection created successfully');
+        console.log('✅ Protected connection created successfully');
         
         // Enhanced stabilization with progressive checks
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // RELAXED CHECK: Just verify basic properties exist
+        // Relaxed check but with verification
         if (player.node && player.guildId && !player.destroyed) {
           console.log('✅ Basic player health check passed');
           
-          // Additional wait for voice connection to stabilize
+          // Verify voice connection with retries
           let retries = 0;
-          while (retries < 5) {
+          while (retries < 3) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Check if we can get voice connection info
-            const guild = this.client.guilds.cache.get(guildId);
-            const botMember = guild?.members.me;
-            
-            if (botMember?.voice?.channelId === voiceChannelId) {
-              console.log('✅ Voice connection verified');
+            const currentBotMember = guild.members.me;
+            if (currentBotMember?.voice?.channelId === voiceChannelId) {
+              console.log('✅ Voice connection verified and stable');
               return player;
             }
             
             retries++;
-            console.log(`⏳ Waiting for voice connection... (${retries}/5)`);
+            console.log(`⏳ Verifying voice connection... (${retries}/3)`);
           }
           
-          // Even if voice connection isn't perfect, try to use the player
-          console.warn('⚠️ Voice connection not fully verified, but proceeding with player');
+          // If verification failed but player exists, still try to use it
+          console.warn('⚠️ Voice connection not fully verified, but player seems functional');
           return player;
         }
       }
       
-      throw new Error('Player creation failed basic checks');
+      throw new Error('Protected connection failed basic validation');
       
     } catch (error) {
-      if (error.message.includes('existing connection') || error.message.includes('already have')) {
-        throw new Error('Discord voice system needs to reset. Please wait 60 seconds and try again.');
+      // Enhanced ghost connection detection
+      if (error.message.includes('existing connection') || 
+          error.message.includes('already have') || 
+          error.message.includes('already connected') ||
+          error.message.includes('Cannot join a voice channel when already connected')) {
+        
+        console.log('👻 Ghost connection error detected');
+        this.ghostConnectionCooldown.set(guildId, Date.now());
+        throw new Error('Ghost connection detected. Cleanup scheduled - please wait 60 seconds and try again.');
       }
       
       if (error.message.includes('Missing Permissions')) {
         throw new Error('Bot missing voice permissions. Please check channel permissions.');
       }
       
-      throw new Error(`Connection failed: ${error.message}`);
+      throw new Error(`Protected connection failed: ${error.message}`);
     }
   }
 
@@ -310,16 +388,15 @@ export class SimpleRadioManager {
     console.log('✅ Safe cleanup completed');
   }
 
-  // RELAXED: More permissive health check for reusing players
+  // Relaxed health check for reusing players
   isPlayerUsable(player) {
     return player && 
            player.node && 
            player.guildId && 
            !player.destroyed;
-    // REMOVED: Strict voice connection and node state checks
   }
 
-  // STRICT: Full health check for status reporting
+  // Strict health check for status reporting
   isPlayerHealthy(player) {
     return player && 
            player.node && 
@@ -352,16 +429,19 @@ export class SimpleRadioManager {
       healthy: node.state === 2
     })) : [];
     
+    const ghostCooldown = this.ghostConnectionCooldown.get(guildId);
+    
     return {
       hasPlayer: !!player,
-      playerUsable: this.isPlayerUsable(player),    // NEW: Relaxed check
-      playerHealthy: this.isPlayerHealthy(player),  // EXISTING: Strict check
+      playerUsable: this.isPlayerUsable(player),
+      playerHealthy: this.isPlayerHealthy(player),
       playerState: player?.voiceConnection?.state,
       inVoiceChannel: !!botMember?.voice.channel,
       voiceChannelId: botMember?.voice.channel?.id,
       voiceChannelName: botMember?.voice.channel?.name,
       isSwitching: this.switchingStations.has(guildId),
       recentAttempts: this.connectionAttempts.get(guildId) || 0,
+      ghostCooldown: ghostCooldown ? Math.max(0, 60000 - (Date.now() - ghostCooldown)) : 0,
       nodes: nodeStates,
       connectedNodes: nodeStates.filter(n => n.healthy).length,
       totalNodes: nodeStates.length
